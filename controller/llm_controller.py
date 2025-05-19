@@ -64,6 +64,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target object", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
@@ -109,10 +110,11 @@ class LLMController():
 
         print(f'>> GOTO x {x} {type(x)}')
 
-        if x > 0.55:
-            self.drone.turn_cw(int((x - 0.5) * 70))
-        elif x < 0.45:
-            self.drone.turn_ccw(int((0.5 - x) * 70))
+        if type(x) is float:
+            if x > 0.55:
+                self.drone.turn_cw(int((x - 0.5) * 70))
+            elif x < 0.45:
+                self.drone.turn_ccw(int((0.5 - x) * 70))
 
         self.drone.move_forward(110)
         return None, False
