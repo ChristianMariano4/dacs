@@ -1,7 +1,11 @@
+import json
+import os
 import re
 from enum import Enum
 from typing import Optional, List, Union
 from .abs.skill_item import SkillItem, SkillArg
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class SkillSetLevel(Enum):
     LOW = "low"
@@ -12,7 +16,7 @@ class SkillSet():
         self.skills = {}
         self.level = SkillSetLevel(level)
         self.lower_level_skillset = lower_level_skillset
-    
+
     def get_skill(self, skill_name: str) -> Optional[SkillItem]:
         """Returns a SkillItem by its name or abbr."""
         skill = None
@@ -22,6 +26,11 @@ class SkillSet():
             skill = self.skills.get(SkillItem.abbr_dict[skill_name])
         return skill
     
+    def update(self):
+        with open(os.path.join(CURRENT_DIR, f"assets/tello/high_level_skills.json"), "r") as f:
+            json_data = json.load(f)
+            self.add_skill(HighLevelSkillItem.load_from_dict(json_data[-1]))
+
     def add_skill(self, skill_item: SkillItem):
         """Adds a SkillItem to the set."""
         if skill_item.skill_name in self.skills:

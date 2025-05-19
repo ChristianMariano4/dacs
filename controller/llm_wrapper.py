@@ -21,7 +21,7 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, prompt, model_name=GPT4, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, prompt, model_name=GPT3, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
