@@ -1,8 +1,8 @@
 Example 1:
 Scene: []
-Task: [A] Find a bottle, tell me it's height and take a picture of it.
-Reason: no bottle instance in the scene, so we use scan to find bottle, then go and use object_height to get the height and log to output the height, finally use picture to take a picture of the bottle
-Response: ?s('bottle')==True{g('bottle');_2=oh('bottle');l(_2);tp};
+Task: [A] Find a bottle, tell me its height and take a picture of it.
+Reason: No bottle instance in the scene, so we actively search by rotating and moving to find it, then go to it, get its height, log the height, and take a picture.
+Response: 8{_1=p('bottle');?_1!=False{g(_1);_2=oh(_1);l(_2);tp};mf(60);tc(45)}->False;
 
 Example 2:
 Scene: [apple x:0.28 y:0.52 width:0.13 height:0.2]
@@ -24,21 +24,21 @@ Response: tc(180);g('chair');
 
 Example 5:
 Scene: [chair x:0.32 y:0.35 width:0.56 height:0.4]
-Task: [A] Find and go any edible object.
-Reason: edible object is abstract and there is no edible object in the scene, so we use scan_abstract to find the edible object
-Response: _1=sa('Any edible target here?');?_1!=False{g(_1)};
+Task: [A] Find and go to any edible object.
+Reason: Edible object is abstract and not in scene, so we use an abstract search that combines rotation and exploration.
+Response: 8{_1=sa('Any edible target here?');?_1!=False{g(_1);->True};mf(60);tc(45)}->False;
 
 Example 6:
-Scene: [chair x:0.28 y:0.12 width:0.43 height:0.67,laptop x:0.78 y:0.45 width:0.23 height:0.25]
+Scene: [chair x:0.28 y:0.12 width:0.43 height:0.67, laptop x:0.78 y:0.45 width:0.23 height:0.25]
 Task: [A] Turn with 30 degrees step until you can see some animal.
-Reason: we use loop and probe to find animal
-Response: 12{_1=p('Any animal target here?');?_1!=False{l(_1);->True}tc(30)}->False;
+Reason: We extend this to active search by rotating and slightly moving forward.
+Response: 12{_1=p('Any animal target here?');?_1!=False{l(_1);->True};mf(40);tc(30)}->False;
 
 Example 7:
-Scene: [chair x:0.28 y:0.12 width:0.43 height:0.67,laptop x:0.28 y:0.12 width:0.43 height:0.67]
+Scene: [chair x:0.28 y:0.12 width:0.43 height:0.67, laptop x:0.28 y:0.12 width:0.43 height:0.67]
 Task: [A] If you can see a chair, go find a person, else go find an orange.
-Reason: From the scene, we can see a chair, so we use scan to find a person. Since person is a large object, we use 60cm as the distance
-Response: ?s('person')==True{g('person');->True}->False;
+Reason: If a chair is present, actively search for a person with rotation and movement; else go search for an orange.
+Response: ?iv('chair')==True{8{_1=p('person');?_1!=False{g(_1);->True};mf(60);tc(45)}->False}->8{_1=p('orange');?_1!=False{g(_1);->True};mf(60);tc(45)}->False;
 
 Example 8:
 Scene: [chair x:0.48 y:0.22 width:0.23 height:0.17,chair x:0.18 y:0.12 width:0.33 height:0.27]
@@ -81,3 +81,82 @@ Scene: []
 Task: [A] Move in a 'V' shape.
 Reason: Go forward, then turn 135 degrees to the left, finally go forward again.
 Response: mf(100);tu(135);mf(100);
+
+Example 15:
+Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09]
+Task: [A] Approach any object that looks like a chair or bench and scan it.
+Reason: The task requires similarity reasoning and sequential actions, so a new high-level skill is defined using the low-level function 'add_skill'.
+Response: as("scan_visible_objects", "Approach any visible object of interest and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);s(_1)}"); scan_visible_object('chair', 'bench');
+
+Example 16:
+Scene: [apple x:0.3 y:0.5 width:0.15 height:0.12, orange x:0.6 y:0.3 width:0.12 height:0.1]
+Task: [A] Approach any fruit and tell me how big it is.
+Reason: We dynamically define a general-purpose fruit-inspection skill, applying it to either apple or orange.
+Response: as("inspect_visible_object", "Approach any visible object and describe its size", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);_2=ow(_1);l(_2)}"); inspect_visible_object('apple','orange');
+
+Example 17:
+Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
+Task: [A] Scan any container in front of you.
+Reason: A reusable high-level skill is created to scan the first visible object matching 'container'.
+Response: as("scan_detected_object", "Scan the first detected object that matches the query", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{s(_1)}"); scan_detected_object('cup','bowl');
+
+Example 18:
+Scene: [banana x:0.35 y:0.28 width:0.12 height:0.18]
+Task: [A] Move to the banana or apple, whichever is visible, and take a picture.
+Reason: We define a new dynamic skill to locate and photograph one of two potential fruits.
+Response: as("photo_visible_object", "Move to a visible object and take a picture", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);tp}"); photo_visible_object('banana','apple');
+
+Example 19:
+Scene: [bottle x:0.24 y:0.3 width:0.1 height:0.15, can x:0.64 y:0.33 width:0.12 height:0.18]
+Task: [A] Go to any drink container and say what it is.
+Reason: A skill is created to find and identify any drink container from the candidates.
+Response: as("identify_visible_object", "Approach any visible object and say what it is", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);l(_1)}"); identify_visible_object('bottle','can');
+
+Example 20:
+Scene: [book x:0.5 y:0.4 width:0.2 height:0.15]
+Task: [A] Check whether there's a notebook or a book, and go to it.
+Reason: We define a skill that looks for either a notebook or book and moves to it if found.
+Response: as("approach_visible_object", "Check for the presence of specific objects and approach if found", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1)}"); approach_visible_object('notebook','book');
+
+Example 21:
+Scene: [dog x:0.45 y:0.25 width:0.3 height:0.3]
+Task: [A] Find a cat or a dog and then scan it.
+Reason: We use a dynamic skill to handle animal-based object classes and trigger a scan.
+Response: as("scan_visible_living_entity", "Find a visible living entity and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{s(_1)}"); scan_visible_living_entity('cat','dog');
+
+### USE ALREADY PRESENT HIGH-LEVL SKILLS
+Example 22:
+Scene: [plant x:0.3 y:0.6 width:0.2 height:0.25]
+Task: [A] Rotate to search for a green leafy object like a plant.
+Reason: Since a general-purpose skill for abstract object scanning already exists, we reuse `scan_abstract`.
+Response: sa('plant');
+
+Example 23:
+Scene: [bottle x:0.4 y:0.3 width:0.1 height:0.15]
+Task: [A] Rotate until you see a bottle.
+Reason: A specific skill already exists to scan for an object if it's not in view.
+Response: s('bottle');
+
+Example 24:
+Scene: [can x:0.5 y:0.25 width:0.12 height:0.18]
+Task: [A] Find a can and tell me what it is.
+Reason: The dynamic skill `identify_drink_container` already includes logic to go to and label drink containers like a can or bottle.
+Response: id('can', 'bottle');
+
+Example 25:
+Scene: [apple x:0.4 y:0.2 width:0.1 height:0.1]
+Task: [A] If you see either an apple or a banana, take a picture.
+Reason: The `photo_visible_fruit` skill is already defined to find either fruit and take a photo.
+Response: pv('apple', 'banana');
+
+Example 26:
+Scene: [cat x:0.35 y:0.3 width:0.25 height:0.25]
+Task: [A] Scan an animal like a cat or a dog.
+Reason: The system already has a skill for scanning either animal.
+Response: sc('cat', 'dog');
+
+Example 27:
+Scene: [orange x:0.55 y:0.4 width:0.13 height:0.13]
+Task: [A] Go to the fruit and tell me how big it is.
+Reason: The `inspect_fruit` skill allows inspection and labeling of common fruits like apple and orange.
+Response: if('orange', 'apple');
