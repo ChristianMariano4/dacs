@@ -1,7 +1,8 @@
+import json
 import os, ast
 from typing import Optional
 
-from .skillset import SkillSet
+from .skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import LLMWrapper, GPT3, GPT4
 from .vision_skill_wrapper import VisionSkillWrapper
 from .utils import print_t
@@ -13,7 +14,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 class LLMPlanner():
     def __init__(self, robot_type: RobotType):
         self.llm = LLMWrapper()
-        self.model_name = GPT4
+        self.model_name = GPT3
 
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
@@ -47,6 +48,15 @@ class LLMPlanner():
 
         if scene_description is None:
             scene_description = self.vision_skill.get_obj_list()
+
+        type_folder_name = 'tello'
+        self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
+        HighLevelSkillItem.abbr_dict = {}
+        with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
+            json_data = json.load(f)
+            for skill in json_data:
+                self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+                
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
                                              system_skill_description_low=self.low_level_skillset,
                                              guides=self.guides,
