@@ -4,7 +4,7 @@ RUN apt install -y nano wget
 RUN pip install grpcio-tools quart
 
 # copy the contents of the current project to /workspace
-COPY ../.. /workspace
+COPY . /workspace
 
 # set the working directory to /workspace
 WORKDIR /workspace
