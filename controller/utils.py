@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 import datetime
 
 def print_t(*args, **kwargs):
@@ -20,9 +20,10 @@ def split_args(arg_str: str) -> list[str]:
         current_arg = ''
         parentheses_count = 0  # Keep track of open parentheses
 
-        if arg_str.startswith('\'') and arg_str.endswith('\''):
-            args.append(arg_str)
-            return args
+        # flag = 'chair' in arg_str
+
+        if ',' in arg_str or (arg_str.startswith('\'') and arg_str.endswith('\'')):
+            return [a.strip().strip('\'"') for a in arg_str.split(',')]
 
         for char in arg_str:
             if char == ',' and parentheses_count == 0:

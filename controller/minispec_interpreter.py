@@ -1,3 +1,5 @@
+import json
+import os
 from typing import List, Tuple, Union
 import re, queue
 from enum import Enum
@@ -6,7 +8,7 @@ from typing import Optional
 from threading import Thread
 from queue import Queue
 from openai import ChatCompletion, Stream
-from .skillset import SkillSet
+from .skillset import HighLevelSkillItem, SkillSet
 from .utils import split_args, print_t
 
 
@@ -31,6 +33,7 @@ def evaluate_value(value: str) -> MiniSpecValueType:
         return value.strip('\'"')
 
 class MiniSpecReturnValue:
+    # The replan flag is used to signal if execution should stop and ask GPT for a new plan
     def __init__(self, value: MiniSpecValueType, replan: bool):
         self.value = value
         self.replan = replan
@@ -52,6 +55,7 @@ class ParsingState(Enum):
     SUB_STATEMENTS = 4
 
 class MiniSpecProgram:
+    # Represents a full parsed MiniSpec program.
     def __init__(self, env: Optional[dict] = None, mq: queue.Queue = None) -> None:
         self.statements: List[Statement] = []
         self.depth = 0
@@ -89,6 +93,7 @@ class MiniSpecProgram:
                     self.depth -= 1
         return False
     
+    # Executes the list one by one
     def eval(self) -> MiniSpecReturnValue:
         print_debug(f'Eval program: {self}, finished: {self.finished}')
         ret_val = MiniSpecReturnValue.default()
@@ -125,6 +130,8 @@ class Statement:
     def __init__(self, env: dict) -> None:
         self.code_buffer: str = ''
         self.parsing_state: ParsingState = ParsingState.CODE
+        self.in_string: Optional[str] = None  # None if outside, otherwise "'" or '"'
+        self.new_skill_adding: bool = False
         self.condition: Optional[str] = None
         self.loop_count: Optional[int] = None
         self.action: str = ''
@@ -142,12 +149,19 @@ class Statement:
 
     def parse(self, code: str, exec: bool = False) -> bool:
         for c in code:
+            # # Toggle in_string status
+            if c in ('"', "'"):
+                if self.in_string is None:
+                    self.in_string = c
+                elif self.in_string == c:
+                    self.in_string = None
+
             match self.parsing_state:
                 case ParsingState.CODE:
-                    if c == '?' and not self.read_argument:
+                    if c == '?' and not self.read_argument and self.in_string is None:
                         self.action = 'if'
                         self.parsing_state = ParsingState.CONDITION
-                    elif c == ';' or c == '}' or c == ')':
+                    elif (c == ';' or c == '}' or c == ')') and self.in_string is None:
                         if c == ')':
                             self.code_buffer += c
                             self.read_argument = False
@@ -167,7 +181,7 @@ class Statement:
                         self.action = 'loop'
                         self.parsing_state = ParsingState.LOOP_COUNT
                 case ParsingState.CONDITION:
-                    if c == '{':
+                    if c == '{' and self.in_string is None:
                         print_debug(f'SP Condition: {self.code_buffer}')
                         self.condition = self.code_buffer
                         self.executable = True
@@ -178,7 +192,7 @@ class Statement:
                     else:
                         self.code_buffer += c
                 case ParsingState.LOOP_COUNT:
-                    if c == '{':
+                    if c == '{' and self.in_string is None:
                         print_debug(f'SP Loop: {self.code_buffer}')
                         self.loop_count = int(self.code_buffer)
                         self.executable = True
@@ -246,12 +260,14 @@ class Statement:
         # append to execution state queue
         func = func.split('(', 1)
         name = func[0].strip()
+        # input(f"Here:{func}")
         if len(func) == 2:
             args = func[1].strip()[:-1]
             args = split_args(args)
+            # print(args)
             for i in range(0, len(args)):
                 args[i] = args[i].strip().strip('\'"')
-                if args[i].startswith('_'):
+                if args[i].startswith('_') and ";" not in args[i]: #TODO: to check ";" part
                     args[i] = self.get_env_value(args[i])
         else:
             args = []
@@ -266,7 +282,10 @@ class Statement:
             skill_instance = Statement.low_level_skillset.get_skill(name)
             if skill_instance is not None:
                 print_debug(f'Executing low-level skill: {skill_instance.get_name()} {args}')
-                return MiniSpecReturnValue.from_tuple(skill_instance.execute(args))
+                return_value = MiniSpecReturnValue.from_tuple(skill_instance.execute(args))
+                if skill_instance.get_name() == 'add_skill':
+                    Statement.high_level_skillset.update()
+                return return_value
 
             skill_instance = Statement.high_level_skillset.get_skill(name)
             if skill_instance is not None:
@@ -283,11 +302,16 @@ class Statement:
     def eval_expr(self, var: str) -> MiniSpecReturnValue:
         print_t(f'Eval expr: {var}')
         var = var.strip()
-        if var.startswith('->'):
+
+        if var.startswith('as'):
+            self.new_skill_adding = True
+        else:
+            self.new_skill_adding = False
+
+        if not self.new_skill_adding and var.startswith('->'):
             self.ret = True
             return MiniSpecReturnValue(self.eval_expr(var.lstrip('->')).value, True)
-        if '=' in var:
-            
+        if not self.new_skill_adding and '=' in var and not '==' in var:
             var, expr = var.split('=')
             print_t(f'Eval expr var assign: {var} {expr}')
             expr = expr.strip()
@@ -296,7 +320,7 @@ class Statement:
             self.env[var] = ret_val.value
             return ret_val
         # deal with + - * / operators
-        if '+' in var or '-' in var or '*' in var or '/' in var:
+        if not self.new_skill_adding and ('+' in var or '-' in var or '*' in var or '/' in var):
             if '+' in var:
                 operands = var.split('+')
                 val = 0
@@ -326,6 +350,7 @@ class Statement:
         elif var == 'True' or var == 'False':
             return MiniSpecReturnValue(evaluate_value(var), False)
         elif var[0].isalpha():
+            # input(f"Good job if {var[0]} == a")
             return self.eval_function(var)
         else:
             return MiniSpecReturnValue(evaluate_value(var), False)
