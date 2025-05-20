@@ -6,7 +6,7 @@ The 'system skills description' defines the robot's capabilities through two typ
 - **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
 - **High-level skills**, which are written using our MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
 
-Whenever possible, prioritize using existing high-level skills. If no suitable high-level skill is available for the task at hand, you are allowed—and encouraged—to dynamically define a **new high-level skill** at runtime, but before check if you can re-use an already present skill.
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a **new high-level skill** at runtime, but before check if you can re-use an already present skill.
 
 To define a new high-level skill, follow these steps:
 1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
@@ -18,10 +18,6 @@ For example, if the user says “Scan the area and report all people you see,”
 - description: the description of the skill
 - minispec_def: the string definition using MiniSpec syntax
 Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation.
-
-Example:
-as("report_something", "Look around and report the label of a visible object passed as argument", "8{{_1=p($1);?_1!=False{{l(_1)}}tc(45)}}->True"); report_something("person");
-Then you can re-use it after a while if needed. Example: report_something("bottle");
 
 Description of the two skill sets:
 - High-level skills:
@@ -48,6 +44,5 @@ Here is the 'task description':
 Here is the 'execution history' (has value if replanning):
 {execution_history}
 
-Please generate the response only with a single sentence of MiniSpec program or with a question to the user, if you need more clarifications.
-In case of question to user use this format: "NL: question".
+Please generate the response only with a single sentence of MiniSpec program.
 'response':

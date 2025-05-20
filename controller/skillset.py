@@ -3,6 +3,8 @@ import os
 import re
 from enum import Enum
 from typing import Optional, List, Union
+
+from controller.utils import print_t
 from .abs.skill_item import SkillItem, SkillArg
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,15 +22,25 @@ class SkillSet():
     def get_skill(self, skill_name: str) -> Optional[SkillItem]:
         """Returns a SkillItem by its name or abbr."""
         skill = None
+        # print_t(f"1. {self.skills}")
+        # print_t(f"1. {SkillItem.abbr_dict}")
         if skill_name in self.skills:
+            # input(f"{skill_name} Here 1")
             skill = self.skills[skill_name]
         elif skill_name in SkillItem.abbr_dict:
+            # input(f"{skill_name} Here 2")
             skill = self.skills.get(SkillItem.abbr_dict[skill_name])
+        else:
+            input(f"{skill_name} Here 3 {SkillItem.abbr_dict}")
         return skill
     
     def update(self):
         with open(os.path.join(CURRENT_DIR, f"assets/tello/high_level_skills.json"), "r") as f:
+            # input("I am in update function in skillset.py ...")
+            # print_t(f"2. {self.skills}")
             json_data = json.load(f)
+            print_t(json_data)
+            print_t(json_data[-1])
             self.add_skill(HighLevelSkillItem.load_from_dict(json_data[-1]))
 
     def add_skill(self, skill_item: SkillItem):
@@ -43,6 +55,7 @@ class SkillSet():
                 raise ValueError("Low-level skillset is not set.")
 
         self.skills[skill_item.skill_name] = skill_item
+        # skill_item.generate_abbreviation(skill_item.get_name())
     
     def remove_skill(self, skill_name: str):
         """Removes a SkillItem from the set by its name."""
@@ -62,7 +75,7 @@ class LowLevelSkillItem(SkillItem):
                  skill_description: str = "", args: List[SkillArg] = []):
         self.skill_name = skill_name
         self.abbr = self.generate_abbreviation(skill_name)
-        self.abbr_dict[self.abbr] = skill_name
+        SkillItem.abbr_dict[self.abbr] = skill_name
         self.skill_callable = skill_callable
         self.skill_description = skill_description
         self.args = args
@@ -95,13 +108,14 @@ class HighLevelSkillItem(SkillItem):
                  skill_description: str = ""):
         self.skill_name = skill_name
         self.abbr = self.generate_abbreviation(skill_name)
-        self.abbr_dict[self.abbr] = skill_name
+        SkillItem.abbr_dict[self.abbr] = skill_name
         self.definition = definition
         self.skill_description = skill_description
         self.low_level_skillset = None
         self.args = []
 
     def load_from_dict(skill_dict: dict):
+        # input("I am loading from dict ... ")
         return HighLevelSkillItem(skill_dict["skill_name"], skill_dict["definition"], skill_dict["skill_description"])
 
     def get_name(self) -> str:
