@@ -125,38 +125,63 @@ Reason: We use a dynamic skill to handle animal-based object classes and trigger
 Response: as("scan_visible_living_entity", "Find a visible living entity and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{s(_1)}"); scan_visible_living_entity('cat','dog');
 
 ### USE ALREADY PRESENT HIGH-LEVL SKILLS
-Example 22:
+Example 22A:
+Scene: []
+Task: [A] Rotate to find any object matching the description “a leafy green plant”.
+Reason: The target is abstract and not in view. We define a skill to scan abstract descriptions.
+Response: as("scan_abstract", "Rotate to find an abstract object by description", "8{_1=p($1);?_1!=False{->_1}tc(45)}->False;"); scan_abstract('a leafy green plant');
+Example 22B:
 Scene: [plant x:0.3 y:0.6 width:0.2 height:0.25]
 Task: [A] Rotate to search for a green leafy object like a plant.
 Reason: Since a general-purpose skill for abstract object scanning already exists, we reuse `scan_abstract`.
 Response: sa('plant');
 
-Example 23:
+Example 23A:
+Scene: []
+Task: [A] Rotate in place until you detect a bottle.
+Reason: No bottle is visible, so we define a scanning behavior.
+Response: as("scan", "Rotate to find object $1 when it is not in current scene", "8{?iv($1)==True{->True}tc(45)}->False;"); scan('bottle');
+Example 23B:
 Scene: [bottle x:0.4 y:0.3 width:0.1 height:0.15]
 Task: [A] Rotate until you see a bottle.
-Reason: A specific skill already exists to scan for an object if it's not in view.
+Reason: The scanning skill is already defined.
 Response: s('bottle');
 
-Example 24:
+Example 24A:
+Scene: []
+Task: [A] Find either a can or bottle and say what it is.
+Reason: Both objects are common drink containers; define reusable logic.
+Response: as("identify_drink_container", "Find a visible drink container and say what it is", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);l(_1)}"); identify_drink_container('can','bottle');
+Example 24B:
 Scene: [can x:0.5 y:0.25 width:0.12 height:0.18]
 Task: [A] Find a can and tell me what it is.
-Reason: The dynamic skill `identify_drink_container` already includes logic to go to and label drink containers like a can or bottle.
+Reason: The `identify_drink_container` skill already handles this.
 Response: id('can', 'bottle');
 
-Example 25:
+Example 25A:
+Scene: []
+Task: [A] Locate a banana or apple, and take a picture of the first one you see.
+Reason: Both are fruit and might be visible. Define one skill.
+Response: as("photo_visible_fruit", "Take a picture of a visible fruit", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);tp}"); photo_visible_fruit('banana','apple');
+Example 25B:
 Scene: [apple x:0.4 y:0.2 width:0.1 height:0.1]
 Task: [A] If you see either an apple or a banana, take a picture.
-Reason: The `photo_visible_fruit` skill is already defined to find either fruit and take a photo.
+Reason: The `photo_visible_fruit` skill is already defined to do this.
 Response: pv('apple', 'banana');
 
 Example 26:
 Scene: [cat x:0.35 y:0.3 width:0.25 height:0.25]
 Task: [A] Scan an animal like a cat or a dog.
-Reason: The system already has a skill for scanning either animal.
-Response: sc('cat', 'dog');
+Reason: We already have a high-level skill that does this, that is scan_visible_living_entity.
+Response: sc('cat','dog');
 
-Example 27:
+Example 27A:
+Scene: []
+Task: [A] Go to an orange or apple and tell me how big it is.
+Reason: We define a reusable inspection skill for fruits.
+Response: as("inspect_fruit", "Approach a visible fruit and describe its size", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);_2=ow(_1);l(_2)}"); inspect_fruit('orange','apple');
+Example 27B:
 Scene: [orange x:0.55 y:0.4 width:0.13 height:0.13]
 Task: [A] Go to the fruit and tell me how big it is.
-Reason: The `inspect_fruit` skill allows inspection and labeling of common fruits like apple and orange.
-Response: if('orange', 'apple');
+Reason: The `inspect_fruit` skill is already defined.
+Response: if('orange','apple');
