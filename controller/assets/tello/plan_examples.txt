@@ -124,7 +124,7 @@ Task: [A] Find a cat or a dog and then scan it.
 Reason: We use a dynamic skill to handle animal-based object classes and trigger a scan.
 Response: as("scan_visible_living_entity", "Find a visible living entity and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{s(_1)}"); scan_visible_living_entity('cat','dog');
 
-### USE ALREADY PRESENT HIGH-LEVL SKILLS
+### USE ALREADY PRESENT HIGH-LEVEL SKILLS
 Example 22A:
 Scene: []
 Task: [A] Rotate to find any object matching the description “a leafy green plant”.
