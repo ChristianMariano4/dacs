@@ -65,6 +65,7 @@ class LLMPlanner():
                                              scene_description=scene_description,
                                              task_description=task_description,
                                              execution_history=execution_history)
+        #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
         return self.llm.request(prompt, self.model_name, stream=False)
     
