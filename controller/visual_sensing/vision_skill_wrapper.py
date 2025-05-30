@@ -5,9 +5,6 @@ import cv2
 from filterpy.kalman import KalmanFilter
 from ..shared_frame import SharedFrame
 
-GPT3 = "gpt-3.5-turbo-16k"
-GPT4 = "gpt-4"
-
 def iou(boxA, boxB):
     # Calculate the intersection over union (IoU) of two bounding boxes
     xA = max(boxA['x1'], boxB['x1'])
