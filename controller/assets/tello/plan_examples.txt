@@ -84,9 +84,9 @@ Response: mf(100);tu(135);mf(100);
 
 Example 15:
 Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09]
-Task: [A] Approach any object that looks like a chair or bench and scan it.
-Reason: The task requires similarity reasoning and sequential actions, so a new high-level skill is defined using the low-level function 'add_skill'.
-Response: as("scan_visible_objects", "Approach any visible object of interest and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);s(_1)}"); scan_visible_object('chair', 'bench');
+Task: [A] Look for any object that functions as seating, center it in view, move closer if needed, and confirm it's found.
+Reason: The skill uses semantic reasoning (probe) to identify seating objects, scan to locate them visually, and spatial adjustments to align and approach the target.
+Response: as("scan_seating_object", "Scan around to find a visible seating object, center it, approach it, and confirm", "_1 = p('What visible object looks like a seating object?');? _1 == False { -> False; };s(_1);_2 = ox(_1);? _2 < 0.45 { tl(15); -> False; };? _2 > 0.55 { tr(15); -> False; };_3 = od(_1);? _3 > 80 { mf(30); -> False; };l('Found seating object: ' + _1);"); scan_seating_object();
 
 Example 16:
 Scene: [apple x:0.3 y:0.5 width:0.15 height:0.12, orange x:0.6 y:0.3 width:0.12 height:0.1]
