@@ -1,6 +1,7 @@
 """
-You are given a scene description, an objects list and a question. You should output the answer to the question based on the scene description and object lists.
-The scene description contains listed objects with their respective names, locations, and sizes.
+You are given a scene description, an objects list and a question. You should output the answer to the question based on the scene description and objects list.
+The scene description contains a description of the current view of the robot.
+The objects list contains listed objects with their respective names, locations, and sizes.
 The question is a string that asks about the scene or the objects in the scene.
 For yes-or-no questions, output with 'True' or 'False' only.
 For object identification, output the object's name (if there are multiple same objects, output the target one with x value). If the object is not in the list, output with 'False'.
@@ -8,7 +9,8 @@ For counting questions, output the exact number of target objects.
 For general questions, output a brief, single-sentence answer.
 
 Input Format:
-Scene Description:[List of Objects with Attributes]
+Scene Description:[Description of the Current View]
+Objects List:[List of Objects with Attributes]
 Question:[A String]
 
 Output Format:
@@ -16,30 +18,72 @@ Output Format:
 
 Here are some examples:
 Example 1:
-Scene Description:[person x:0.59 y:0.55 width:0.81 height:0.91, bottle x:0.85 y:0.54 width:0.21 height:0.93]
+Scene Description: [A medium-sized room with a person seated on a chair near a table. On the table, there is a transparent bottle filled with a clear liquid. The lighting is bright, and the background is empty.]
+Objects List: [person x:0.59 y:0.55 width:0.81 height:0.91, bottle x:0.85 y:0.54 width:0.21 height:0.93]
 Question:'Any drinkable target here?'
 Output:bottle
 
 Example 2:
-Scene Description:[]
+Scene Description: [An open living area with a wooden floor and plain white walls. No furniture or people are visible in the current field of view. The room seems recently cleaned.]
+Objects List: []
 Question:'Any table in the room?'
 Output:False
 
 Example 3:
-Scene Description:[chair x:0.1 y:0.35 width:0.56 height:0.41, chair x:0.49 y:0.59 width:0.61 height:0.35]
+Scene Description: [The camera shows the center of a conference room. Two chairs are visible: one facing the wall and another positioned diagonally. Both are made of plastic and have metallic legs. The lighting is overhead and uniform.]
+Objects List: [chair x:0.1 y:0.35 width:0.56 height:0.41, chair x:0.49 y:0.59 width:0.61 height:0.35]
 Question:'How many chairs you can see?'
 Output:2
 
 Example 4:
-Scene Description:[bottle x:0.1 y:0.35 width:0.56 height:0.41, chair x:0.49 y:0.59 width:0.61 height:0.35]
+Scene Description: [A cluttered hallway with a single chair next to a bottle on the ground. There is no visible food, and the only potentially edible item, if any, would be on the chair — but it appears empty.]
+Objects List: [bottle x:0.1 y:0.35 width:0.56 height:0.41, chair x:0.49 y:0.59 width:0.61 height:0.35]
 Question:'Any edible target here?'
 Output:False
 
 Example 5:
-Scene Description:[chair x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09, book x:0.62 y:0.26 width:0.23 height:0.17]
+Scene Description: [Inside a small study room, two chairs are placed: one near a bookshelf and the other near a table. On the chair closest to the table, both a book and a laptop are placed. The room has soft yellow lighting and visible shadows.]
+Objects List: [chair x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09, book x:0.62 y:0.26 width:0.23 height:0.17, laptop x:0.63 y:0.25 width:0.2 height:0.15]
 Question:'Any chair with a laptop on it?'
 Output:chair[0.6]
+
+Example 6
+Scene Description: [A kitchen countertop is in view. Although a knife is not directly visible in the objects list, there is a cutting board with chopped vegetables and tomato juice stains. A metallic blade is partially seen behind the board.]
+Objects List: [cutting_board x:0.45 y:0.3 width:0.3 height:0.2, tomato x:0.5 y:0.32 width:0.1 height:0.08]
+Question: 'Is there likely a knife in the scene?'
+Output:True
+
+Example 7
+Scene Description: [A living room with dim lighting. There’s a single chair in the corner. The laptop appears to have slid partially off and is now on the floor just beside the chair’s front leg.]
+Objects List: [chair x:0.4 y:0.5 width:0.4 height:0.6, laptop x:0.41 y:0.91 width:0.3 height:0.2]
+Question: 'Is the laptop on the chair?'
+Output:False
+
+Example 8
+Scene Description: [In a classroom, a whiteboard stands at the front. A teacher is pointing toward a list of equations.]
+Objects List: [teacher x:0.7 y:0.5 width:0.6 height:0.9, whiteboard x:0.2 y:0.1 width:0.5 height:0.6]
+Question: 'Is this a math class?'
+Output:True
+
+Example 9
+Scene Description: [There is a countertop on the left with a fruit basket. The center shows a sink and some utensils. On the right, only the edge of a refrigerator is barely visible, cut off by the frame.]
+Objects List: [sink x:0.45 y:0.4 width:0.2 height:0.3, basket x:0.15 y:0.35 width:0.2 height:0.2, fridge x:0.98 y:0.3 width:0.03 height:0.4]
+Question: 'In which directions should I search for food?'
+Output:right
+
+Example 10
+Scene Description: [The visible area shows several closed cardboard boxes stacked directly ahead. The left edge of the frame includes a partially open cabinet door, with items not fully visible inside.]
+Objects List: [box x:0.45 y:0.3 width:0.4 height:0.5, cabinet x:0.02 y:0.35 width:0.05 height:0.4]
+Question: 'In which directions should I search for supplies?'
+Output:left
+
+Example 11
+Scene Description: [The current view shows a living room area with chairs and a coffee table. There is no one visible, but a shadow is cast across the floor from the far left, suggesting movement just outside the field of view.]
+Objects List: [chair x:0.3 y:0.4 width:0.3 height:0.5, table x:0.5 y:0.3 width:0.3 height:0.2]
+Question: 'In which directions should I search for people?'
+Output:left
 """
 Scene Description:{scene_description}
+Objects List:{objects_list}
 Question:{question}
 Please give the content of results only, don't include 'Output:' in the results.
