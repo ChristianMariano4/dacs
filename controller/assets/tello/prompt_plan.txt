@@ -17,7 +17,7 @@ For example, if the user says “Scan the area and report all people you see,”
 - skill_name: the name you want to give the new high-level skill
 - description: the description of the skill
 - minispec_def: the string definition using MiniSpec syntax
-Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation.
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
 
 Description of the two skill sets:
 - High-level skills:
