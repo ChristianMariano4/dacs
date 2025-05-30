@@ -4,7 +4,7 @@ from typing import Optional
 
 from .skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import LLMWrapper, GPT3, GPT4
-from .vision_skill_wrapper import VisionSkillWrapper
+from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .utils import print_t
 from .minispec_interpreter import MiniSpecValueType, evaluate_value
 from .abs.robot_wrapper import RobotType
@@ -70,6 +70,8 @@ class LLMPlanner():
         return self.llm.request(prompt, self.model_name, stream=False)
     
     def probe(self, question: str) -> MiniSpecValueType:
-        prompt = self.prompt_probe.format(scene_description=self.vision_skill.get_obj_list(), question=question)
+        objects_list = self.vision_skill.get_obj_list()
+        image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
+        prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
-        return evaluate_value(self.llm.request(prompt, self.model_name)), False
+        return evaluate_value(self.llm.request(prompt, image, self.model_name)), False

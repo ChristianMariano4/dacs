@@ -2,7 +2,9 @@ from typing import Union, Tuple, Optional
 import numpy as np
 import time, math
 import cv2
+from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
+from utils.utils import encode_image
 from ..shared_frame import SharedFrame
 
 def iou(boxA, boxB):
@@ -85,8 +87,10 @@ class VisionSkillWrapper():
         self.aruco_detector = cv2.aruco.ArucoDetector(
             cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
             cv2.aruco.DetectorParameters())
+        self.env_analysis_module = EnvironmentalAnalysisModule()
+        self.scene_description = ""
         
-    def update(self):
+    def update_obj_list(self):
         if self.shared_frame.timestamp == self.last_update:
             return
         self.last_update = self.shared_frame.timestamp
@@ -100,6 +104,10 @@ class VisionSkillWrapper():
             w = box['x2'] - box['x1']
             h = box['y2'] - box['y1']
             self.object_list.append(ObjectInfo(name, x, y, w, h))
+
+    def update_scene_description(self):
+        self.scene_description = self.env_analysis_module.get_scene_description(self.shared_frame)
+        
     def _update(self):
         if self.shared_frame.timestamp == self.last_update:
             return
@@ -187,7 +195,7 @@ class VisionSkillWrapper():
     #         del self.object_trackers[name]
 
     def get_obj_list(self) -> str:
-        self.update()
+        self.update_obj_list()
         str_list = []
         for obj in self.object_list:
             str_list.append(str(obj))
@@ -195,12 +203,19 @@ class VisionSkillWrapper():
 
     def get_obj_info(self, object_name: str) -> ObjectInfo:
         for _ in range(10):
-            self.update()
+            self.update_obj_list()
             for obj in self.object_list:
                 if obj.name.startswith(object_name):
                     return obj
             time.sleep(0.2)
         return None
+    
+    def get_current_image(self) -> bytes:
+        return encode_image(self.shared_frame)
+    
+    def get_scene_description(self) -> str:
+        self.update_scene_description()
+        return self.scene_description
 
     def is_visible(self, object_name: str) -> Tuple[bool, bool]:
         return self.get_obj_info(object_name) is not None, False

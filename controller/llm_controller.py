@@ -11,7 +11,7 @@ from .yolo_grpc_client import YoloGRPCClient
 from .tello_wrapper import TelloWrapper
 from .virtual_robot_wrapper import VirtualRobotWrapper
 from .abs.robot_wrapper import RobotWrapper
-from .vision_skill_wrapper import VisionSkillWrapper
+from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
 from .utils import print_t, input_t
@@ -175,7 +175,7 @@ class LLMController():
                 print_t(f"[C] Error: {e}")
             
             # disable replan for debugging
-            break
+            # break
             if ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue

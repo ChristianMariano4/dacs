@@ -21,18 +21,26 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, prompt, model_name=GPT3, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, prompt, image, model_name=GPT3, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
             client = self.gpt_client
         
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
-            stream=stream,
-        )
+        if image is not None:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}, prompt]}],
+                temperature=self.temperature,
+                stream=stream,
+            )
+        else:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                stream=stream,
+            )
 
         # save the message in a txt
         with open(chat_log_path, "a") as f:
