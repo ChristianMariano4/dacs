@@ -1,5 +1,5 @@
 """
-You are given a scene description and a question. You should output the answer to the question based on the scene description.
+You are given a scene description, an objects list and a question. You should output the answer to the question based on the scene description and object lists.
 The scene description contains listed objects with their respective names, locations, and sizes.
 The question is a string that asks about the scene or the objects in the scene.
 For yes-or-no questions, output with 'True' or 'False' only.
