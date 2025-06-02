@@ -97,90 +97,96 @@ Response: as("describe_fruit_size", "Find a visible fruit, approach it, and desc
 Example 17:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
 Task: [A] Search in the environment where you are for a container.
-Reason: A reusable high-level skill is created to scan the first visible object matching 'container'.
-Response: as("active_search_container", "Move in the best direction to find a container, then align and confirm. This skill requires 0 arguments.", "_1 = p('Where should I go to find a container?');? _1 == 'left' { ml(40); }? _1 == 'right' { mr(40); }? _1 == 'forward' { mf(40); }? _1 == 'backward' { mb(40); };_3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; };l('Container found and centered: ' + _2);"); active_search_container();
+Reason: We generalize and iterate this behavior by using a parameterized semantic question to guide the search. The system moves in the most promising direction, rechecks the scene, and repeats until the object is found or determined absent. This ensures more realistic, persistent search.
+Response: as("active_search_object", "Search iteratively for the object described by the input question until it is found or no longer worth searching. This skill requires 1 argument.", "10{_1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; _2 = p('What visible object looks like a ' + $1 + '?'); ? _2 != False { -> _2; }} -> False; _3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; }; l('Object found and centered: ' + _2);'); active_search_object("container");
 
 Example 18:
+Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
+Task: [A] Search around and tell me if you see the cup.
+Reason: We already know the object name, so we avoid semantic probing and use is_visible directly. The system moves through the environment, checking visibility after each motion, and iterates until the object is found or declared absent. The skill takes 1 argument: the name of the object to look for.
+Response: as("search_known_object", "Search iteratively for a known object using visibility checks. This skill requires 1 argument.", "10{? iv($1) == True { -> True; } mf(40); tr(45);} -> False; l('Object found: ' + $1);"); search_known_object("cup");
+
+Example 19:
 Scene: [banana x:0.35 y:0.28 width:0.12 height:0.18]
 Task: [A] Find a banana or an apple and take a picture of it
 Reason: We check if there's a reusable skill to photograph one of two visible objects. Since none exists, we define photo_object, a skill that takes exactly two arguments, checks which is visible, aligns to it, approaches, and takes a picture.
 Response: as("photo_object", "This skill requires 2 arguments: the objects to find. It checks which one is visible, moves to it, and takes a picture", "_1 = iv($1); ? _1 == False { _1 = iv($2); ? _1 == False { -> False; } _1 = $2; } ? _1 != $2 { _1 = $1; }; s(_1); _2 = ox(_1); ? _2 < 0.45 { tl(15); -> False; }; ? _2 > 0.55 { tr(15); -> False; }; _3 = od(_1); ? _3 > 80 { mf(30); -> False; }; tp;"); photo_object('banana', 'apple');
 
-Example 19:
+Example 20:
 Scene: [bottle x:0.24 y:0.3 width:0.1 height:0.15, can x:0.64 y:0.33 width:0.12 height:0.18]
 Task: [A] Go to any drink container and say what it is.
 Reason:We reuse the existing active_search_container skill to locate and align with a container. Then, we add a final step to identify what type of container it is by logging its label. This avoids duplicating existing logic and reflects how real-world high-level behaviors are built on top of simpler ones.
 Response: active_search_container(); _1 = p('What visible object looks like a drink container?'); l('This is a: ' + _1);
 
-Example 20:
+Example 21:
 Scene: [book x:0.5 y:0.4 width:0.2 height:0.15]
-Task: [A] Check whether there's a notebook or a book, and go to it.
-Reason: We define a skill that looks for either a notebook or book and moves to it if found.
+Task: [A] Go check if there’s a book around and approach it.
+Reason: We make this behavior reusable by defining a general skill that receives a semantic question as input. The system uses the question to identify a relevant object in the environment, aligns with it, and moves closer.
 Response: as("approach_visible_object", "Check for the presence of specific objects and approach if found", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1)}"); approach_visible_object('notebook','book');
 
-Example 21:
+Example 22:
 Scene: [dog x:0.45 y:0.25 width:0.3 height:0.3]
 Task: [A] Find a cat or a dog and then scan it.
 Reason: We use a dynamic skill to handle animal-based object classes and trigger a scan.
 Response: as("scan_visible_living_entity", "Find a visible living entity and scan it", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{s(_1)}"); scan_visible_living_entity('cat','dog');
 
 ### USE ALREADY PRESENT HIGH-LEVEL SKILLS
-Example 22A:
+Example 23A:
 Scene: []
 Task: [A] Rotate to find any object matching the description “a leafy green plant”.
 Reason: The target is abstract and not in view. We define a skill to scan abstract descriptions.
 Response: as("scan_abstract", "Rotate to find an abstract object by description", "8{_1=p($1);?_1!=False{->_1}tc(45)}->False;"); scan_abstract('a leafy green plant');
-Example 22B:
+Example 23B:
 Scene: [plant x:0.3 y:0.6 width:0.2 height:0.25]
 Task: [A] Rotate to search for a green leafy object like a plant.
 Reason: Since a general-purpose skill for abstract object scanning already exists, we reuse `scan_abstract`.
 Response: sa('plant');
 
-Example 23A:
+Example 24A:
 Scene: []
 Task: [A] Rotate in place until you detect a bottle.
 Reason: No bottle is visible, so we define a scanning behavior.
 Response: as("scan", "Rotate to find object $1 when it is not in current scene", "8{?iv($1)==True{->True}tc(45)}->False;"); scan('bottle');
-Example 23B:
+Example 24B:
 Scene: [bottle x:0.4 y:0.3 width:0.1 height:0.15]
 Task: [A] Rotate until you see a bottle.
 Reason: The scanning skill is already defined.
 Response: s('bottle');
 
-Example 24A:
+Example 25A:
 Scene: []
 Task: [A] Find either a can or bottle and say what it is.
 Reason: Both objects are common drink containers; define reusable logic.
 Response: as("identify_drink_container", "Find a visible drink container and say what it is", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);l(_1)}"); identify_drink_container('can','bottle');
-Example 24B:
+Example 25B:
 Scene: [can x:0.5 y:0.25 width:0.12 height:0.18]
 Task: [A] Find a can and tell me what it is.
 Reason: The `identify_drink_container` skill already handles this.
 Response: id('can', 'bottle');
 
-Example 25A:
+Example 26A:
 Scene: []
 Task: [A] Locate a banana or apple, and take a picture of the first one you see.
 Reason: Both are fruit and might be visible. Define one skill.
 Response: as("photo_visible_fruit", "Take a picture of a visible fruit", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);tp}"); photo_visible_fruit('banana','apple');
-Example 25B:
+Example 26B:
 Scene: [apple x:0.4 y:0.2 width:0.1 height:0.1]
 Task: [A] If you see either an apple or a banana, take a picture.
 Reason: The `photo_visible_fruit` skill is already defined to do this.
 Response: pv('apple', 'banana');
 
-Example 26:
+Example 27:
 Scene: [cat x:0.35 y:0.3 width:0.25 height:0.25]
 Task: [A] Scan an animal like a cat or a dog.
 Reason: We already have a high-level skill that does this, that is scan_visible_living_entity.
 Response: sc('cat','dog');
 
-Example 27A:
+Example 28A:
 Scene: []
 Task: [A] Go to an orange or apple and tell me how big it is.
 Reason: We define a reusable inspection skill for fruits.
 Response: as("inspect_fruit", "Approach a visible fruit and describe its size", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);_2=ow(_1);l(_2)}"); inspect_fruit('orange','apple');
-Example 27B:
+Example 28B:
 Scene: [orange x:0.55 y:0.4 width:0.13 height:0.13]
 Task: [A] Go to the fruit and tell me how big it is.
 Reason: The `inspect_fruit` skill is already defined.
