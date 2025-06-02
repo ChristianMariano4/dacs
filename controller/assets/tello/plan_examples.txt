@@ -82,31 +82,31 @@ Task: [A] Move in a 'V' shape.
 Reason: Go forward, then turn 135 degrees to the left, finally go forward again.
 Response: mf(100);tu(135);mf(100);
 
-Example 17:
+Example 15:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
 Task: [A] Search in the environment where you are for a container.
 Reason: Search iteratively for an object described by the input question, using movement and rotational scanning. This skill requires 1 argument.
 Response: as("active_search_abstract_object", "Search iteratively for an object described by the input question, using movement and rotational scanning. This skill requires 1 argument.", "10{_1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; sa($1); _2 = p('What visible object looks like a ' + $1 + '?'); ? _2 != False { -> _2; }} -> False; _3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; }; l('Object found and centered: ' + _2);'); active_search_object("container");
 
-Example 18:
+Example 16:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
 Task: [A] Search around and tell me if you see the cup.
 Reason: We define a generic skill that takes an object name as input. The system checks whether the object is visible, and if not, moves in a suggested direction and rotates toward the object (s). It continues this process iteratively until the object is found and centered. This skill takes 1 argument.
 Response: as("active_search_object", "Search iteratively for a known object using visibility checks and rotation. This skill requires 1 argument.', "10{? iv($1) == True { -> $1; } _1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; s($1);} -> False; _2 = ox($1); ? _2 < 0.45 { tl(30); -> False; }; ? _2 > 0.55 { tr(30); -> False; }; l('Object found and centered: ' + $1);'); active_search_object("apple");
 
-Example 19:
+Example 17:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
 Task: [A] Search around and tell me if you see either the cup or the bowl.
 Reason: We want to extend the ability to search not just for a single object but for multiple known ones. Since this requires iterative checking, we define a new skill that moves and rotates while evaluating visibility for both targets. This skill requires 2 arguments.
 Response: as("active_search_objects", "Search iteratively for one of two known objects using visibility checks and rotation. This skill requires 2 arguments.", "10{? iv($1) == True | iv($2) == True { -> True; } _1 = p('Where should I go to find either a ' + $1 + ' or a ' + $2 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; s($1);} -> False; l('One of the objects is now visible.');"); active_search_objects("cup", "bowl");
 
-Example 15:
+Example 18:
 Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09]
 Task: [A] Look for any object that functions as seating, center it in view, move closer if needed, and confirm it's found.
 Reason: We reuse the existing skill "active_search_abstract_object" to find and center a seating object using semantic reasoning. Then, we verify its distance and move closer if it's too far. This skill requires 0 arguments.
 Response: as("scan_seating_object", "Find and approach a visible seating object using abstract reasoning. This skill requires 0 arguments.", "active_search_abstract_object('seating object'); _1 = p('What visible object looks like a seating object?'); ? _1 == False { -> False; }; _2 = od(_1); ? _2 > 80 { mf(30); -> False; }; l('Found seating object: ' + _1);"); scan_seating_object();
 
-Example 16:
+Example 19:
 Scene: [apple x:0.3 y:0.5 width:0.15 height:0.12, orange x:0.6 y:0.3 width:0.12 height:0.1]
 Task: [A] Approach any fruit and describe its size.
 Reason: We reuse the existing skill "active_search_abstract_object" to locate and center a visible fruit using semantic reasoning. Then, we approach the object if it's too far and log its width as a proxy for size. This skill requires 0 arguments.
@@ -124,19 +124,19 @@ Task: [A] Find a banana or an apple and take a picture of it.
 Reason: We reuse the skill that searches for two known objects. After detection, we align to the target, move closer if needed, and capture a picture. This skill requires 2 arguments.
 Response: as("photo_known_objects", "Search for one of two known objects, align, approach, and take a picture. This skill requires 2 arguments.", "active_search_objects($1, $2); _1 = iv($1); ? _1 == True { _2 = $1; } : { _2 = $2; }; _3 = ox(_2); ? _3 < 0.45 { tl(15); -> False; }; ? _3 > 0.55 { tr(15); -> False; }; _4 = od(_2); ? _4 > 80 { mf(30); -> False; }; tp;"); photo_known_objects("banana", "apple");
 
-Example 20:
+Example 21:
 Scene: [bottle x:0.24 y:0.3 width:0.1 height:0.15, can x:0.64 y:0.33 width:0.12 height:0.18]
 Task: [A] Go to any drink container and say what it is.
-Reason:We reuse the existing active_search_container skill to locate and align with a container. Then, we add a final step to identify what type of container it is by logging its label. This avoids duplicating existing logic and reflects how real-world high-level behaviors are built on top of simpler ones.
-Response: active_search_container(); _1 = p('What visible object looks like a drink container?'); l('This is a: ' + _1);
+Reason: We reuse the active_search_abstract_object skill to locate and align with a drink container by using semantic reasoning. After the object is centered, we identify what it is through a second probe. This shows how to build modular behaviors by composing existing high-level search skills with additional steps.
+Response: active_search_abstract_object("drink container"); _1 = p("What visible object looks like a drink container?"); l("This is a: " + _1);
 
-Example 21:
+Example 22:
 Scene: [book x:0.5 y:0.4 width:0.2 height:0.15]
-Task: [A] Go check if there’s a book around and approach it.
-Reason: We make this behavior reusable by defining a general skill that receives a semantic question as input. The system uses the question to identify a relevant object in the environment, aligns with it, and moves closer.
-Response: as("approach_visible_object", "Check for the presence of specific objects and approach if found", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1)}"); approach_visible_object('notebook','book');
+Task: [A] Go check if there’s a book or a notebook around and approach it.
+Reason: Since the task requires searching for either of two known objects, we reuse an existing multi-object search skill to locate one. After that, we center the object horizontally and approach it. This modular design keeps the search logic reusable and encapsulates alignment and movement as a follow-up behavior.
+Response: active_search_objects("book", "notebook"); _1 = iv("book"); ? _1 == True { _2 = "book"; } : { _2 = "notebook"; }; _3 = ox(_2); ? _3 < 0.45 { tl(15); -> False; }; ? _3 > 0.55 { tr(15); -> False; }; _4 = od(_2); ? _4 > 80 { mf(30); -> False; }; l("Approached: " + _2);
 
-### USE ALREADY PRESENT HIGH-LEVEL SKILLS
+### USE ALREADY PRESENT HIGH-LEVEL SKILLS ###
 Example 23A:
 Scene: []
 Task: [A] Rotate to find any object matching the description “a leafy green plant”.
