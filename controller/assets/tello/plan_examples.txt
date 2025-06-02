@@ -102,9 +102,9 @@ Response: as("active_search_container", "Move in the best direction to find a co
 
 Example 18:
 Scene: [banana x:0.35 y:0.28 width:0.12 height:0.18]
-Task: [A] Move to the banana or apple, whichever is visible, and take a picture.
-Reason: We define a new dynamic skill to locate and photograph one of two potential fruits.
-Response: as("photo_visible_object", "Move to a visible object and take a picture", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);tp}"); photo_visible_object('banana','apple');
+Task: [A] Find a banana or an apple and take a picture of it
+Reason: We check if there's a reusable skill to photograph one of two visible objects. Since none exists, we define photo_object, a skill that takes exactly two arguments, checks which is visible, aligns to it, approaches, and takes a picture.
+Response: as("photo_object", "This skill requires 2 arguments: the objects to find. It checks which one is visible, moves to it, and takes a picture", "_1 = iv($1); ? _1 == False { _1 = iv($2); ? _1 == False { -> False; } _1 = $2; } ? _1 != $2 { _1 = $1; }; s(_1); _2 = ox(_1); ? _2 < 0.45 { tl(15); -> False; }; ? _2 > 0.55 { tr(15); -> False; }; _3 = od(_1); ? _3 > 80 { mf(30); -> False; }; tp;"); photo_object('banana', 'apple');
 
 Example 19:
 Scene: [bottle x:0.24 y:0.3 width:0.1 height:0.15, can x:0.64 y:0.33 width:0.12 height:0.18]
