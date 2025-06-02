@@ -98,11 +98,14 @@ class LLMController():
         self.current_plan = None
         self.execution_history = None
         self.execution_time = time.time()
+        self.is_user_answer = False # Flag to trigger a different planning behavior if the new text is just an user answer
+        self.last_question = None
+        self.user_question_answer = {}
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False
     
-    def add_skill(self, skill_name: str, description: str, minispec_def: str):
+    def add_skill(self, skill_name: str, description: str, minispec_def: str) -> Tuple[None, bool]:
         skill_name = skill_name.strip('\'"')
         minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
         print(f"Skill added: {skill_name}: {minispec_def}")
@@ -131,7 +134,14 @@ class LLMController():
         with open(SKILL_FILE, "w") as f:
             json.dump(skills, f, indent=4)
 
-        return True, False
+        return None, False
+    
+    def ask_user(self, question: str) -> Tuple[None, bool]:
+        self.append_message(f"[QUESTION] {question}")
+        print_t(f"[QUESTION] {question}")
+        self.is_user_answer = True
+        self.last_question = question
+        return None, False
 
     def skill_goto(self, object_name: str) -> Tuple[None, bool]:
         print(f'Goto {object_name}')
@@ -195,10 +205,15 @@ class LLMController():
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
-        self.append_message('[TASK]: ' + task_description)
+        if self.is_user_answer:
+            self.user_question_answer.update(self.last_question, task_description)
+            self.is_user_answer = False
+        else:
+            self.append_message('[TASK]: ' + task_description)
+            self.user_question_answer = {}
         ret_val = None
         while True:
-            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history)
+            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history, user_question_answer=self.user_question_answer)
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()
