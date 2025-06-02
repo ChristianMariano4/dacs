@@ -109,8 +109,8 @@ Response: as("photo_object", "This skill requires 2 arguments: the objects to fi
 Example 19:
 Scene: [bottle x:0.24 y:0.3 width:0.1 height:0.15, can x:0.64 y:0.33 width:0.12 height:0.18]
 Task: [A] Go to any drink container and say what it is.
-Reason: A skill is created to find and identify any drink container from the candidates.
-Response: as("identify_visible_object", "Approach any visible object and say what it is", "_1=p($1);?_1==False{_1=p($2)};?_1!=False{g(_1);l(_1)}"); identify_visible_object('bottle','can');
+Reason:We reuse the existing active_search_container skill to locate and align with a container. Then, we add a final step to identify what type of container it is by logging its label. This avoids duplicating existing logic and reflects how real-world high-level behaviors are built on top of simpler ones.
+Response: active_search_container(); _1 = p('What visible object looks like a drink container?'); l('This is a: ' + _1);
 
 Example 20:
 Scene: [book x:0.5 y:0.4 width:0.2 height:0.15]
