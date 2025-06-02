@@ -148,7 +148,7 @@ class LLMController():
     def get_latest_frame(self, plot=False):
         image = self.shared_frame.get_image()
         if plot and image:
-            self.vision.update()
+            self.vision.update_obj_list()
             YoloClient.plot_results_oi(image, self.vision.object_list)
         return image
     
@@ -167,6 +167,7 @@ class LLMController():
         ret_val = None
         while True:
             self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history)
+            print_t(f"The plan is {self.current_plan}.")
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()
