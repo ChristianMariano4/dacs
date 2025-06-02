@@ -5,37 +5,23 @@ import base64
 from openai import OpenAI
 import os
 from controller.shared_frame import SharedFrame
+from utils.utils import encode_image
 
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4"
 
+'''
+Can be used to bot get a description of the current scene and to get a more high-level description of the context where the drone is
+'''
 class EnvironmentalAnalysisModule:
     def __init__(self):
         # Set up your client
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
     
-    # Encode the image in base64
-    def encode_image(self, image):
-        """Convert an image (PIL or numpy) to base64 string"""
-        if isinstance(image, np.ndarray):
-            # If it's an OpenCV image
-            import cv2
-            success, buffer = cv2.imencode('.jpg', image)
-            if not success:
-                raise ValueError("Could not encode numpy image")
-            return base64.b64encode(buffer).decode("utf-8")
-        elif isinstance(image, Image.Image):
-            # If it's a PIL image
-            buffered = BytesIO()
-            image.save(buffered, format="JPEG")
-            return base64.b64encode(buffered.getvalue()).decode("utf-8")
-        else:
-            raise TypeError("Unsupported image type")
-    
-    def get_scene_description(self, frame: SharedFrame, question: str, conf=0.3):
+    def get_scene_description(self, frame: SharedFrame, conf=0.3):
         image = frame.get_image()
         # image_base64 = self.encode_image(image.resize(self.image_size))
-        image_base64 = self.encode_image(image)
+        image_base64 = encode_image(image)
         
         # Prepare the request
         response = self.client.chat.completions.create(
@@ -45,7 +31,7 @@ class EnvironmentalAnalysisModule:
                     "role": "user",
                     "content": [
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
-                        {"type": "text", "text": question}
+                        {"type": "text", "text": "Describe the image, considering is the current view of a drone and you are its sensing module"}
                     ]
                 }
             ],
