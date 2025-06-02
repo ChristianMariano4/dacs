@@ -86,19 +86,19 @@ Example 15:
 Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09]
 Task: [A] Look for any object that functions as seating, center it in view, move closer if needed, and confirm it's found.
 Reason: We first check whether a suitable skill already exists for inspecting any objects where you can seat and moving towards them. Since no such skill is available, we define a new one that uses semantic reasoning (probe) to identify seating objects, scan to locate them visually, and spatial adjustments to align and approach the target.
-Response: as("scan_seating_object", "Scan around to find a visible seating object, center it, approach it, and confirm", "_1 = p('What visible object looks like a seating object?');? _1 == False { -> False; };s(_1);_2 = ox(_1);? _2 < 0.45 { tl(15); -> False; };? _2 > 0.55 { tr(15); -> False; };_3 = od(_1);? _3 > 80 { mf(30); -> False; };l('Found seating object: ' + _1);"); scan_seating_object();
+Response: as("scan_seating_object", "Scan around to find a visible seating object, center it, approach it, and confirm. This skill requires 0 arguments.", "_1 = p('What visible object looks like a seating object?');? _1 == False { -> False; };s(_1);_2 = ox(_1);? _2 < 0.45 { tl(15); -> False; };? _2 > 0.55 { tr(15); -> False; };_3 = od(_1);? _3 > 80 { mf(30); -> False; };l('Found seating object: ' + _1);"); scan_seating_object();
 
 Example 16:
 Scene: [apple x:0.3 y:0.5 width:0.15 height:0.12, orange x:0.6 y:0.3 width:0.12 height:0.1]
 Task: [A] Approach any fruit and describe its size.
 Reason: We first check whether a suitable skill already exists for inspecting visible fruits and reporting their size. Since no such skill is available, we define a new one that uses probe-based reasoning to find a fruit, centers it, approaches it, and logs its width as a measure of size.
-Response: as("describe_fruit_size", "Find a visible fruit, approach it, and describe its size", "_1 = p('What visible object looks like a fruit?');? _1 == False { -> False; };s(_1);_2 = ox(_1);? _2 < 0.45 { tl(15); -> False; };? _2 > 0.55 { tr(15); -> False; };_3 = od(_1);? _3 > 80 { mf(30); -> False; };_4 = ow(_1);l('Size of fruit: ' + _4);"); describe_fruit_size();
+Response: as("describe_fruit_size", "Find a visible fruit, approach it, and describe its size. This skill requires 0 arguments.", "_1 = p('What visible object looks like a fruit?');? _1 == False { -> False; };s(_1);_2 = ox(_1);? _2 < 0.45 { tl(15); -> False; };? _2 > 0.55 { tr(15); -> False; };_3 = od(_1);? _3 > 80 { mf(30); -> False; };_4 = ow(_1);l('Size of fruit: ' + _4);"); describe_fruit_size();
 
 Example 17:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
 Task: [A] Search in the environment where you are for a container.
 Reason: A reusable high-level skill is created to scan the first visible object matching 'container'.
-Response: as("active_search_container", "Move in the best direction to find a container, then align and confirm", "_1 = p('Where should I go to find a container?');? _1 == 'left' { ml(40); }? _1 == 'right' { mr(40); }? _1 == 'forward' { mf(40); }? _1 == 'backward' { mb(40); };_3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; };l('Container found and centered: ' + _2);"); active_search_container();
+Response: as("active_search_container", "Move in the best direction to find a container, then align and confirm. This skill requires 0 arguments.", "_1 = p('Where should I go to find a container?');? _1 == 'left' { ml(40); }? _1 == 'right' { mr(40); }? _1 == 'forward' { mf(40); }? _1 == 'backward' { mb(40); };_3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; };l('Container found and centered: ' + _2);"); active_search_container();
 
 Example 18:
 Scene: [banana x:0.35 y:0.28 width:0.12 height:0.18]
