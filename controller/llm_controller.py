@@ -19,6 +19,7 @@ from .minispec_interpreter import MiniSpecInterpreter, Statement
 from .abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+SKILL_FILE = "controller/assets/tello/high_level_skills.json"
 
 class LLMController():
     def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None):
@@ -64,7 +65,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target object", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
@@ -100,6 +101,37 @@ class LLMController():
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False
+    
+    def add_skill(self, skill_name: str, description: str, minispec_def: str):
+        skill_name = skill_name.strip('\'"')
+        minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
+        print(f"Skill added: {skill_name}: {minispec_def}")
+
+        # Load existing skills
+        if os.path.exists(SKILL_FILE):
+            with open(SKILL_FILE, "r") as f:
+                skills = json.load(f)
+                if not isinstance(skills, list):
+                    print("Error: Skill file is not a list. Resetting.")
+                    skills = []
+        else:
+            skills = []
+
+        # Remove old skill with same name if it exists
+        skills = [s for s in skills if s.get("skill_name") != skill_name]
+
+        # Add or update the skill
+        skills.append({
+            "skill_name": skill_name,
+            "skill_description": description,
+            "definition": minispec_def
+        })
+
+        # Write back to file
+        with open(SKILL_FILE, "w") as f:
+            json.dump(skills, f, indent=4)
+
+        return True, False
 
     def skill_goto(self, object_name: str) -> Tuple[None, bool]:
         print(f'Goto {object_name}')
