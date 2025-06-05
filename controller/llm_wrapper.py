@@ -3,7 +3,7 @@ import openai
 from openai import Stream, ChatCompletion
 
 GPT3 = "gpt-3.5-turbo-16k"
-GPT4 = "gpt-4"
+GPT4 = "gpt-4o"
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +21,7 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, prompt, image, model_name=GPT3, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, prompt, image=None, model_name=GPT4, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
