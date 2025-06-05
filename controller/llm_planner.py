@@ -2,6 +2,8 @@ import json
 import os, ast
 from typing import Optional
 
+from controller.abs.skill_item import SkillItem
+
 from .skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import LLMWrapper, GPT3, GPT4
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
@@ -14,7 +16,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 class LLMPlanner():
     def __init__(self, robot_type: RobotType):
         self.llm = LLMWrapper()
-        self.model_name = GPT3
+        self.model_name = GPT4
 
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
@@ -51,11 +53,12 @@ class LLMPlanner():
 
         type_folder_name = 'tello'
         self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
-        HighLevelSkillItem.abbr_dict = {}
+        # SkillItem.abbr_dict = {}
         with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
             json_data = json.load(f)
             for skill in json_data:
-                self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+                if skill['skill_name'] not in SkillItem.abbr_dict.keys():
+                    self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
                 
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
                                              system_skill_description_low=self.low_level_skillset,
@@ -67,11 +70,12 @@ class LLMPlanner():
                                              execution_history=execution_history)
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
-        return self.llm.request(prompt, self.model_name, stream=False)
+        return self.llm.request(prompt, model_name=self.model_name, stream=False)
     
     def probe(self, question: str) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
-        prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
+        image = None
+        prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
         return evaluate_value(self.llm.request(prompt, image, self.model_name)), False
