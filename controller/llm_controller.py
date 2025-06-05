@@ -3,7 +3,7 @@ import queue, time, os, json
 from typing import Optional, Tuple
 import asyncio
 import uuid
-from enum import Enum
+
 
 from .shared_frame import SharedFrame, Frame
 from .yolo_client import YoloClient
@@ -14,7 +14,7 @@ from .abs.robot_wrapper import RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
-from .utils import print_t, input_t
+from .utils import print_t
 from .minispec_interpreter import MiniSpecInterpreter, Statement
 from .abs.robot_wrapper import RobotType
 
@@ -177,7 +177,7 @@ class LLMController():
             
             # disable replan for debugging
             # break
-            if ret_val.replan:
+            if ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
             else:
