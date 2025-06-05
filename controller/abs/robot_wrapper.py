@@ -80,7 +80,6 @@ class RobotWrapper(ABC):
         skill_name = skill_name.strip('\'"')
         minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
         print(f"Skill added: {skill_name}: {minispec_def}")
-        # input("OK")
 
         # Load existing skills
         if os.path.exists(SKILL_FILE):

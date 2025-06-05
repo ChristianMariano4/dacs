@@ -1,5 +1,10 @@
+import base64
+from io import BytesIO
 from typing import Optional, Union
 import datetime
+import cv2
+import numpy as np
+from PIL import Image
 
 def print_t(*args, **kwargs):
     # Get the current timestamp
@@ -15,31 +20,40 @@ def input_t(literal):
     # Use built-in print to display the timestamp followed by the message
     return input(f"[{current_time}] {literal}")
 
-def split_args(arg_str: str) -> list[str]:
-        args = []
-        current_arg = ''
-        parentheses_count = 0  # Keep track of open parentheses
+def split_args(s: str) -> list[str]:
+    args, cur, depth = [], '', 0
+    in_single = in_double = False
+    for ch in s:
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif not in_single and not in_double:
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif ch == ',' and depth == 0:
+                args.append(cur.strip())
+                cur = ''
+                continue
+        cur += ch
+    if cur.strip():
+        args.append(cur.strip())
+    return args
 
-        # flag = 'chair' in arg_str
-
-        if ',' in arg_str or (arg_str.startswith('\'') and arg_str.endswith('\'')):
-            return [a.strip().strip('\'"') for a in arg_str.split(',')]
-
-        for char in arg_str:
-            if char == ',' and parentheses_count == 0:
-                # If we encounter a comma and we're not inside parentheses, split here
-                args.append(current_arg.strip())
-                current_arg = ''
-            else:
-                # Otherwise, keep adding characters to the current argument
-                if char == '(':
-                    parentheses_count += 1
-                elif char == ')':
-                    parentheses_count -= 1
-                current_arg += char
-
-        # Don't forget to add the last argument after the loop finishes
-        if current_arg:
-            args.append(current_arg.strip())
-
-        return args
+def encode_image(image):
+    """Convert an image (PIL or numpy) to base64 string"""
+    if isinstance(image, np.ndarray):
+        # If it's an OpenCV image
+        success, buffer = cv2.imencode('.jpg', image)
+        if not success:
+            raise ValueError("Could not encode numpy image")
+        return base64.b64encode(buffer).decode("utf-8")
+    elif isinstance(image, Image.Image):
+        # If it's a PIL image
+        buffered = BytesIO()
+        image.save(buffered, format="JPEG")
+        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+    else:
+        raise TypeError(f"Unsupported image type {type(image)}")
