@@ -5,7 +5,7 @@ import base64
 from openai import OpenAI
 import os
 from controller.shared_frame import SharedFrame
-from utils.utils import encode_image
+from controller.utils import encode_image
 
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4"

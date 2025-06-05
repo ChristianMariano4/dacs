@@ -4,7 +4,7 @@ import time, math
 import cv2
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
-from utils.utils import encode_image
+from controller.utils import encode_image
 from ..shared_frame import SharedFrame
 
 def iou(boxA, boxB):
@@ -211,7 +211,7 @@ class VisionSkillWrapper():
         return None
     
     def get_current_image(self) -> bytes:
-        return encode_image(self.shared_frame)
+        return encode_image(self.shared_frame.get_image())
     
     def get_scene_description(self) -> str:
         self.update_scene_description()

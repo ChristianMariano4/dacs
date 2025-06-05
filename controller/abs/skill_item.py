@@ -10,6 +10,8 @@ class SkillArg:
         return f"{self.arg_name}:{self.arg_type.__name__}"
 
 class SkillItem(ABC):
+    abbr_dict = {}
+
     @abstractmethod
     def get_name(self) -> str:
         pass
@@ -30,24 +32,30 @@ class SkillItem(ABC):
     def execute(self, arg_list: List[Union[int, float, str]]) -> Tuple[Union[int, float, bool, str], bool]:
         pass
 
-    abbr_dict = {}
-    def generate_abbreviation(self, word):
-        split = word.split('_')
-        abbr = ''.join([part[0] for part in split])[0:2]
+
+    def generate_abbreviation(self, word: str) -> str:
+        parts = word.split('_')
+        abbr  = ''.join(p[0] for p in parts)[:2]
 
         if abbr not in self.abbr_dict:
             self.abbr_dict[abbr] = word
             return abbr
-        
-        split = ''.join([part for part in split])[1:]
 
+        pool  = ''.join(parts)[1:]        # letters to try next
         count = 0
         while abbr in self.abbr_dict:
-            abbr = abbr[0] + split[count]
+            if count >= len(pool):        # out of letters → use numbers
+                num = 1
+                while f"{abbr[0]}{num}" in self.abbr_dict:
+                    num += 1
+                abbr = f"{abbr[0]}{num}"
+                break
+            abbr = abbr[0] + pool[count]
             count += 1
 
         self.abbr_dict[abbr] = word
         return abbr
+
 
     def parse_args(self, args_str_list: List[Union[int, float, str]], allow_positional_args: bool = False):
         """Parses the string of arguments and converts them to the expected types."""
