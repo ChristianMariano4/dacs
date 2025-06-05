@@ -44,5 +44,5 @@ Here is the 'task description':
 Here is the 'execution history' (has value if replanning):
 {execution_history}
 
-Please generate the response only with a single sentence of MiniSpec program.
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks.
 'response':

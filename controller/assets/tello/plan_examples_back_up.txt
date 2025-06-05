@@ -82,23 +82,7 @@ Task: [A] Move in a 'V' shape.
 Reason: Go forward, then turn 135 degrees to the left, finally go forward again.
 Response: mf(100);tu(135);mf(100);
 
-Example 15:
-Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
-Task: [A] Search in the environment where you are for a container.
-Reason: No predefined skill exists to search for an object based on abstract categories. Therefore, we define a new skill using add_skill to search iteratively for an object described by the input question, using movement and rotational scanning.
-Response: as("active_search_abstract_object", "Search iteratively for an object described by the input question, using movement and rotational scanning. This skill requires 1 argument.", "10{_1 = p('Where should I go to find a $1? Left, right, forward or backward); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; sa($1); _2 = p('What visible object looks like a ' + $1 + '?'); ? _2 != False { -> _2; }} -> False; _3 = ox(_2); ? _3 < 0.45 { tl(30); -> False; }; ? _3 > 0.55 { tr(30); -> False; }; l('Object found and centered: ' + _2);'); active_search_abstract_object("container");
 
-Example 16:
-Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
-Task: [A] Search around and tell me if you see a bottle.
-Reason: No skill currently exists for general object lookup by name with movement and centering logic. Thus, we define a new skill using add_skill that takes an object name as input and searches for it iteratively, including visibility checks, movement, and centering.
-Response: as("active_search_object", "Search iteratively for a known object using visibility checks and rotation. This skill requires 1 argument.', "10{? iv($1) == True { -> $1; } _1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; s($1);} -> False; _2 = ox($1); ? _2 < 0.45 { tl(30); -> False; }; ? _2 > 0.55 { tr(30); -> False; }; l('Object found and centered: ' + $1);'); active_search_object("bottle");
-
-Example 17:
-Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
-Task: [A] Search around and tell me if you see either the cup or the bowl.
-Reason: No existing skill supports simultaneous search for two objects with fallback movement. We therefore define a new skill using add_skill to enable iterative checking and movement logic for visibility of multiple known objects.
-Response: as("active_search_objects", "Search iteratively for one of two known objects using visibility checks and rotation. This skill requires 2 arguments.", "10{? iv($1) == True | iv($2) == True { -> True; } _1 = p('Where should I go to find either a ' + $1 + ' or a ' + $2 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; s($1);} -> False; l('One of the objects is now visible.');"); active_search_objects("cup", "bowl");
 
 Example 18:
 Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 height:0.09]
