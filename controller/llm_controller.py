@@ -1,3 +1,4 @@
+from enum import Enum
 from PIL import Image
 import queue, time, os, json
 from typing import Optional, Tuple
@@ -10,6 +11,8 @@ import torch
 
 from controller.context_map.mapping.graph_manager import GraphManager
 from controller.context_map.spine import SPINE
+
+from controller.task import Task
 
 
 from .shared_frame import SharedFrame, Frame
@@ -27,6 +30,11 @@ from .abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+class IterationDecision(Enum):
+    REPLAN = "replan",
+    DONE = "done",
+    IMPOSSIBLE = "impossible"
+
 class LLMController():
     def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None):
         self.shared_frame = SharedFrame()
@@ -41,6 +49,7 @@ class LLMController():
         self.controller_active = True
         self.controller_wait_takeoff = True
         self.message_queue = message_queue
+        self.current_task = None
         if message_queue is None:
             self.cache_folder = os.path.join(CURRENT_DIR, 'cache')
         else:
@@ -65,7 +74,7 @@ class LLMController():
                 print_t("[C] Start virtual drone...")
                 self.drone: RobotWrapper = VirtualRobotWrapper()
         
-        self.planner = LLMPlanner(robot_type)
+        self.planner = LLMPlanner(robot_type, self.current_task)
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
@@ -113,8 +122,8 @@ class LLMController():
         Statement.high_level_skillset = self.high_level_skillset
         self.planner.init(high_level_skillset=self.high_level_skillset, low_level_skillset=self.low_level_skillset, vision_skill=self.vision)
 
-        self.current_plan = None
-        self.execution_history = None
+        # self.current_plan = None
+        # self.execution_history = None
         self.execution_time = time.time()
 
         self.depth_device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -187,7 +196,8 @@ class LLMController():
     def execute_minispec(self, minispec: str):
         interpreter = MiniSpecInterpreter(self.message_queue)
         interpreter.execute(minispec)
-        self.execution_history = interpreter.execution_history
+        self.current_task.update_execution_history(interpreter.execution_history)
+        # self.execution_history = interpreter.execution_history
         ret_val = interpreter.ret_queue.get()
         return ret_val
 
@@ -195,20 +205,21 @@ class LLMController():
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
+        self.current_task = Task(task_description)
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history, context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
-            print_t(f"The plan is {self.current_plan}.")
+            self.current_task.set_current_plan(self.planner.plan(task_description, execution_history=self.current_task.get_execution_history()))
+            print_t(f"The plan is {self.current_task.get_current_plan()}.")
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()
-                ret_val = self.execute_minispec(self.current_plan)
+                ret_val = self.execute_minispec(self.current_task.get_current_plan())
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             
             # disable replan for debugging
-            # break
+            break
             if ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
@@ -217,7 +228,9 @@ class LLMController():
         self.append_message(f'\n[Task ended]')
         self.append_message('end')
         self.current_plan = None
-        self.execution_history = None
+        # self.execution_history = None
+
+    def continue_execution(self): pass #TODO
 
     def start_robot(self):
         print_t("[C] Connecting to robot...")
