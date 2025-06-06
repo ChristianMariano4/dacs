@@ -3,6 +3,8 @@ import os, ast
 from typing import Optional
 
 from controller.abs.skill_item import SkillItem
+from controller.llm_controller import LLMController
+from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import LLMWrapper, GPT3, GPT4
@@ -14,8 +16,9 @@ from .abs.robot_wrapper import RobotType
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class LLMPlanner():
-    def __init__(self, robot_type: RobotType):
+    def __init__(self, robot_type: RobotType, current_task: Task):
         self.llm = LLMWrapper()
+        self.current_task = current_task
         self.model_name = GPT4
 
         type_folder_name = 'tello'
@@ -28,6 +31,9 @@ class LLMPlanner():
 
         with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/prompt_probe.txt"), "r") as f:
             self.prompt_probe = f.read()
+
+        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/prompt_probe_end_iteration.txt"), "r") as f:
+            self.prompt_probe_end_iteration = f.read()
 
         with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/guides.txt"), "r") as f:
             self.guides = f.read()
@@ -75,7 +81,20 @@ class LLMPlanner():
     def probe(self, question: str) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
-        image = None
+        image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
         return evaluate_value(self.llm.request(prompt, image, self.model_name)), False
+    
+    def probe_end_iteration(self):
+        task_description = self.current_task.get_task_description()
+        execution_history = self.current_task.get_execution_history()
+        achievements_summary = self.current_task.get_last_achievements()
+        drone_position = self.current_task.get_drone_position()
+        battery_percent = self.current_task.get_battery_percent()
+        objects_list = self.current_task.get_objects_list() #TODO: probably this should be handle in a different way
+        graph_json = self.current_task.get_graph_json()
+        prompt = self.prompt_probe_end_iteration.format(task_description=task_description, execution_history=execution_history, achievements_summary=achievements_summary, drone_position=drone_position, battery_percent=battery_percent, objects_list=objects_list, graph_json=graph_json)
+        decision_json = self.llm.request(prompt, self.model_name)
+        decision = json.load(decision_json)
+        return decision
