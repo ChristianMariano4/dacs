@@ -48,6 +48,10 @@ class LLMController():
                 print_t("[C] Start Gear robot car...")
                 from .gear_wrapper import GearWrapper
                 self.drone: RobotWrapper = GearWrapper()
+            case RobotType.CRAZYFLIE:
+                print_t("[C] Start Crazyflie drone...")
+                from .crazyflie_wrapper import CrazyflieWrapper
+                self.drone: CrazyflieWrapper = CrazyflieWrapper(move_enable=True)
             case _:
                 print_t("[C] Start virtual drone...")
                 self.drone: RobotWrapper = VirtualRobotWrapper()
@@ -64,7 +68,8 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("start_trajectory", self.drone.start_trajectory, "Start a trajectory mapped by a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target object", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
@@ -192,7 +197,7 @@ class LLMController():
         self.drone.connect()
         print_t("[C] Starting robot...")
         self.drone.takeoff()
-        self.drone.move_up(25)
+        # self.drone.move_up(25)
         print_t("[C] Starting stream...")
         self.drone.start_stream()
         self.controller_wait_takeoff = False
