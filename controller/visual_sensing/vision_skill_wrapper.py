@@ -2,10 +2,13 @@ from typing import Union, Tuple, Optional
 import numpy as np
 import time, math
 import cv2
+from controller.context_map.mapping.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
 from controller.utils import encode_image
 from ..shared_frame import SharedFrame
+
+
 
 def iou(boxA, boxB):
     # Calculate the intersection over union (IoU) of two bounding boxes
@@ -79,7 +82,8 @@ class ObjectTracker:
         return kf
 
 class VisionSkillWrapper():
-    def __init__(self, shared_frame: SharedFrame):
+
+    def __init__(self, shared_frame: SharedFrame, graph_manager: GraphManager):
         self.shared_frame = shared_frame
         self.last_update = 0
         self.object_trackers: dict[str, ObjectTracker] = {}
@@ -89,6 +93,20 @@ class VisionSkillWrapper():
             cv2.aruco.DetectorParameters())
         self.env_analysis_module = EnvironmentalAnalysisModule()
         self.scene_description = ""
+        self.graph_manager = graph_manager
+        self.fx = 920  # pixels
+        self.fy = 920  # pixels
+        self.cx = 480  # image width / 2
+        self.cy = 360  # image height / 2
+        self.K = np.array([
+            [self.fx, 0, self.cx],
+            [0, self.fy, self.cy],
+            [0,  0, 1]
+        ])
+        self.cam_T_world = np.eye(4) 
+        self.IMG_W  = 960                # tello width  (px)
+        self.IMG_H  = 720                # tello height (px)
+
         
     def update_obj_list(self):
         if self.shared_frame.timestamp == self.last_update:
@@ -104,6 +122,14 @@ class VisionSkillWrapper():
             w = box['x2'] - box['x1']
             h = box['y2'] - box['y1']
             self.object_list.append(ObjectInfo(name, x, y, w, h))
+            if False:  # TODO: remove this condition when you want to localize objects
+                pos = self.camera_to_world(name)   # auto-samples depth
+                if pos is not None:
+                    print(f"Object {obj["name"]} detected at position {pos[:2]}")
+                    self.graph_manager.add_object_detection(obj["name"], pos[:2])
+            else:
+                print(f"Object {obj["name"]} detected without localization")
+                self.graph_manager.add_object_detection(obj["name"])
 
     def update_scene_description(self):
         self.scene_description = self.env_analysis_module.get_scene_description(self.shared_frame)
@@ -260,3 +286,45 @@ class VisionSkillWrapper():
         index_x = (mid_point[0] - start_x) / FOV_X * (depth.shape[1] - 1)
         index_y = (mid_point[1] - start_y) / FOV_Y * (depth.shape[0] - 1)
         return int(depth[int(index_y), int(index_x)] / 10), False
+
+    # ──────────────────────────────────────────────────────────────
+    #  New helper – normalized → pixel
+    # ----------------------------------------------------------------
+    def _norm_to_px(self, x_norm: float, y_norm: float) -> tuple[int, int]:
+        """Convert (0-1) normalised image coords to integer pixel indices."""
+        return int(x_norm * (self.IMG_W - 1)), int(y_norm * (self.IMG_H - 1))
+
+    # ──────────────────────────────────────────────────────────────
+    #  MAIN METHOD requested by you
+    # ----------------------------------------------------------------
+    def camera_to_world(self, object_name: str) -> np.ndarray:
+        """
+        Return 3-D position (x,y,z) in *world* frame for the centre of
+        `object_name`.
+
+        Uses your existing `object_distance()` to fetch depth, so there is
+        **one single source of truth** for depth handling.
+        """
+        # --- 1. distance from your existing utility -------------------------
+        dist_cm, err = self.object_distance(object_name)     # ← you wrote this
+        if err:
+            raise RuntimeError(dist_cm)                     # message is in dist_cm
+
+        depth_m = dist_cm / 100.0
+
+        # --- 2. pixel location of the object centre -------------------------
+        info = self.get_obj_info(object_name)
+        if info is None:
+            raise RuntimeError(f"{object_name} not found by get_obj_info()")
+
+        u_px, v_px = self._norm_to_px(info.x, info.y)
+
+        # --- 3. back-project pixel to camera frame --------------------------
+        x_cam = (u_px - self.cx) * depth_m / self.fx
+        y_cam = (v_px - self.cy) * depth_m / self.fy
+        z_cam = depth_m
+        p_cam = np.array([x_cam, y_cam, z_cam, 1.0])
+
+        # --- 4. camera frame → world frame ----------------------------------
+        p_world = self.cam_T_world @ p_cam
+        return p_world[:3]
