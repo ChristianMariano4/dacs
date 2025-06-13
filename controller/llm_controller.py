@@ -4,6 +4,13 @@ from typing import Optional, Tuple
 import asyncio
 import uuid
 
+import cv2
+import numpy as np
+import torch
+
+from controller.context_map.mapping.graph_manager import GraphManager
+from controller.context_map.spine import SPINE
+
 
 from .shared_frame import SharedFrame, Frame
 from .yolo_client import YoloClient
@@ -27,7 +34,9 @@ class LLMController():
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
-        self.vision = VisionSkillWrapper(self.shared_frame)
+        self.graph_mgr = GraphManager()
+        self.spine_agent = SPINE(self.graph_mgr.graph)
+        self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_mgr)
         self.latest_frame = None
         self.controller_active = True
         self.controller_wait_takeoff = True
@@ -43,7 +52,7 @@ class LLMController():
         match robot_type:
             case RobotType.TELLO:
                 print_t("[C] Start Tello drone...")
-                self.drone: RobotWrapper = TelloWrapper()
+                self.drone: RobotWrapper = TelloWrapper(move_enable=False)
             case RobotType.GEAR:
                 print_t("[C] Start Gear robot car...")
                 from .gear_wrapper import GearWrapper
@@ -81,6 +90,11 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
+        #         self.low_level_skillset.add_skill(
+        #     LowLevelSkillItem("flush_updates",
+        #                       lambda: (self.graph_mgr.flush_prompt_updates(), False),
+        #                       "Return accumulated graph diff and clear buffer")
+        # )
 
         self.low_level_skillset.add_skill(LowLevelSkillItem("goto", self.skill_goto, "goto the object", args=[SkillArg("object_name[*x-value]", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("time", self.skill_time, "Get current execution time", args=[]))
@@ -102,6 +116,13 @@ class LLMController():
         self.current_plan = None
         self.execution_history = None
         self.execution_time = time.time()
+
+        self.depth_device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.midas = torch.hub.load("intel-isl/MiDaS", "DPT_Hybrid")
+        self.midas.to(self.depth_device).eval()
+
+        midas_tfms = torch.hub.load("intel-isl/MiDaS", "transforms")
+        self.depth_tf  = midas_tfms.dpt_transform  
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False
@@ -208,6 +229,38 @@ class LLMController():
         self.drone.stop_stream()
         self.controller_wait_takeoff = True
 
+
+    def _infer_depth_mm(self, bgr: np.ndarray,
+                        max_depth_mm: int = 5000) -> np.ndarray:
+        """
+        Convert a BGR frame to a depth map (millimetres, int16) using MiDaS.
+        """
+        import cv2, torch
+
+        if bgr is None:
+            raise ValueError("Empty frame passed to _infer_depth_mm()")
+
+        rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+
+        # transform already RETURNS shape (1, 3, H, W) ⇢ no .unsqueeze(0)!
+        input_tensor = self.depth_tf(rgb).to(self.depth_device)
+
+        with torch.no_grad():
+            pred = self.midas(input_tensor)
+
+            # upscale back to original frame size
+            pred = torch.nn.functional.interpolate(
+                pred.unsqueeze(1),                  # (1, 1, H', W')
+                size=rgb.shape[:2],                 # (H, W)
+                mode="bicubic",
+                align_corners=False,
+            ).squeeze(1)                            # (1, H, W)
+
+        depth = pred.cpu().numpy()[0]               # (H, W) float32
+        depth_norm = depth / depth.max()            # 0-1
+        depth_mm   = (depth_norm * max_depth_mm).astype(np.int16)
+        return depth_mm
+
     def capture_loop(self, asyncio_loop):
         print_t("[C] Start capture loop...")
         frame_reader = self.drone.get_frame_reader()
@@ -216,6 +269,9 @@ class LLMController():
             self.latest_frame = frame_reader.frame
             frame = Frame(frame_reader.frame,
                           frame_reader.depth if hasattr(frame_reader, 'depth') else None)
+            
+            # depth_mm = self._infer_depth_mm(self.latest_frame)
+            # frame.depth = depth_mm
 
             if self.yolo_client.is_local_service():
                 self.yolo_client.detect_local(frame)
@@ -223,6 +279,8 @@ class LLMController():
                 # asynchronously send image to yolo server
                 asyncio_loop.call_soon_threadsafe(asyncio.create_task, self.yolo_client.detect(frame))
             time.sleep(0.10)
+
+ 
         # Cancel all running tasks (if any)
         for task in asyncio.all_tasks(asyncio_loop):
             task.cancel()
