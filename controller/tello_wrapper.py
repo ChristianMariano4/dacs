@@ -3,6 +3,8 @@ import numpy as np
 from typing import Tuple
 from djitellopy import Tello
 
+from controller.context_map.depth_image import TelloDepthStreamer
+
 from .abs.robot_wrapper import RobotWrapper
 
 import logging
@@ -63,10 +65,12 @@ def cap_distance(distance):
     return distance
 
 class TelloWrapper(RobotWrapper):
-    def __init__(self):
+    def __init__(self, move_enable=False):
+        super().__init__(move_enable=move_enable)
         self.drone = Tello()
         self.active_count = 0
         self.stream_on = False
+        # self.streamer = TelloDepthStreamer(self.drone)
 
     def keep_active(self):
         if self.active_count % 20 == 0:
@@ -94,57 +98,95 @@ class TelloWrapper(RobotWrapper):
         self.stream_on = False
         self.drone.streamoff()
 
+
+    # def start_stream(self):
+    #     self.stream_on = True
+    #     self.drone.streamon()
+    #     self.streamer.start()
+
+    # def stop_stream(self):
+    #     self.stream_on = False
+    #     self.drone.streamoff()
+    #     self.streamer.stop()
+
     def get_frame_reader(self):
         if not self.stream_on:
             return None
         return FrameReader(self.drone.get_frame_read())
 
+    def takeoff(self) -> bool:
+        if not self.get_move_enable():
+            return False
+        if not self.is_battery_good():
+            return False
+        self.drone.takeoff()
+        return True
+
+    def land(self):
+        if not self.get_move_enable():
+            return
+        self.drone.land()
+
     def move_forward(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_forward(cap_distance(distance))
         self.movement_x_accumulator += distance
         time.sleep(0.5)
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_backward(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_back(cap_distance(distance))
         self.movement_x_accumulator -= distance
         time.sleep(0.5)
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_left(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_left(cap_distance(distance))
         self.movement_y_accumulator += distance
         time.sleep(0.5)
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_right(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_right(cap_distance(distance))
         self.movement_y_accumulator -= distance
         time.sleep(0.5)
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_up(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_up(cap_distance(distance))
         time.sleep(0.5)
         return True, False
 
     def move_down(self, distance: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.move_down(cap_distance(distance))
         time.sleep(0.5)
         return True, False
 
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.rotate_counter_clockwise(degree)
         self.rotation_accumulator += degree
         time.sleep(1)
-        # return True, degree > SCENE_CHANGE_ANGLE
         return True, False
 
     def turn_cw(self, degree: int) -> Tuple[bool, bool]:
+        if not self.get_move_enable():
+            return False, False
         self.drone.rotate_clockwise(degree)
         self.rotation_accumulator -= degree
         time.sleep(1)
-        # return True, degree > SCENE_CHANGE_ANGLE
         return True, False
     
     def is_battery_good(self) -> bool:
