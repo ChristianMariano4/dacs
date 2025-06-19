@@ -5,6 +5,8 @@ import numpy as np
 from typing import Tuple
 from djitellopy import Tello
 
+from controller.context_map.mapping.graph_manager import GraphManager
+
 from .abs.robot_wrapper import RobotWrapper
 
 import logging
@@ -65,7 +67,8 @@ def cap_distance(distance):
     return distance
 
 class TelloWrapper(RobotWrapper):
-    def __init__(self):
+    def __init__(self, graph_manager: GraphManager):
+        super().__init__(graph_manager=graph_manager)
         self.drone = Tello()
         self.active_count = 0
         self.stream_on = False
@@ -103,6 +106,8 @@ class TelloWrapper(RobotWrapper):
 
             self.pose[:2] += v_world[:2] * dt
             self.pose[2]   = state["h"] / 100.0
+
+            self.graph_manager.update_pose(list(self.pose * 100.0))
             time.sleep(0.01)
 
     def _start_odometry(self):               
@@ -113,8 +118,8 @@ class TelloWrapper(RobotWrapper):
             self._odo_th.start()
 
     def get_pose(self):
-        """Current (x, y, z) in metres, unchanged by land/take-off cycles."""
-        return tuple(self.pose)
+        """Current (x, y, z) in cm, unchanged by land/take-off cycles."""
+        return list(self.pose * 100.0)
     
     def reset_origin(self):
         self.pose[:] = 0.0
