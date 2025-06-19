@@ -3,6 +3,8 @@ from enum import Enum
 import json
 import os
 
+from controller.context_map.mapping.graph_manager import GraphManager
+
 SKILL_FILE = "controller/assets/tello/high_level_skills.json"
 
 class RobotType(Enum):
@@ -79,6 +81,10 @@ class RobotWrapper(ABC):
 
     @abstractmethod
     def turn_cw(self, degree: int) -> bool:
+        pass
+
+    @abstractmethod
+    def get_pose(self):
         pass
 
     def add_skill(self, skill_name: str, description: str, minispec_def: str):

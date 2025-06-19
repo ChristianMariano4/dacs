@@ -34,9 +34,9 @@ class LLMController():
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
-        self.graph_mgr = GraphManager()
-        self.spine_agent = SPINE(self.graph_mgr.graph)
-        self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_mgr)
+        self.graph_manager = GraphManager(self)
+        self.spine_agent = SPINE(self.graph_manager.graph_handler)
+        self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_manager)
         self.latest_frame = None
         self.controller_active = True
         self.controller_wait_takeoff = True
@@ -52,7 +52,7 @@ class LLMController():
         match robot_type:
             case RobotType.TELLO:
                 print_t("[C] Start Tello drone...")
-                self.drone: RobotWrapper = TelloWrapper(move_enable=False)
+                self.drone: RobotWrapper = TelloWrapper(move_enable=False, graph_manager=self.graph_manager)
             case RobotType.GEAR:
                 print_t("[C] Start Gear robot car...")
                 from .gear_wrapper import GearWrapper
@@ -122,7 +122,10 @@ class LLMController():
         self.midas.to(self.depth_device).eval()
 
         midas_tfms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        self.depth_tf  = midas_tfms.dpt_transform  
+        self.depth_tf  = midas_tfms.dpt_transform 
+
+    def get_drone(self) -> RobotWrapper:
+        return self.drone 
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False

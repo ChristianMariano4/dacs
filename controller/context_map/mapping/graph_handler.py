@@ -1,9 +1,11 @@
 import json
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 import numpy as np
 from scipy.spatial.transform import Rotation
+
+from controller.context_map.mapping.graph_manager import GraphManager
 
 # empty graph from which to start
 EMPTY_GRAPH = {
@@ -177,7 +179,8 @@ def parse_graph(
 
 # class that handle the graph. If given one as input (grapt_path), otherwise crate an empty one
 class GraphHandler:
-    def __init__(self, graph_path: str , init_node: Union[None, str] = None) -> None:
+    def __init__(self, graph_manager: GraphManager, graph_path: str , init_node: Union[None, str] = None) -> None:
+        self.graph_manager = graph_manager
         if graph_path == "":
             self.graph = nx.Graph()
             self.as_json_str = "{}"
@@ -187,6 +190,67 @@ class GraphHandler:
                 data = json.load(f)
             self.graph, self.as_json_str = parse_graph(data)
             self.current_location = init_node
+
+    def ensure_region_for_pose(
+        self,
+        pose_xy: Sequence[float],          # (x, y) in the SAME frame your graph uses
+        threshold: float = 150.0,            # cm; tweak to taste TODO: add global threshold
+        connect_to_nearest: bool = True,   # make an edge to the closest region
+    ) -> Tuple[str, bool]:
+        """
+        Make sure the point `pose_xy` is assigned to a region.
+        Returns (region_name, created_new_flag)
+
+        • If an existing region is within `threshold`, we just return it.
+        • Otherwise we:
+            1. generate a unique region name,
+            2. add the node with type='region' and the given coords,
+            3. optionally connect it to the nearest region with a
+               weighted 'region' edge,
+            4. update self.current_location.
+        """
+        pose_xy = np.asarray(pose_xy, dtype=float)
+
+        # --- 1. Gather existing regions -------------------------
+        region_nodes, region_locs = self.get_region_nodes_and_locs()
+        if region_locs.size:                       # at least one region exists
+            dists = np.linalg.norm(region_locs - pose_xy, axis=1)
+            min_idx = dists.argmin()
+            if dists[min_idx] <= threshold:       # close enough → reuse
+                region_name = region_nodes[min_idx]
+                self.current_location = region_name
+                return region_name, False         # no new region created
+            nearest_old = region_nodes[min_idx]
+        else:
+            nearest_old = None                    # first region ever
+
+        # --- 2. Create a unique name ----------------------------
+        #TODO: add a global counter for the new region id
+        base = "region"
+        i = 1
+        while f"{base}_{i}" in self.graph.nodes:
+            i += 1
+        region_name = f"{base}_{i}"
+
+        # --- 3. Add the new node --------------------------------
+        self.update_with_node(
+            region_name,
+            edges=[],                               # edges added below (if any)
+            attrs={"type": "region", "coords": pose_xy.round(1).tolist()},
+        )
+        self.update_location(region_name)
+
+        # --- 4. Optionally connect it ---------------------------
+        if connect_to_nearest and nearest_old is not None:
+            w = float(np.linalg.norm(pose_xy - self.get_node_coords(nearest_old)[0]))
+            self.update_with_edge(
+                (region_name, nearest_old),
+                {"type": "region", "weight": w},
+            )
+
+        # --- 5. Book-keeping ------------------------------------
+        self.current_location = region_name
+        return region_name, True     
 
     def reset(
         self,
@@ -374,14 +438,16 @@ class GraphHandler:
             return node_info["type"]
         else:
             return ""
-
+   
     def update_with_node(
         self,
         node: str,
-        edges: List[str],
+        edges: Optional[List[str]] = None, 
         attrs: Dict[str, Any] = {},
     ) -> None:
         assert "type" in attrs and "coords" in attrs
+        if edges is None: # that means that the methos is called to add new object
+            edges = [self.current_location]
         self.graph.add_node(node, **attrs)
         for edge in edges:
             c1 = self.graph.nodes[node]["coords"]
