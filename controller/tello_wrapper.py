@@ -1,5 +1,3 @@
-import math
-import threading
 import time, cv2
 import numpy as np
 from typing import Tuple
