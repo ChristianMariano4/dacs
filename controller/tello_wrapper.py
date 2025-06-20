@@ -1,5 +1,7 @@
 import math
 import threading
+import math
+import threading
 import time, cv2
 import numpy as np
 from typing import Tuple
@@ -139,10 +141,26 @@ class TelloWrapper(RobotWrapper):
         if self._odo_th:
             self._odo_th.join()
         self.drone.end()
+        self._start_odometry()
+
+    def disconnect(self):
+        self._odo_stop.set()
+        if self._odo_th:
+            self._odo_th.join()
+        self.drone.end()
 
     def takeoff(self) -> bool:
         if not self.is_battery_good():
             return False
+        
+        self.drone.takeoff()
+        # initialise reference yaw only on the *first* take-off
+        if not self._inited:                 #  <<< CHANGED
+            st        = self.drone.get_current_state()
+            self._yaw0 = st.get("yaw", 0.0)
+            self._last_ts = None             # restart integration clock
+            self._inited  = True  
+        return True
         
         self.drone.takeoff()
         # initialise reference yaw only on the *first* take-off
