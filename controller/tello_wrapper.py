@@ -67,7 +67,7 @@ def cap_distance(distance):
     return distance
 
 class TelloWrapper(RobotWrapper):
-    def __init__(self, graph_manager: GraphManager):
+    def __init__(self, move_enable, graph_manager: GraphManager):
         super().__init__(graph_manager=graph_manager)
         self.drone = Tello()
         self.active_count = 0

@@ -3,7 +3,6 @@ import numpy as np
 import time, math
 import cv2
 from controller.context_map.mapping.graph_manager import GraphManager
-from controller.llm_controller import LLMController
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
 from controller.utils import encode_image
@@ -126,7 +125,7 @@ class VisionSkillWrapper():
             if True:  # TODO: remove this condition when you want to localize objects
                 pos = self.graph_manager.get_llm_controller().get_drone().get_pose()   # auto-samples depth
                 if pos is not None:
-                    print(f"Object {obj["name"]} detected at position {pos[:2]}")
+                    # print(f"Object {obj["name"]} detected at position {pos[:2]}")
                     self.graph_manager.add_object_detection(obj["name"], pos[:2])
             else:
                 print(f"Object {obj["name"]} detected without localization")
