@@ -70,7 +70,7 @@ def cap_distance(distance):
 
 class TelloWrapper(RobotWrapper):
     def __init__(self, move_enable, graph_manager: GraphManager):
-        super().__init__(graph_manager=graph_manager)
+        super().__init__(graph_manager=graph_manager, move_enable=move_enable)
         self.drone = Tello()
         self.active_count = 0
         self.stream_on = False
@@ -141,38 +141,27 @@ class TelloWrapper(RobotWrapper):
         if self._odo_th:
             self._odo_th.join()
         self.drone.end()
-        self._start_odometry()
-
-    def disconnect(self):
-        self._odo_stop.set()
-        if self._odo_th:
-            self._odo_th.join()
-        self.drone.end()
 
     def takeoff(self) -> bool:
         if not self.is_battery_good():
             return False
-        
-        self.drone.takeoff()
-        # initialise reference yaw only on the *first* take-off
-        if not self._inited:                 #  <<< CHANGED
-            st        = self.drone.get_current_state()
-            self._yaw0 = st.get("yaw", 0.0)
-            self._last_ts = None             # restart integration clock
-            self._inited  = True  
+        if self.move_enable:
+            self.drone.takeoff()
+            # initialise reference yaw only on the *first* take-off
+            if not self._inited:                 #  <<< CHANGED
+                st        = self.drone.get_current_state()
+                self._yaw0 = st.get("yaw", 0.0)
+                self._last_ts = None             # restart integration clock
+                self._inited  = True
+        else:
+            print("[Drone] Takeoff")
         return True
-        
-        self.drone.takeoff()
-        # initialise reference yaw only on the *first* take-off
-        if not self._inited:                 #  <<< CHANGED
-            st        = self.drone.get_current_state()
-            self._yaw0 = st.get("yaw", 0.0)
-            self._last_ts = None             # restart integration clock
-            self._inited  = True  
-        return True
-
+    
     def land(self):
-        self.drone.land()
+        if self.move_enable:
+            self.drone.land()
+        else:
+            print("[Drone] Land")
 
     def start_stream(self):
         self.stream_on = True
@@ -188,50 +177,74 @@ class TelloWrapper(RobotWrapper):
         return FrameReader(self.drone.get_frame_read())
 
     def move_forward(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_forward(cap_distance(distance))
-        self.movement_x_accumulator += distance
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_forward(cap_distance(distance))
+            self.movement_x_accumulator += distance
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Forward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_backward(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_back(cap_distance(distance))
-        self.movement_x_accumulator -= distance
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_back(cap_distance(distance))
+            self.movement_x_accumulator -= distance
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Backward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_left(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_left(cap_distance(distance))
-        self.movement_y_accumulator += distance
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_left(cap_distance(distance))
+            self.movement_y_accumulator += distance
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Left")
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_right(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_right(cap_distance(distance))
-        self.movement_y_accumulator -= distance
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_right(cap_distance(distance))
+            self.movement_y_accumulator -= distance
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Right")
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_up(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_up(cap_distance(distance))
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_up(cap_distance(distance))
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Up")
         return True, False
 
     def move_down(self, distance: int) -> Tuple[bool, bool]:
-        self.drone.move_down(cap_distance(distance))
-        time.sleep(0.5)
+        if self.move_enable:
+            self.drone.move_down(cap_distance(distance))
+            time.sleep(0.5)
+        else:
+            print("[Drone] Move Down")
         return True, False
 
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
-        self.drone.rotate_counter_clockwise(degree)
-        self.rotation_accumulator += degree
-        time.sleep(1)
+        if self.move_enable:
+            self.drone.rotate_counter_clockwise(degree)
+            self.rotation_accumulator += degree
+            time.sleep(1)
+        else:
+            print("[Drone] Turn Ccw")
         # return True, degree > SCENE_CHANGE_ANGLE
         return True, False
 
     def turn_cw(self, degree: int) -> Tuple[bool, bool]:
-        self.drone.rotate_clockwise(degree)
-        self.rotation_accumulator -= degree
-        time.sleep(1)
+        if self.move_enable:
+            self.drone.rotate_clockwise(degree)
+            self.rotation_accumulator -= degree
+            time.sleep(1)
+        else:
+            print("[Drone] Turn Cw")
         # return True, degree > SCENE_CHANGE_ANGLE
         return True, False
     
