@@ -1,6 +1,6 @@
 import json
 import os, ast
-from typing import Optional
+from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
 
@@ -43,7 +43,7 @@ class LLMPlanner():
         self.low_level_skillset = low_level_skillset
         self.vision_skill = vision_skill
 
-    def plan(self, task_description: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None):
+    def plan(self, task_description: str, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None):
         # by default, the task_description is an action
         if not task_description.startswith("["):
             task_description = "[A] " + task_description
@@ -67,7 +67,10 @@ class LLMPlanner():
                                              error_message=error_message,
                                              scene_description=scene_description,
                                              task_description=task_description,
-                                             execution_history=execution_history)
+                                             execution_history=execution_history,
+                                             context_graph=context_graph,
+                                             current_position=current_position,
+                                             current_region=current_region)
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
         return self.llm.request(prompt, model_name=self.model_name, stream=False)

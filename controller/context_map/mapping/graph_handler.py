@@ -5,7 +5,6 @@ import networkx as nx
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from controller.context_map.mapping.graph_manager import GraphManager
 
 # empty graph from which to start
 EMPTY_GRAPH = {
@@ -179,8 +178,7 @@ def parse_graph(
 
 # class that handle the graph. If given one as input (grapt_path), otherwise crate an empty one
 class GraphHandler:
-    def __init__(self, graph_manager: GraphManager, graph_path: str , init_node: Union[None, str] = None) -> None:
-        self.graph_manager = graph_manager
+    def __init__(self, graph_path: str , init_node: Union[None, str] = None) -> None:
         if graph_path == "":
             self.graph = nx.Graph()
             self.as_json_str = "{}"

@@ -120,7 +120,10 @@ class LLMController():
         self.depth_tf  = midas_tfms.dpt_transform 
 
     def get_drone(self) -> RobotWrapper:
-        return self.drone 
+        return self.drone
+    
+    def get_drone_pose(self):
+        self.drone.get_pose()
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False
@@ -190,7 +193,7 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history)
+            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history, context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
             print_t(f"The plan is {self.current_plan}.")
             self.append_message(f'[Plan]: \\\\')
             try:

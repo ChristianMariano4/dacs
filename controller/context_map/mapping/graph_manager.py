@@ -6,18 +6,18 @@ from controller.context_map.spine_util import UpdatePromptFormer
 import numpy as np
 import uuid
 
-from controller.llm_controller import LLMController
 
 class GraphManager:
     """
     Keeps an up-to-date scene graph that every other TypeFly
     component can share without ROS.
     """
-    def __init__(self, llmController: LLMController, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(self, llmController, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
         self.llmController = llmController
-        self.graph_handler = GraphHandler(self, init_graph_json or "", init_node=start_region)
+        self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
         self.updater = UpdatePromptFormer()
         self.current_region = start_region
+        self.drone_pose = None
 
         if not self.graph_handler.graph.has_node(start_region):
             # no neighbours yet – just a stand-alone region
@@ -27,16 +27,23 @@ class GraphManager:
                 attrs={"coords": list(start_coords), "type": "region"},
             )
 
-    def get_llm_controller(self) -> LLMController:
-        return self.llmController
+    def get_drone_pose(self):
+        return self.drone_pose
+    
+    def get_current_region(self):
+        return self.current_region
+    
+    def get_graph(self):
+        return self.graph_handler.to_json_str()
     
     # --- Pose
-    def update_pose(self, xy: Sequence[float]) -> None:
+    def update_pose(self, pose: Sequence[float]) -> None:
         """
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres; keep units consistent.
         """
-        result = self.graph_handler.ensure_region_for_pose(xy)
+        self.drone_pose = np.asarray(pose)[:2] 
+        result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
         if result[1]:
             self.current_region = result[0]
         # self.graph_handler.update_location(self.current_region)
@@ -55,11 +62,12 @@ class GraphManager:
         # ---------------------------------------------
         # Append graph snapshot to file
         # ---------------------------------------------
+        # print("Object added")
         log_dir = "graph_logs"
         os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, "graph_history.jsonl"), "a") as f:
             json.dump({
-                "graph": self.graph_handler.as_json_str,
+                "graph": self.graph_handler.to_json_str(),
             }, f)
             f.write("\n")
         
