@@ -3,7 +3,6 @@ import os, ast
 from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
-from controller.llm_controller import LLMController
 from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
