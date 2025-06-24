@@ -113,3 +113,66 @@ Task: How many grocery stores are currently in the scene?
 Reason: The relevant part of the graph is now: grocery_store_1. There is one grocery store in the scene. Although the scene may be incomplete, I am only asked about currently observed grocery stores. Thus the answer is one
 Textual plan: Answer the user that there is one grocery store in the scene (grocery_store_1).
 Response: l('There is one grocery store in the scene (grocery_store_1)');
+
+#Example 3:
+Graph: {
+    "objects": [
+        {"name": "office_building_1"},
+        {"name": "office_building_2"},
+        {"name": "robot_1"},
+        {"name": "robot_2"},
+        {"name": "robot_3"},
+        {"name": "example_truck_1"},
+    ],
+    "regions": [
+        {"name": "example_sidewalk_1", "coords": [180, 51]},
+        {"name": "example_road_1", "coords": [190, 50]},
+        {"name": "charging_station_1", "coords": [205, 60]},
+        {"name": "charging_station_2", "coords": [190, 68]},
+        {"name": "example_node_2", "coords": [150, 38]},
+        {"name": "example_node_1", "coords": [130, 38]},
+    ],
+    "object_connections": [
+        ["office_building_1", "example_sidewalk_1"],
+        ["office_building_2", "example_sidewalk_1"],
+        ["robot_1", "charging_station_1"],
+        ["robot_2", "charging_station_1"],
+        ["robot_3", "charging_station_2"],
+        ["example_truck_1", "charging_station_2"],
+    ],
+    "region_connections": [
+        ["example_sidewalk_1", "example_road_1"],
+        ["example_sidewalk_1", "charging_station_1"],
+        ["example_sidewalk_1", "charging_station_2"],
+    ],
+    "robot_location": "example_road_1",
+}
+
+Iteration 1:
+Scene: []
+Task: How many robots are currently observed, where are they located, and which is the southmost robot?
+Reason: The relevant part of the graph is: robot_1, robot_2, robot_3. There are currently three robots in the scene graph, robot_1, robot_2, and robot_2. robot_1 and robot_2 are in charging_station_1, while robot_3 is in charging_station_2. The y coordinate, which corresponds to south / north. robot_1 and robot_2 are in charging_station_1, whose y coordinate is lower than charging_station_2. Thus, robot_1 and robot_2 are equally southmost.
+Textual plan: Report that robot_1 robot_2 are in charging_station_1 at [205, 60], and robot_3 is in charging_station_2 at [190, 68]; then explain that robot_1 and robot_2 share the lowest y coordinate and are thus equally southmost.
+Response: l('robot_1 robot_2 are in charging_station_1 at [205, 60], and robot_3 is in charging_station_2 at [190, 68]. Then robot_1 and robot_2 share the lowest y coordinate and are thus equally southmost.');
+
+Iteration 2: new task
+Scene: []
+Task: I cannot reach example_node_2 from my current location, as there is no path. I want to try to find a connection. What node should I go to in order to look for a connection.
+Reason: The relevant part of the graph is: example_road_1, example_sidewalk_1, example_node_2. Based on my current location, example_road_1, I can reach example_sidewalk_1, charging_station_1, and charging_station_2. Out of this list, example_sidewalk_1 at [180, 51] is the closest to example_node_2 at [150, 38].
+Textual plan: Answer the user that example_sidewalk_1 is the best candidate to explore to reach example_node_2, and suggest going there to try to discover a new connection.
+Response: l('example_sidewalk_1 is the best candidate to explore to reach example_node_2, so I suggest going there to try to discover a new connection.');
+
+Iteration 3: new task
+Scene: []
+Task: What is around the sidewalk?
+Reason: The relevant part of the graph is: example_sidewalk_1. The user wants to know what is around the sidewalk. There is only one sidewalk in the scene, example_sidewalk_1, so the user must be referring to that region. Because my intended goal is within a exploration radius of 300 centimeters, the most efficient way for me to complete that task is to go there and explore the region with a radius of 3 centimeters.
+Textual plan: Go to example_sidewalk_1; map the region to record known objects and regions; then explore in a 300 centimeter radius to detect new regions. Then replan to retrieve updated graph. To achieve more re-usability I add a new skill to fly a full 360-degree circle.
+Response: tc(180); mf(10); add_skill("circle_flight", "Fly a full 360-degree circle with arbitrary radius. Takes 1 argument: step_cm, where step_cm ≈ round( 2 π radius_cm / 36 ).", "36{ mf($1); tc(10);};"); circle_flight(53)
+
+Iteration 4: new regions: discovered_region_1 at [180, 54], discovered_region_2 at [180, 48], discovered_region_3 at [183, 51], discovered_region_4 at [177, 61]. New connections: [example_sidewalk_1, discovered_region_1], [example_sidewalk_1, discovered_region_2], [example_sidewalk_1, discovered_region_3], [example_sidewalk_1, discovered_region_4].
+Scene: to add
+Task: What is around the sidewalk?
+Reason: The relevant part of the graph is: example_sidewalk_1. I explored example_sidewalk_1, which means I tried to discover new regions. I then mapped those regions in search of new objects. I did find four new regions. but no new objects. By the description of discovered_region_4, it must be part of a sidewalk.
+Textual plan: Answer that example_sidewalk_1 has four connected regions around it; mention that discovered_region_4 is also a sidewalk; report that no new objects were discovered.
+Response:  l("example_sidewalk_1 has four connected regions around it; no new objects were discovered.)";
+
