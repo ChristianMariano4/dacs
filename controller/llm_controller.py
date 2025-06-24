@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import asyncio
 import uuid
 
+from controller.constants import REGION_THRESHOLD
 from controller.task import Task
 
 import cv2
@@ -61,7 +62,7 @@ class LLMController():
         match robot_type:
             case RobotType.TELLO:
                 print_t("[C] Start Tello drone...")
-                self.drone: RobotWrapper = TelloWrapper(move_enable=False, graph_manager=self.graph_manager)
+                self.drone: RobotWrapper = TelloWrapper(move_enable=True, graph_manager=self.graph_manager)
             case RobotType.GEAR:
                 print_t("[C] Start Gear robot car...")
                 from .gear_wrapper import GearWrapper
@@ -80,6 +81,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_region", self.explore_forward, "Explore a new region forward", args=[]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
@@ -152,6 +154,10 @@ class LLMController():
                 self.drone.turn_ccw(int((0.5 - x) * 70))
 
         self.drone.move_forward(110)
+        return None, False
+    
+    def explore_forward(self) -> Tuple[None, bool]:
+        self.drone.move_forward(REGION_THRESHOLD)
         return None, False
 
     def skill_take_picture(self) -> Tuple[None, bool]:
