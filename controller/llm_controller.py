@@ -87,7 +87,8 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_region", self.explore_forward, "Explore a new region forward", args=[]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region forward", args=[]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("add_region", self.add_region, "Add a new region node in context graph"), args=[SkillArg("region_name"), str])
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
@@ -108,9 +109,9 @@ class LLMController():
         #                       lambda: (self.graph_mgr.flush_prompt_updates(), False),
         #                       "Return accumulated graph diff and clear buffer")
         # )
-
         self.low_level_skillset.add_skill(LowLevelSkillItem("goto", self.skill_goto, "goto the object", args=[SkillArg("object_name[*x-value]", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("time", self.skill_time, "Get current execution time", args=[]))
+
         # load high-level skills
         self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
 
@@ -157,9 +158,12 @@ class LLMController():
         self.drone.move_forward(110)
         return None, False
     
-    def explore_forward(self) -> Tuple[None, bool]:
-        self.drone.move_forward(REGION_THRESHOLD)
+    def explore_new_region(self) -> Tuple[None, bool]:
+        self.drone.move_forward(REGION_THRESHOLD+20)
         return None, False
+    
+    def add_region(self, region_name: str) -> Tuple[None, bool]:
+        self.graph_manager.add_region(self.drone.get_pose(), region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         img_path = os.path.join(self.cache_folder, f"{uuid.uuid4()}.jpg")
