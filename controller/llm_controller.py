@@ -126,13 +126,6 @@ class LLMController():
         # self.execution_history = None
         self.execution_time = time.time()
 
-        self.depth_device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.midas = torch.hub.load("intel-isl/MiDaS", "DPT_Hybrid")
-        self.midas.to(self.depth_device).eval()
-
-        midas_tfms = torch.hub.load("intel-isl/MiDaS", "transforms")
-        self.depth_tf  = midas_tfms.dpt_transform 
-
     def get_drone(self) -> RobotWrapper:
         return self.drone
     
