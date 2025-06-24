@@ -207,13 +207,52 @@ Textual plan: Go to charging_station_1; scan the region to detect any nearby obj
 Response: tc(37);mf(50); s("robot");
 
 Iteration 2: found object robot_1 in charging_station_1
+Scene: [robot_1 x:0.44 y:0.53 width:0.38 height:0.40]
 Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
 Reason: The relevant part of the graph is: robot_1. Upon mapping the charging_station, I found a robot. I will now inspect it.
 Textual plan: Probe what is the color of robot_1 and whether it is damaged.
 Response: p("What is the color of the visible robot and is it damaged?");
 
 Iteration 3: probing gives as answer 'This is a red robot that is not damaged'
+Scene: [robot_1 x:0.44 y:0.53 width:0.38 height:0.40]
 Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
 Reason: The relevant part of the graph is: robot_1. I found a robot that is red. The robot is not damaged. This may be the users robot, based on the information I received.
 Textual plan: Inform the user that a red, undamaged robot was found, which likely matches their lost robot.
 Response: l("A red, undamaged robot was found in charging_station_1 at  [30, 40]");
+
+#Example 5
+Graph: {
+    "objects": [],
+    "regions": [],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": None,
+}
+
+Iteration 1:
+Scene: to add
+Task: I need an apple. Is there one in the scene?
+Reason: The relevant part of the graph is: unobserved_node(apple). The graph is empty, and no apples are currently known. I will begin by exploring a nearby region. Since I have no prior knowledge, I will move in a direction and try to discover regions and objects.
+Textual plan: Scan current region; then explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: s("apple"); e(); s("apple");
+
+Iteration 2: new region discovered_region_1 at [0, 2]
+Scene: to add
+Task: I need an apple. Is there one in the scene?
+Reason: The relevant part of the graph is: unobserved_node(apple). After moving to discovered_region_1, I still do not see any apples. I will continue exploring.
+Textual plan: Explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: e(); s("apple");
+
+Iteration 3: new region discovered_region_2 at [0, 4]; new objects found: banana_1 in discovered_region_2, orange_1 in discovered_region_2.
+Scene: to add
+Task: I need an apple. Is there one in the scene?
+Reason: The relevant part of the graph is: banana_1, orange_1, discovered_region_2. While I have not found an apple, I now see two fruits in discovered_region_2. Apples often appear near similar fruit objects, so I will explore adjacent areas.
+Textual plan: Explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: e(); s("apple");
+
+Iteration 4: new region discovered_region_3 at [0, 6]; new objects found: apple_1 in discovered_region_3
+Scene: to add
+Task: I need an apple. Is there one in the scene?
+Reason: The relevant part of the graph is: apple_1. I found an apple (apple_1) connected to discovered_region_3, located just beyond a region that contains other fruit. This satisfies the user’s request.
+Textual plan: Answer the user that an apple named apple_1 was found in discovered_region_3.
+Response: l("An apple (apple_1) was found in discovered_region_3 at [0.6].")
