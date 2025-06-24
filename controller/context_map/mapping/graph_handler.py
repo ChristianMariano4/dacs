@@ -248,7 +248,12 @@ class GraphHandler:
 
         # --- 5. Book-keeping ------------------------------------
         self.current_location = region_name
-        return region_name, True     
+        return region_name, True
+
+    def name_region(self, name):
+        result = self.lookup_node(name)
+        if result[1]:
+            result[0]["name"] = name #TODO: check if it is right
 
     def reset(
         self,
