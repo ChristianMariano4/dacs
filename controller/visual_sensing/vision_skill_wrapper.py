@@ -123,7 +123,7 @@ class VisionSkillWrapper():
             h = box['y2'] - box['y1']
             self.object_list.append(ObjectInfo(name, x, y, w, h))
             if True:  # TODO: remove this condition when you want to localize objects
-                pos = self.graph_manager.get_llm_controller().get_drone().get_pose()   # auto-samples depth
+                pos = self.graph_manager.get_drone_pose()   # auto-samples depth
                 if pos is not None:
                     # print(f"Object {obj["name"]} detected at position {pos[:2]}")
                     self.graph_manager.add_object_detection(obj["name"], pos[:2])
