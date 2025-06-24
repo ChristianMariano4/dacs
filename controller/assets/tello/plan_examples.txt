@@ -5,10 +5,62 @@ Reason: No predefined skill exists to search for an object based on abstract cat
 Response: as("active_search_abstract_object", "Search iteratively for an object described by the input question, using movement and rotational scanning. This skill requires 1 argument.", "10{_1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; sa($1); _2 = p('What visible object looks like a ' + $1 + '?'); ? _2 != False { -> _2; }} -> False; _3 = ox(_2); ? _3 < 0.45 { tu(30); -> False; }; ? _3 > 0.55 { tc(30); -> False; }; l('Object found and centered: ' + _2);"); active_search_abstract_object("container");
 
 Example 2:
-Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
-Task: [A] Search around and tell me if you see a bottle.
-Reason: No skill currently exists for general object lookup by name with movement and centering logic. Thus, we define a new skill using add_skill that takes an object name as input and searches for it iteratively, including visibility checks, movement, and centering.
-Response: as("active_search_object", "Search iteratively for a known object using visibility checks and rotation. This skill requires 1 argument.", "10{? iv($1) == True { -> $1; } _1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; s($1);} -> False; _2 = ox($1); ? _2 < 0.45 { tu(30); -> False; }; ? _2 > 0.55 { tc(30); -> False; }; l('Object found and centered: ' + $1);"); active_search_object("bottle");
+Graph: {
+    "objects": [
+        {"name": "house_1"},
+        {"name": "house_2"},
+        {"name": "grocery_store_1"},
+        {"name": "shed_1"},
+        {"name": "shed_2"},
+    ],
+    "regions": [
+        {"name": "example_road_1", "coords": [-150, 0]},
+        {"name": "example_road_2", "coords": [-300, 0]},
+        {"name": "field_11", "coords": [0, 150]},
+        {"name": "field_13", "coords": [300, 450]},
+    ],
+    "object_connections": [
+        ["house_1", "example_road_1"],
+        ["house_2", "example_road_2"],
+        ["shed_1", "field_11"],
+        ["shed_2", "field_13"],
+    ],
+    "region_connections": [
+        ["example_road_1", "example_road_2"],
+        ["example_road_1", "field_11"],
+        ["field_11", "field_13"],
+    ],
+    "robot_location": "example_road_1",
+    "robot_coordinates": [0, 0]
+}
+
+Iteration 1:
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is: field_11, field_13, unobserved_node(shovel). The graph does not contain any shovels. However, I know that the graph may be incomplete, so I will explore before providing a definitive answer. I will first map, then if needed I will explore new regions, by moving around. There are two sheds in the scene, and shovels are often found near sheds. Therefore, for each of the sheds, I will navigate to the nearby region and map.
+Textual plan: Go to field_11 based on current position and field_11 coordinates; scan the region to search objects; scan the region to search objects. Then replan to retrieve updated graph.
+Response: tc(90);mf(150);s("shovel");rp();
+
+Iteration 2: no updates
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is now: field_13, unobserved_node(shovel). After mapping field_11, which is next to shed_1, I did not find a shovel. I also planned on going to example_node_14 to map near shed_2, so I will continue my plan.
+Textual plan: Go to field_13 based on current position and field_13 coordinates; scan the region to search objects. Then replan to retrieve updated graph.
+Response: tu(45);mf(430);s("shovel");rp();
+
+Iteration 3: new object 'shovel_1' found in field_13
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is now: shovel_1. After exploring field_13, which is next to shed_2, I found a nearby shovel, shovel_1, that is connected to field_13. This fulfills the users request.
+Textual plan: Answer the user that a shovel (shovel_1) is located near shed_2 and connected to field_13.
+Response: l('a shovel (shovel_1) is located near shed_2 and connected to field_13'); 
+
+Iteration 4: new task
+Scene: to add
+Task: How many grocery stores are currently in the scene?
+Reason: The relevant part of the graph is now: grocery_store_1. There is one grocery store in the scene. Although the scene may be incomplete, I am only asked about currently observed grocery stores. Thus the answer is one
+Textual plan: Answer the user that there is one grocery store in the scene (grocery_store_1).
+Response: l('There is one grocery store in the scene (grocery_store_1)'); 
 
 Example 3:
 Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
@@ -21,3 +73,63 @@ Scene: [bench x:0.18 y:0.5 width:0.43 height:0.7, chair x:0.6 y:0.3 width:0.08 h
 Task: [A] Look for any object that functions as seating, center it in view, move closer if needed, and confirm it's found.
 Reason: We reuse the existing skill active_search_abstract_object to search and center a seating object using semantic reasoning. Once found, we evaluate its distance and move forward if needed.
 Response: active_search_abstract_object("seating object"); _1 = p("What visible object looks like a seating object?"); ? _1 == False { -> False; }; _2 = od(_1); ? _2 > 80 { mf(30); -> False; }; l("Found seating object: "); l(_1);
+
+
+
+Example 2:
+Graph: {
+    "objects": [
+        {"name": "house_1"},
+        {"name": "house_2"},
+        {"name": "grocery_store_1"},
+        {"name": "shed_1"},
+        {"name": "shed_2"},
+    ],
+    "regions": [
+        {"name": "example_road_1", "coords": [-150, 0]},
+        {"name": "example_road_2", "coords": [-300, 0]},
+        {"name": "field_11", "coords": [0, 150]},
+        {"name": "field_13", "coords": [300, 450]},
+    ],
+    "object_connections": [
+        ["house_1", "example_road_1"],
+        ["house_2", "example_road_2"],
+        ["shed_1", "field_11"],
+        ["shed_2", "field_13"],
+    ],
+    "region_connections": [
+        ["example_road_1", "example_road_2"],
+        ["example_road_1", "field_11"],
+        ["field_11", "field_13"],
+    ],
+    "robot_location": "example_road_1",
+    "robot_coordinates": [0, 0]
+}
+
+Iteration 1:
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is: field_11, field_13, unobserved_node(shovel). The graph does not contain any shovels. However, I know that the graph may be incomplete, so I will explore before providing a definitive answer. I will first map, then if needed I will explore new regions, by moving around. There are two sheds in the scene, and shovels are often found near sheds. Therefore, for each of the sheds, I will navigate to the nearby region and map.
+Textual plan: Go to field_11 based on current position and field_11 coordinates; scan the region to search objects; scan the region to search objects. Then replan to retrieve updated graph.
+Response: tc(90);mf(150);s("shovel");rp();
+
+Iteration 2: no updates
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is now: field_13, unobserved_node(shovel). After mapping field_11, which is next to shed_1, I did not find a shovel. I also planned on going to example_node_14 to map near shed_2, so I will continue my plan.
+Textual plan: Go to field_13 based on current position and field_13 coordinates; scan the region to search objects. Then replan to retrieve updated graph.
+Response: tu(45);mf(430);s("shovel");rp();
+
+Iteration 3: new object 'shovel_1' found in field_13
+Scene: to add
+Task: I need a shovel. Is there one in the scene?
+Reason: The relevant part of the graph is now: shovel_1. After exploring field_13, which is next to shed_2, I found a nearby shovel, shovel_1, that is connected to field_13. This fulfills the users request.
+Textual plan: Answer the user that a shovel (shovel_1) is located near shed_2 and connected to field_13.
+Response: l('a shovel (shovel_1) is located near shed_2 and connected to field_13'); 
+
+Iteration 4: new task
+Scene: to add
+Task: How many grocery stores are currently in the scene?
+Reason: The relevant part of the graph is now: grocery_store_1. There is one grocery store in the scene. Although the scene may be incomplete, I am only asked about currently observed grocery stores. Thus the answer is one
+Textual plan: Answer the user that there is one grocery store in the scene (grocery_store_1).
+Response: l('There is one grocery store in the scene (grocery_store_1)'); 
