@@ -36,6 +36,9 @@ class GraphManager:
     def get_graph(self):
         return self.graph_handler.to_json_str()
     
+    def name_region(self, name:str):
+        self.graph_handler.name_region(name)
+    
     # --- Pose
     def update_pose(self, pose: Sequence[float]) -> None:
         """
@@ -73,21 +76,22 @@ class GraphManager:
         
         
     # --- Regions
-    def add_region(self, region_xy: Sequence[float]) -> str:
+    def add_region(self, region_xy: Sequence[float], region_name: str = None) -> str:
         """
         Adds a new region node discovered e.g. when the drone crosses a
         distance threshold. Returns the region node name so the caller can
         immediately `goto()` it in the graph.
         """
-        name = f"region_{uuid.uuid4().hex[:4]}"
+        if region_name is None:
+            region_name = f"region_{uuid.uuid4().hex[:4]}"
         attrs  = {"coords": list(map(float, region_xy)), "type": "region"}
-        self.graph_handler.update_with_node(node=name, edges=[self.current_region], attrs=attrs)
+        self.graph_handler.update_with_node(node=region_name, edges=[self.current_region], attrs=attrs)
 
-        self.updater.update(new_nodes=[{"name": name,
+        self.updater.update(new_nodes=[{"name": region_name,
                                         "type": "region",
                                         "coords": f"[{region_xy[0]:.1f}, {region_xy[1]:.1f}]"}],
-                                        new_connections=[[self.current_region, name]])
-        return name
+                                        new_connections=[[self.current_region, region_name]])
+        return region_name
     
     # --- Prompt
     def flush_prompt_updates(self) -> str:
