@@ -1,0 +1,1 @@
+REGION_THRESHOLD = 150 # how distant in centimeters are the regions
