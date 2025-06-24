@@ -39,7 +39,7 @@ EXAMPLE_1 = [
         "primary_goal": "find a shovel for the user."\
         "relevant_graph": "field_11, field_13, unobserved_node(shovel)", \
         "reasoning": "The graph does not contain any shovels. However, I know that the graph may be incomplete, so I will explore before providing a definitive answer. I will first map, then if needed I will add regions. There are two sheds in the scene, and shovels are often found near sheds. Therefore, for each of the sheds, I will navigate to the nearby region and map.",\
-        "plan": "Minispec plan to go to field_11 based on current position and field_11 coordinates; scan the region to search objects; go to field_13 based on current position and field_13 coordinates; scan the region to search objects."\n}',
+        "plan": "Minispec plan to go to field_11 based on current position and field_11 coordinates; scan the region to search objects; go to field_13 based on current position and field_13 coordinates; scan the region to search objects. Then replan to retrieve updated graph."\n}',
         
     },
     {
@@ -52,7 +52,7 @@ EXAMPLE_1 = [
             "primary_goal": "find a shovel for the user."\
             "relevant_graph": "field_13, unobserved_node(shovel)",\
             "reasoning": "After mapping field_11, which is next to shed_1, I did not find a shovel. I also planned on going to example_node_14 to map near shed_2, so I will continue my plan.",\
-            "plan": "Minispec plan to go to field_13 based on current position and field_13 coordinates; scan the region to search objects."\n}',
+            "plan": "Minispec plan to go to field_13 based on current position and field_13 coordinates; scan the region to search objects. Then replan to retrieve updated graph."\n}',
     },
     {
         "role": "user",
@@ -147,7 +147,7 @@ EXAMPLE_2 = [
         "content": '{\n\
         "primary_goal": "Find what is around the sidewalk. From scene context, the user is referring to example_sidewalk_1."\
         "relevant_graph": "example_sidewalk_1",\n"reasoning": "The user wants to know what is around the sidewalk. There is only one sidewalk in the scene, example_sidewalk_1, so the user must be referring to that region. Because my intended goal is within a exploration radius of 3 meters, the most efficient way for me to complete that task is to go there and explore the region with a radius of 3 meters.",\
-        "plan": "Minispec plan to go to example_sidewalk_1; map the region to record known objects and regions; then explore in a 3 meter radius to detect new regions."\n}',
+        "plan": "Minispec plan to go to example_sidewalk_1; map the region to record known objects and regions; then explore in a 3 meter radius to detect new regions. Then replan to retrieve updated graph."\n}',
     },
     {
         "role": "user",
@@ -196,7 +196,7 @@ EXAMPLE_3 = [
         "primary_goal": "Find the users lost robot. The user provided contextual details that will help me find the robot."\
         "relevant_graph": "charging_station_1", \
         "reasoning": "The graph does not contain any robots, but the graph does contain a charging station, charging_station_1. The robot may be charging its battery there. I will determine if the nearby regions are connected to the booth.",\
-        "plan": "Minispec plan to go to example_node_3; extend the map toward coordinates [20, 35] to search for a path to charging_station_1; then replan based on new graph state."}',
+        "plan": "Minispec plan to go to example_node_3; extend the map toward coordinates [20, 35] to search for a path to charging_station_1; Then replan to retrieve updated graph."}',
     },
     {
         "role": "user",
@@ -208,7 +208,7 @@ EXAMPLE_3 = [
         "primary_goal": "Find the users lost robot. The user provided contextual details that will help me find the robot."\
         "relevant_graph": "charging_station_1", \
         "reasoning": Upon exploring, I was able to add a new region that allows me to navigate to my goal, charging_station_1. I will now map charging_station_1 to see if I can find the users robot",\
-        "plan": "Minispec plan to move to charging_station_1 and scan the region to detect any nearby objects such as the lost robot."}',
+        "plan": "Minispec plan to move to charging_station_1 and scan the region to detect any nearby objects such as the lost robot. Then replan to retrieve updated graph."}',
     },
     {
         "role": "user",
@@ -256,7 +256,7 @@ EXAMPLE_4 = [
         "primary_goal": "Find an apple for the user.",\n\
         "relevant_graph": "unobserved_node(apple)",\n\
         "reasoning": "The graph is empty, and no apples are currently known. I will begin by exploring a nearby region. Since I have no prior knowledge, I will move in a direction and try to discover regions and objects.",\n\
-        "plan": "Minispec plan to explore new region by going forward and scanning the region to discover any objects. Then replan"\n}'
+        "plan": "Minispec plan to explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph."\n}'
     },
     {
         "role": "user",
@@ -268,7 +268,7 @@ EXAMPLE_4 = [
         "primary_goal": "Find an apple for the user.",\n\
         "relevant_graph": "unobserved_node(apple)",\n\
         "reasoning": "After moving to discovered_region_1, I still do not see any apples. I will continue exploring.",\n\
-        "plan": "Minispec plan to explore new region by going forward and scan the new region. Then replan"\n}'
+        "plan": "Minispec plan to explore new region by going forward and scan the new region. Then replan to retrieve updated graph."\n}'
     },
     {
         "role": "user",
@@ -280,7 +280,7 @@ EXAMPLE_4 = [
         "primary_goal": "Find an apple for the user.",\n\
         "relevant_graph": "banana_1, orange_1, discovered_region_2",\n\
         "reasoning": "While I have not found an apple, I now see two fruits in discovered_region_2. Apples often appear near similar fruit objects, so I will explore adjacent areas.",\n\
-        "plan": "Minispec plan to explore new region by going forward and scan the new region. Then replan"\n}'
+        "plan": "Minispec plan to explore new region by going forward and scan the new region. Then replan to retrieve updated graph."\n}'
     },
     {
         "role": "user",
