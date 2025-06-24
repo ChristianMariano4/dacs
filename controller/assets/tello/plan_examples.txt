@@ -176,3 +176,44 @@ Reason: The relevant part of the graph is: example_sidewalk_1. I explored exampl
 Textual plan: Answer that example_sidewalk_1 has four connected regions around it; mention that discovered_region_4 is also a sidewalk; report that no new objects were discovered.
 Response:  l("example_sidewalk_1 has four connected regions around it; no new objects were discovered.)";
 
+#Example 4
+Graph: {
+    "objects": [],
+    "regions": [
+        {"name": "example_node_1", "coords": [10, 10]},
+        {"name": "example_node_2", "coords": [12, 20]},
+        {"name": "example_node_3", "coords": [15, 30]},
+        {"name": "example_node_4", "coords": [12, 15]},
+        {"name": "example_node_5", "coords": [10, 5]},
+        {"name": "example_ground_6", "coords": [-2, -2]},
+        {"name": "charging_station_1", "coords": [30, 40]},
+    ],
+    "object_connections": [],
+    "region_connections": [
+        ["example_node_2", "example_node_3"],
+        ["example_node_1", "example_node_4"],
+        ["example_node_4", "example_node_5"],
+        ["example_node_5", "example_ground_6"]
+        ["name": "charging_station_1", "coords": [30, 40]],
+    ],
+    "robot_location": "example_node_1",
+}
+
+Iteration 1:
+Scene: []
+Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
+Reason: The relevant part of the graph is: charging_station_1. The graph does not contain any robots, but the graph does contain a charging station, charging_station_1. The robot may be charging its battery there.
+Textual plan: Go to charging_station_1; scan the region to detect any nearby objects such as the lost robot. Then replan to retrieve updated graph.
+Response: tc(37);mf(50); s("robot");
+
+Iteration 2: found object robot_1 in charging_station_1
+Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
+Reason: The relevant part of the graph is: robot_1. Upon mapping the charging_station, I found a robot. I will now inspect it.
+Textual plan: Probe what is the color of robot_1 and whether it is damaged.
+Response: p("What is the color of the visible robot and is it damaged?");
+
+Iteration 3: probing gives as answer 'This is a red robot that is not damaged'
+Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
+Reason: The relevant part of the graph is: robot_1. I found a robot that is red. The robot is not damaged. This may be the users robot, based on the information I received.
+Textual plan: Inform the user that a red, undamaged robot was found, which likely matches their lost robot.
+Response: l("A red, undamaged robot was found in charging_station_1 at  [30, 40]");
