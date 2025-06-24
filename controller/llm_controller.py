@@ -82,7 +82,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region forward", args=[]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("add_region", self.add_region, "Add a new region node in context graph"), args=[SkillArg("region_name"), str])
+        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph"), args=[SkillArg("region_name"), str])
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
@@ -161,8 +161,11 @@ class LLMController():
         self.drone.move_forward(REGION_THRESHOLD+20)
         return None, False
     
-    def add_region(self, region_name: str) -> Tuple[None, bool]:
-        self.graph_manager.add_region(self.drone.get_pose(), region_name)
+    # def add_region(self, region_name: str) -> Tuple[None, bool]:
+    #     self.graph_manager.add_region(self.drone.get_pose(), region_name)
+
+    def name_region(self, region_name: str) -> Tuple[None, bool]:
+        self.graph_manager.
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         img_path = os.path.join(self.cache_folder, f"{uuid.uuid4()}.jpg")
