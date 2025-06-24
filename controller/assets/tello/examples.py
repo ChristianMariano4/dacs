@@ -1,3 +1,6 @@
+from typing import List
+
+
 EXAMPLE_GRAPH_1 = {
     "objects": [
         {"name": "house_1"},
@@ -331,3 +334,8 @@ EXAMPLE_5 = [
         "plan": "Minispec plan to continue exploration from barn_entrance; move right 150 cm; probe what is visible; if it resembles a field, name it \'open_field_1\'."\n}',
     },
 ]
+
+def get_graph_examples():
+    prompt = "Example 1:\n" + str(EXAMPLE_1) + "\n\nExample 2:\n" + str(EXAMPLE_2) + "\n\nExample 3:\n" + str(EXAMPLE_3) + "\n\nExample 4:\n" + str(EXAMPLE_4) + "\n\nExample 5:\n" + str(EXAMPLE_5)
+
+    return prompt

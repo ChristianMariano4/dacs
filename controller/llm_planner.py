@@ -3,6 +3,7 @@ import os, ast
 from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
+from controller.assets.tello.examples import get_graph_examples
 from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
@@ -40,6 +41,8 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/plan_examples.txt"), "r") as f:
             self.plan_examples = f.read()
 
+        self.context_graph_examples = get_graph_examples()
+
     def set_model(self, model_name):
         self.model_name = model_name
 
@@ -69,6 +72,7 @@ class LLMPlanner():
                                              system_skill_description_low=self.low_level_skillset,
                                              guides=self.guides,
                                              plan_examples=self.plan_examples,
+                                             context_graph_examples=self.context_graph_examples,
                                              error_message=error_message,
                                              scene_description=scene_description,
                                              task_description=task_description,
