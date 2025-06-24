@@ -295,3 +295,39 @@ EXAMPLE_4 = [
         "plan": "Minispec plan to answer the user that an apple named apple_1 was found in discovered_region_3."\n}'
     }
 ]
+
+# usage of active checkpoints with add_region skill
+EXAMPLE_GRAPH_5 = {
+    "objects": [],
+    "regions": [],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": None,
+}
+
+EXAMPLE_5 = [
+    {
+        "role": "user",
+        "content": "task: I need you to map the environment and label key locations, especially if you see anything that resembles a barn or a field.",
+    },
+    {
+        "role": "assistant",
+        "content": '{\n\
+        "primary_goal": "Explore the environment and semantically name meaningful regions."\n\
+        "relevant_graph": "unobserved_node(barn), unobserved_node(field)",\n\
+        "reasoning": "I don’t have a scene graph yet, so I will start exploring. As I detect objects or terrain features, I will name the regions accordingly using `add_region` with descriptive names. This will help with future instructions like \'go to the barn\'.",\n\
+        "plan": "Minispec plan to move forward 150 cm; check what this place looks like; if it looks like a barn, name current region as \'barn_entrance\'; if it looks like a field, name it \'open_field\'; otherwise name by spatial role like \'exploration_point_1\'."\n}',
+    },
+    {
+        "role": "user",
+        "content": "updates: [add_region({name: barn_entrance, coords: [10, 5]}), add_nodes({name: barn_1, type: object}), add_connections([barn_1, barn_entrance]), update_robot_location(barn_entrance)]",
+    },
+    {
+        "role": "assistant",
+        "content": '{\n\
+        "primary_goal": "Explore the environment and semantically name meaningful regions."\n\
+        "relevant_graph": "barn_1, barn_entrance",\n\
+        "reasoning": "I reached a region that resembles a barn and labeled it \'barn_entrance\'. This naming will help in future references.",\n\
+        "plan": "Minispec plan to continue exploration from barn_entrance; move right 150 cm; probe what is visible; if it resembles a field, name it \'open_field_1\'."\n}',
+    },
+]

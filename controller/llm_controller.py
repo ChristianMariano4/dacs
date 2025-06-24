@@ -166,7 +166,7 @@ class LLMController():
     #     self.graph_manager.add_region(self.drone.get_pose(), region_name)
 
     def name_region(self, region_name: str) -> Tuple[None, bool]:
-        self.graph_manager.
+        self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         img_path = os.path.join(self.cache_folder, f"{uuid.uuid4()}.jpg")
