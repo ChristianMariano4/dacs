@@ -25,7 +25,7 @@ from .abs.robot_wrapper import RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
-from .utils import print_t
+from .utils import input_t, print_t
 from .minispec_interpreter import MiniSpecInterpreter, Statement
 from .abs.robot_wrapper import RobotType
 
@@ -82,7 +82,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region forward", args=[]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph"), args=[SkillArg("region_name"), str])
+        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.drone.add_skill, "Add the definition of an high level skill", args=[SkillArg("skill_name", str), SkillArg("description", str), SkillArg("minispec_def", str)]))
@@ -216,10 +216,10 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_task.set_current_plan(self.planner.plan(task_description, execution_history=self.current_task.get_execution_history()))
+            self.current_plan = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
+            self.current_task.set_current_plan(self.current_plan)
             print_t(f"The plan is {self.current_task.get_current_plan()}.")
-            self.current_plan = self.planner.plan(task_description, execution_history=self.execution_history, context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
-            print_t(f"The plan is {self.current_plan}.")
+            input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()
@@ -227,7 +227,7 @@ class LLMController():
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             
-            # disable replan for debugging
+            # TODO: enable. disable replan for debugging
             break
             if ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")

@@ -72,7 +72,6 @@ class LLMPlanner():
                                              system_skill_description_low=self.low_level_skillset,
                                              guides=self.guides,
                                              plan_examples=self.plan_examples,
-                                             context_graph_examples=self.context_graph_examples,
                                              error_message=error_message,
                                              scene_description=scene_description,
                                              task_description=task_description,
