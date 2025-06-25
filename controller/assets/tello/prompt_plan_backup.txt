@@ -34,8 +34,12 @@ Each entry of the graph contains the following types:
 - "object_connections" is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
 - "region_connections" is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
 
+
 Here are some extra guides for you to better understand the task and generate a better response:
 {guides}
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+{plan_examples}
 
 Here is the 'scene description':
 {scene_description}

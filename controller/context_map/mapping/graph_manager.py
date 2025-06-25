@@ -54,7 +54,10 @@ class GraphManager:
 
     # --- Objects
     def add_object_detection(self, label: str, xy: Sequence[float]) -> None:
-        node_id = f"{label}_{uuid.uuid4().hex[:4]}"
+        if self.graph_handler.is_node_in_current_region(label):
+            return
+        # node_id = f"{label}_{uuid.uuid4().hex[:4]}"
+        node_id = label
         attrs   = {"coords": list(map(float, xy)), "type": "object"}
         self.graph_handler.update_with_node(node=node_id, edges=[self.current_region], attrs=attrs)
         # prepare LLM-prompt diff
@@ -73,7 +76,6 @@ class GraphManager:
                 "graph": self.graph_handler.to_json_str(),
             }, f)
             f.write("\n")
-        
         
     # --- Regions
     def add_region(self, region_xy: Sequence[float], region_name: str = None) -> str:

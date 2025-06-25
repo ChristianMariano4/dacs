@@ -15,7 +15,7 @@ import logging
 Tello.LOGGER.setLevel(logging.WARNING)
 
 MOVEMENT_MIN = 20
-MOVEMENT_MAX = 300
+MOVEMENT_MAX = 500
 
 SCENE_CHANGE_DISTANCE = 120
 SCENE_CHANGE_ANGLE = 90
@@ -69,11 +69,17 @@ def cap_distance(distance):
     return distance
 
 class TelloWrapper(RobotWrapper):
+    KEEPALIVE_PERIOD   = 4.0          # s – safely <15 s timeout of the SDK
+
     def __init__(self, move_enable, graph_manager: GraphManager):
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
         self.drone = Tello()
         self.active_count = 0
         self.stream_on = False
+
+        # --- keep-alive infrastructure ---------------------------------
+        self._ka_stop   = threading.Event()
+        self._ka_thread = None
 
         # odometry fields
         self.pose = np.zeros(3)          # (x, y, z) in metres
@@ -82,7 +88,33 @@ class TelloWrapper(RobotWrapper):
         self._odo_th = None
         self._odo_stop = threading.Event()
         self._inited    = False
+    # ------------------------------------------------------------------
+    # KEEP-ALIVE LOOP
+    # ------------------------------------------------------------------
+    def _keepalive_loop(self):
+        """
+        Continuously send the blocking SDK command ``"command"`` every
+        ``KEEPALIVE_PERIOD`` seconds.  Runs in its own daemon thread.
+        """
+        while not self._ka_stop.is_set():
+            try:
+                self.drone.send_control_command("command", timeout=3)
+            except Exception as exc:
+                print(f"[Tello] keep-alive failed: {exc}")
+            # wait, but bail out early if stop was requested
+            self._ka_stop.wait(self.KEEPALIVE_PERIOD)
 
+    def _start_keepalive(self):
+        """Launch the keep-alive thread exactly once."""
+        if self._ka_thread is None:
+            self._ka_stop.clear()
+            self._ka_thread = threading.Thread(
+                target=self._keepalive_loop,
+                name="tello-keepalive",
+                daemon=True,
+            )
+            self._ka_thread.start()
+    
     def _odometry_loop(self):
         while not self._odo_stop.is_set():
             state = self.drone.get_current_state()
@@ -134,9 +166,15 @@ class TelloWrapper(RobotWrapper):
 
     def connect(self):
         self.drone.connect()
+        self._start_keepalive()
         self._start_odometry()
 
     def disconnect(self):
+        # stop keep-alive
+        self._ka_stop.set()
+        if self._ka_thread:
+            self._ka_thread.join()
+
         self._odo_stop.set()
         if self._odo_th:
             self._odo_th.join()
@@ -187,7 +225,9 @@ class TelloWrapper(RobotWrapper):
 
     def move_backward(self, distance: int) -> Tuple[bool, bool]:
         if self.move_enable:
-            self.drone.move_back(cap_distance(distance))
+            # self.drone.move_back(cap_distance(distance))
+            self.drone.rotate_clockwise(180)
+            self.drone.move_forward(cap_distance(distance))
             self.movement_x_accumulator -= distance
             time.sleep(0.5)
         else:
@@ -196,7 +236,9 @@ class TelloWrapper(RobotWrapper):
 
     def move_left(self, distance: int) -> Tuple[bool, bool]:
         if self.move_enable:
-            self.drone.move_left(cap_distance(distance))
+            # self.drone.move_left(cap_distance(distance))
+            self.drone.rotate_counter_clockwise(90)
+            self.drone.move_forward(cap_distance(distance))
             self.movement_y_accumulator += distance
             time.sleep(0.5)
         else:
@@ -205,7 +247,9 @@ class TelloWrapper(RobotWrapper):
 
     def move_right(self, distance: int) -> Tuple[bool, bool]:
         if self.move_enable:
-            self.drone.move_right(cap_distance(distance))
+            # self.drone.move_right(cap_distance(distance))
+            self.drone.rotate_counter_clockwise(90)
+            self.drone.move_forward(cap_distance(distance))
             self.movement_y_accumulator -= distance
             time.sleep(0.5)
         else:

@@ -410,6 +410,34 @@ class GraphHandler:
 
     def contains_node(self, node: str) -> bool:
         return node in self.graph.nodes
+    
+    def is_node_in_current_region(self, node: str) -> bool:
+        """
+        Return ``True`` when *node* belongs to the region stored in
+        ``self.current_location``.
+
+        ─ For region nodes, this is true only if the node **is** the current
+          region itself.
+
+        ─ For object nodes, this is true when the object has a direct edge
+          to the current region (that edge is created automatically when the
+          object is added).
+
+        The method falls back to ``False`` if:
+          * the graph has no current region yet, or
+          * the node does not exist, or
+          * the object is not connected to the current region.
+        """
+        # make sure both the region and the node are valid
+        if not self.current_location or not self.contains_node(node):
+            return False
+
+        # a region is contained in itself
+        if node == self.current_location:
+            return True
+
+        # for objects, look for a direct connection to the current region
+        return self.current_location in self.get_neighbors(node)
 
     def path_exists_from_current_loc(self, target: str) -> bool:
         assert self.current_location != None, "current location is unknown"
