@@ -60,7 +60,7 @@ class LLMPlanner():
             scene_description = self.vision_skill.get_obj_list()
 
         type_folder_name = 'tello'
-        self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
+        # self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
         # SkillItem.abbr_dict = {}
         with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
             json_data = json.load(f)

@@ -1,9 +1,3 @@
-Example 1:
-Scene: [cup x:0.18 y:0.2 width:0.12 height:0.14, bowl x:0.52 y:0.48 width:0.25 height:0.2]
-Task: [A] Search in the environment where you are for a container.
-Reason: No predefined skill exists to search for an object based on abstract categories. Therefore, we define a new skill using add_skill to search iteratively for an object described by the input question, using movement and rotational scanning.
-Response: as("active_search_abstract_object", "Search iteratively for an object described by the input question, using movement and rotational scanning. This skill requires 1 argument.", "10{_1 = p('Where should I go to find a ' + $1 + '?'); ? _1 == 'left' { ml(40); } ? _1 == 'right' { mr(40); } ? _1 == 'forward' { mf(40); } ? _1 == 'backward' { mb(40); }; sa($1); _2 = p('What visible object looks like a ' + $1 + '?'); ? _2 != False { -> _2; }} -> False; _3 = ox(_2); ? _3 < 0.45 { tu(30); -> False; }; ? _3 > 0.55 { tc(30); -> False; }; l('Object found and centered: ' + _2);"); active_search_abstract_object("container");
-
 #Example 1: example with scan asbtract
 Graph: {
   "objects": [
@@ -40,14 +34,14 @@ Scene: [corridor_1_sign x:0.48 y:0.46 width:0.30 height:0.20]
 Task: I need to find a person wearing a red T-shirt. Is there one in the scene?
 Reason: Likely locations are the break room (people relaxing) or office_A (desks). I will head to office_A first and scan.
 Textual plan: Go to office_A; scan for a red-shirt person. Then replan to retrieve updated graph.
-Response: tc(90);mf(80);ss("Is there a person wearing a red T-shirt");rp();
+Response: tc(90);mf(80);sn("Is there a person wearing a red T-shirt");rp();
 
 Iteration 2: no red-shirt person found
 Scene: [desk_1 x:0.40 y:0.52 width:0.50 height:0.40, desk_2 x:0.70 y:0.55 width:0.45 height:0.38]
 Task   : I need to find a person wearing a red T-shirt. Is there one in the scene?
 Reason : No red-shirt person in office_A. Next probable spot is the break room. I will go there and scan again.
 Textual plan: Minispec plan to go to break_room; scan for a red-shirt person. Then replan to retrieve updated graph.
-Response: tu(45);mf(60);ss("Is there a person wearing a red T-shirt");rp();
+Response: tu(45);mf(60);sn("Is there a person wearing a red T-shirt");rp();
 
 Iteration 3: red-shirt person found
 Scene: [couch_1 x:0.30 y:0.48 width:0.55 height:0.42, person_1 x:0.66 y:0.60 width:0.18 height:0.28]
@@ -91,14 +85,14 @@ Scene: [house_1 x:0.45 y:0.48 width:0.40 height:0.42]
 Task: I need a shovel. Is there one in the scene?
 Reason: The relevant part of the graph is: field_11, field_13, unobserved_node(shovel). The graph does not contain any shovels. However, I know that the graph may be incomplete, so I will explore before providing a definitive answer. I will first map, then if needed I will explore new regions, by moving around. There are two sheds in the scene, and shovels are often found near sheds. Therefore, for each of the sheds, I will navigate to the nearby region and map.
 Textual plan: Go to field_11 based on current position and field_11 coordinates; scan the region to search objects; scan the region to search objects. Then replan to retrieve updated graph.
-Response: tc(90);mf(150);s("shovel");rp();
+Response: tc(90);mf(150);sc("shovel");rp();
 
 Iteration 2: no updates
 Scene: [shed_1 x:0.44 y:0.53 width:0.38 height:0.40]
 Task: I need a shovel. Is there one in the scene?
 Reason: The relevant part of the graph is now: field_13, unobserved_node(shovel). After mapping field_11, which is next to shed_1, I did not find a shovel. I also planned on going to example_node_14 to map near shed_2, so I will continue my plan.
 Textual plan: Go to field_13 based on current position and field_13 coordinates; scan the region to search objects. Then replan to retrieve updated graph.
-Response: tu(45);mf(430);s("shovel");rp();
+Response: tu(45);mf(430);sc("shovel");rp();
 
 Iteration 3: new object 'shovel_1' found in field_13
 Scene: [shed_2 x:0.32 y:0.50 width:0.45 height:0.45, shovel_1 x:0.66 y:0.60 width:0.15 height:0.25]
@@ -204,7 +198,7 @@ Scene: []
 Task: I lost my robot when it was filling its battery. It is red. Can you find it and tell me its status?
 Reason: The relevant part of the graph is: charging_station_1. The graph does not contain any robots, but the graph does contain a charging station, charging_station_1. The robot may be charging its battery there.
 Textual plan: Go to charging_station_1; scan the region to detect any nearby objects such as the lost robot. Then replan to retrieve updated graph.
-Response: tc(37);mf(50); s("robot");
+Response: tc(37);mf(50); sc("robot");
 
 Iteration 2: found object robot_1 in charging_station_1
 Scene: [robot_1 x:0.44 y:0.53 width:0.38 height:0.40]
@@ -227,40 +221,32 @@ Graph: {
     "object_connections": [],
     "region_connections": [],
     "robot_location": None,
-    "robot_coordinates": [0, 0]
 }
 
 Iteration 1:
-Scene: []
+Scene: to add
 Task: I need an apple. Is there one in the scene?
-Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore based on the objects I have found.
-Textual plan: Scan current region; explore forward by 150 cm and scan; replan.
-Response: ?sc("apple")==True { l("apple found"); } mf(150); ?sc("apple")==True { l("apple found"); } rp();
+Reason: The relevant part of the graph is: unobserved_node(apple). The graph is empty, and no apples are currently known. I will begin by exploring a nearby region. Since I have no prior knowledge, I will move in a direction and try to discover regions and objects.
+Textual plan: Scan current region; then explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: sc("apple"); en(); sc("apple");
 
-Iteration 2: New region discovered_region_1 at [0, 150]
-Scene: []
+Iteration 2: new region discovered_region_1 at [0, 2]
+Scene: to add
 Task: I need an apple. Is there one in the scene?
-Reason: After moving to discovered_region_1 at [0, 150], no apples were found. I will now try another direction to increase search coverage. I decide to move right by 150 cm to form a spatial branch.
-Textual plan: Explore right by 150 cm and scan; replan.
-Response: mr(150); ?sc("apple"){l("apple found")}rp();
+Reason: The relevant part of the graph is: unobserved_node(apple). After moving to discovered_region_1, I still do not see any apples. I will continue exploring.
+Textual plan: Explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: en(); sc("apple");
 
-Iteration 3: New region discovered_region_2 at [150, 150]; new objects: banana_1, orange_1
-Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Iteration 3: new region discovered_region_2 at [0, 4]; new objects found: banana_1 in discovered_region_2, orange_1 in discovered_region_2.
+Scene: to add
 Task: I need an apple. Is there one in the scene?
-Reason: While no apples are present yet, I now see other fruits (banana and orange) in discovered_region_2. Apples often co-occur with other fruits, so I will now explore **backward** by 150 cm to search a new adjacent region.
-Textual plan: Explore backward by 150 cm and scan; replan.
-Response: mb(150); ?sc("apple"){l("apple found")}rp();
+Reason: The relevant part of the graph is: banana_1, orange_1, discovered_region_2. While I have not found an apple, I now see two fruits in discovered_region_2. Apples often appear near similar fruit objects, so I will explore adjacent areas.
+Textual plan: Explore new region by going forward and scanning the region to discover any objects. Then replan to retrieve updated graph.
+Response: en(); sc("apple");
 
-Iteration 4: New region discovered_region_3 at [150, 0]; no objects found
-Scene: []
+Iteration 4: new region discovered_region_3 at [0, 6]; new objects found: apple_1 in discovered_region_3
+Scene: to add
 Task: I need an apple. Is there one in the scene?
-Reason: I explored discovered_region_3 at [150, 0], but no relevant objects were found. I will now go **left** from here to form a square coverage pattern and scan once more.
-Textual plan: Explore left by 150 cm and scan; replan.
-Response: ml(150); ?sc("apple"){l("apple found")}rp();
-
-Iteration 5: New region discovered_region_4 at [0, 0]; new object found: apple_1
-Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
-Task: I need an apple. Is there one in the scene?
-Reason: I found an apple (apple_1) in discovered_region_4 at [0, 0], completing the search.
-Textual plan: Report the discovery of apple_1 in discovered_region_4 at [0, 0].
-Response: l("An apple (apple_1) was found in discovered_region_4 at [0, 0].");
+Reason: The relevant part of the graph is: apple_1. I found an apple (apple_1) connected to discovered_region_3, located just beyond a region that contains other fruit. This satisfies the user’s request.
+Textual plan: Answer the user that an apple named apple_1 was found in discovered_region_3.
+Response: l("An apple (apple_1) was found in discovered_region_3 at [0.6].")

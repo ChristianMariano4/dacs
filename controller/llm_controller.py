@@ -16,6 +16,7 @@ from controller.context_map.mapping.graph_manager import GraphManager
 from controller.context_map.spine import SPINE
 
 from controller.task import Task
+from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 
 
 from .shared_frame import SharedFrame, Frame
@@ -46,7 +47,7 @@ class LLMController():
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
         self.graph_manager = GraphManager(self)
-        self.spine_agent = SPINE(self.graph_manager.graph_handler)
+        # self.spine_agent = SPINE(self.graph_manager.graph_handler)
         self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_manager)
         self.latest_frame = None
         self.controller_active = True
@@ -87,7 +88,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region forward", args=[]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right)", args=[SkillArg("direction", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
@@ -103,6 +104,13 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on images and graph"))
+        # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
+        # Instead of replanning, at the end of each iteration, the LLM decides if the task:
+        # - needs another iteration (replanning with context updated)
+        # - has been fullfilled, so return
+        # - can't be fullfilled, so return
+        self.low_level_skillset.add_skill(LowLevelSkillItem("end_iteration", self.planner.probe_end_iteration, "Decide what to do at the end of an iteration of planning (stop or continue)"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         #         self.low_level_skillset.add_skill(
         #     LowLevelSkillItem("flush_updates",
@@ -130,6 +138,9 @@ class LLMController():
         # self.current_plan = None
         # self.execution_history = None
         self.execution_time = time.time()
+        self.env_analysis_module = EnvironmentalAnalysisModule()
+        self.images_counter = 0
+        self.directions = {0: "forward", 1: "right", 2: "backward", 3: "left"}
 
     def get_drone(self) -> RobotWrapper:
         return self.drone
@@ -158,8 +169,16 @@ class LLMController():
         self.drone.move_forward(110)
         return None, False
     
-    def explore_new_region(self) -> Tuple[None, bool]:
-        self.drone.move_forward(REGION_THRESHOLD+20)
+    def explore_new_region(self, direction: int) -> Tuple[None, bool]:
+        match direction:
+            case 0:
+                self.drone.move_forward(REGION_THRESHOLD+20)
+            case 2:
+                self.drone.move_backward(REGION_THRESHOLD+20)
+            case 3:
+                self.drone.move_left(REGION_THRESHOLD+20)
+            case 1:
+                self.drone.move_right(REGION_THRESHOLD+20)
         return None, False
     
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
@@ -169,11 +188,24 @@ class LLMController():
         self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
-        img_path = os.path.join(self.cache_folder, f"{uuid.uuid4()}.jpg")
+        time.sleep(2)
+        img_path = os.path.join(self.cache_folder, f"{self.directions.get(self.images_counter)}.jpg")
+        self.images_counter = (self.images_counter + 1) % 4
         Image.fromarray(self.latest_frame).save(img_path)
         print_t(f"[C] Picture saved to {img_path}")
         self.append_message((img_path,))
         return None, False
+    
+    def skill_choose_direction(self) -> Tuple[int, bool]:
+        """
+        Finds all jpg images in cache_folder, sorts them (if possible), 
+        and returns a list of file paths for LLM direction selection.
+        """
+        dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder)
+        if dir in ["forward","right","backward","left"]:
+            next_yaw = {"forward":0,"right":90,"backward":180,"left":270}[dir]
+            return next_yaw, False
+        return 0, False
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
         self.append_message(f"[LOG] {text}")
