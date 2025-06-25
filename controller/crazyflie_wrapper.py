@@ -215,6 +215,7 @@ class CrazyflieWrapper(RobotWrapper):
         self.link_uri = 'radio://0/80/2M/E7E7E7E7E7'
         self.z_target = 0.5  # Default target height in meters
 
+
     def connect(self):
         cflib.crtp.init_drivers()
         self.scf = SyncCrazyflie(self.link_uri, cf=self.cf)
@@ -267,9 +268,20 @@ class CrazyflieWrapper(RobotWrapper):
 
     def stop_stream(self):
         pass
-        # self.stream_on = False
+        # self.stream_on = False        # self.stream_on = False
         # if self.ai_deck_client.socket:
         #     self.ai_deck_client.close()
+        # if self.ai_deck_client.socket:
+        #     self.ai_deck_client.close()
+
+    def get_move_enable(self):
+        return True
+    
+    def get_is_flying(self):
+        return self.is_flying
+    
+    def set_is_flying(self, value):
+        self.is_flying = value
     
     def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
         utils.print_t(f"New trajectory creation ... associated with gesture {gesture}")
@@ -333,7 +345,7 @@ class CrazyflieWrapper(RobotWrapper):
             yaw_deg = list(map(float, row[25:33]))
             yaw_rad = [math.radians(c) for c in yaw_deg]
             yaw = Poly4D.Poly(yaw_rad)
-            trajectory_mem.trajectory.append(Poly4D(duration, x, y, z, yaw_deg))
+            trajectory_mem.trajectory.append(Poly4D(duration, x, y, z, yaw))
             total_duration += duration
         if not trajectory_mem.write_data_sync():
             print('Upload failed.')
@@ -368,7 +380,6 @@ class CrazyflieWrapper(RobotWrapper):
         self._run_sequence(trajectory_id=1, duration=duration)
         # time.sleep(duration)
         return True, False
-
 
     def reset_kalman_estimator(self):
         self.cf.param.set_value('kalman.resetEstimation', '1')
@@ -462,7 +473,6 @@ class CrazyflieWrapper(RobotWrapper):
 
     def turn_cw(self, degree: int) -> bool:
         pass
-
 
     def keep_active(self):
         pass
