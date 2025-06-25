@@ -23,6 +23,11 @@ class RobotWrapper(ABC):
         self.graph_manager = graph_manager
         self.move_enable = move_enable
 
+
+    def __init__(self, move_enable: bool = False):
+        self.move_enable = move_enable
+        self.gesture_trajectory_mapping = {}
+
     @abstractmethod
     def connect(self):
         pass
