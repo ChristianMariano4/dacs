@@ -19,12 +19,8 @@ class RobotWrapper(ABC):
     movement_y_accumulator = 0
     rotation_accumulator = 0
 
-    def __init__(self, graph_manager: GraphManager, move_enable=True):
+    def __init__(self, graph_manager: GraphManager, move_enable=False):
         self.graph_manager = graph_manager
-        self.move_enable = move_enable
-
-
-    def __init__(self, move_enable: bool = False):
         self.move_enable = move_enable
         self.gesture_trajectory_mapping = {}
 
