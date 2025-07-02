@@ -202,6 +202,15 @@ class Statement:
                             if exec and self.action:
                                 self.execution_queue.put(self)
                             return True
+                        
+                    elif c == '}' and self.depth_paren == 0 and self.code_buffer.strip():
+                        # Considera '}' come terminatore se abbiamo accumulato codice
+                        self.action = self.code_buffer.strip()
+                        self.executable = True
+                        if exec and self.action:
+                            self.execution_queue.put(self)
+                        # L'attuale '}' verrà gestita dal chiamante (MiniSpecProgram)
+                        return True
 
                     # accumula carattere
                     else:
