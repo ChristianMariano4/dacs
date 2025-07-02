@@ -108,7 +108,7 @@ class LLMController():
         # - needs another iteration (replanning with context updated)
         # - has been fullfilled, so return
         # - can't be fullfilled, so return
-        self.low_level_skillset.add_skill(LowLevelSkillItem("end_iteration", self.planner.probe_end_iteration, "Decide what to do at the end of an iteration of planning (stop or continue)"))
+        # self.low_level_skillset.add_skill(LowLevelSkillItem("end_iteration", self.planner.probe_end_iteration, "Decide what to do at the end of an iteration of planning (stop or continue)"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         #         self.low_level_skillset.add_skill(
         #     LowLevelSkillItem("flush_updates",
@@ -217,6 +217,7 @@ class LLMController():
         return None, False
     
     def skill_re_plan(self) -> Tuple[None, bool]:
+        print("[C] Start Replanning...")
         return None, True
 
     def skill_delay(self, s: float) -> Tuple[None, bool]:
@@ -239,10 +240,10 @@ class LLMController():
     
     def execute_minispec(self, minispec: str):
         interpreter = MiniSpecInterpreter(self.message_queue)
-        interpreter.execute(minispec)
+        ret_val = interpreter.execute(minispec)
         self.current_task.update_execution_history(interpreter.execution_history)
         # self.execution_history = interpreter.execution_history
-        ret_val = interpreter.ret_queue.get()
+        # ret_val = interpreter.ret_queue.get()
         return ret_val
 
     def execute_task_description(self, task_description: str):

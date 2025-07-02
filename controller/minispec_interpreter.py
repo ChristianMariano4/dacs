@@ -260,7 +260,7 @@ class Statement:
 
     # ---------------------------------------------------------------- eval     
     def eval(self) -> 'MiniSpecReturnValue':
-        print_debug(f'Statement eval: {self} {self.action}')
+        print_debug(f'Statement eval: {self.action}')
         while not self.executable:
             time.sleep(0.05)
 
