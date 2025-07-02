@@ -1,0 +1,50 @@
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+    "robot_coordinates": [0, 0]
+    "robot_yaw: 0
+}
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through choose_direction, because I have no information in the graph in which region to go to.
+Response: ?s("apple")==True{l("apple found")}_1=cd();en(_1);rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will now try another direction to increase search coverage. I decide to move right by 150 cm to form a spatial branch.
+Response: mr(150); ?s("apple")==True{l("apple found")}rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using choose_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s("apple")==True{l("apple found")}_1=cd();en(_1);rp();
+
+Iteration 5: New region region_3 at [150, 0]; new object found: apple_1
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I found an apple (apple_1) in region_3 at [150, 0], completing the search. So I do not insert replan.
+Response: l("An apple (apple_1) was found in region_3 at [150, 0].");
+
+Iteration 6: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0].
+To determine how to move, the robot must consider its yaw—the orientation it is currently facing, by retrieving it from graph.
+- If the robot is facing east (yaw = 0°) (positive x direction), it must turn 180° to face west before moving left.
+- If already facing west (yaw = 180°), no rotation is needed before moving forward.
+Therefore, we include a 180° rotation before moving back. Then the task will be endend, so I do not insert replan.
+Response: tc(180); mf(150); l("Returned to region_0 at [0, 0]");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
