@@ -168,15 +168,20 @@ class LLMController():
         return None, False
     
     def explore_new_region(self, direction: int) -> Tuple[None, bool]:
+        # next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
         match direction:
             case 0:
-                self.drone.move_forward(REGION_THRESHOLD+20)
-            case 2:
-                self.drone.move_backward(REGION_THRESHOLD+20)
-            case 3:
-                self.drone.move_left(REGION_THRESHOLD+20)
-            case 1:
-                self.drone.move_right(REGION_THRESHOLD+20)
+                print("forward")
+                self.drone.move_forward()
+            case 180:
+                print("backward")
+                self.drone.move_backward()
+            case -90:
+                print("left")
+                self.drone.move_left()
+            case 90:
+                print("right")
+                self.drone.move_right()
         return None, False
     
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
@@ -201,7 +206,8 @@ class LLMController():
         """
         dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder)
         if dir in ["forward","right","backward","left"]:
-            next_yaw = {"forward":0,"right":90,"backward":180,"left":270}[dir]
+            next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
+            print(f"Next yaw {next_yaw}")
             return next_yaw, False
         return 0, False
 
@@ -259,7 +265,7 @@ class LLMController():
                 print_t(f"[C] Error: {e}")
             
             # TODO: enable. disable replan for debugging
-            break
+            # break
             if ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
