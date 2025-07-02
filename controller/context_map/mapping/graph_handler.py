@@ -9,7 +9,7 @@ from scipy.spatial.transform import Rotation
 # empty graph from which to start
 EMPTY_GRAPH = {
     "objects": [],
-    "regions": [{"name": "ground_1", "coords": [0, 0]}],
+    "regions": [{"name": "region_0", "coords": [0, 0]}],
     "region_connections": [],
     "object_connections": [],
 }
@@ -231,7 +231,7 @@ class GraphHandler:
         region_name = f"{base}_{i}"
 
         # --- 3. Add the new node --------------------------------
-        self.update_with_node(
+        self.update_with_node_flexible(
             region_name,
             edges=[],                               # edges added below (if any)
             attrs={"type": "region", "coords": pose_xy.round(1).tolist()},
@@ -296,9 +296,13 @@ class GraphHandler:
         }
         for node in self.graph.nodes:
             node_type = self.graph.nodes[node]["type"]
-            coords = self.graph.nodes[node]["coords"]
-            coords = f"[{coords[0]:0.1f}, {coords[1]:0.1f}]"  # TODO best way?
-            graph_dict[f"{node_type}s"].append({"name": node, "coords": coords})
+            if node_type == "region":
+                coords = self.graph.nodes[node]["coords"]
+                coords = f"[{coords[0]:0.1f}, {coords[1]:0.1f}]"  # TODO best way?
+                graph_dict[f"{node_type}s"].append({"name": node, "coords": coords})
+            else:
+                graph_dict[f"{node_type}s"].append({"name": node})
+
 
             for neighbor in self.get_neighbors(node):
                 if tuple(sorted((node, neighbor))) not in added_edges:
@@ -470,23 +474,38 @@ class GraphHandler:
         else:
             return ""
    
-    def update_with_node(
+    def update_with_node_flexible(
         self,
         node: str,
-        edges: Optional[List[str]] = None, 
+        edges: Optional[List[str]] = None,
         attrs: Dict[str, Any] = {},
     ) -> None:
-        assert "type" in attrs and "coords" in attrs
-        if edges is None: # that means that the methos is called to add new object
+        assert "type" in attrs, "Node attribute 'type' is required"
+
+        node_type = attrs["type"]
+        has_coords = "coords" in attrs and attrs["coords"] is not None
+
+        if edges is None:
             edges = [self.current_location]
+
         self.graph.add_node(node, **attrs)
+
         for edge in edges:
-            c1 = self.graph.nodes[node]["coords"]
-            c2 = self.graph.nodes[edge]["coords"]
-            dist = np.linalg.norm(np.array(c1) - np.array(c2))
+            # If either node or edge lacks coordinates, set default weight and skip distance calc
+            try:
+                c1 = self.graph.nodes[node]["coords"]
+                c2 = self.graph.nodes[edge]["coords"]
+                dist = np.linalg.norm(np.array(c1) - np.array(c2))
+            except KeyError:
+                dist = 1.0  # default weight if coordinates are missing
+
             self.graph.add_edge(
-                node, edge, type=self.graph.nodes[node]["type"], weight=dist
+                node,
+                edge,
+                type=self.graph.nodes[node]["type"],
+                weight=dist,
             )
+
 
     def update_with_edge(self, edge: Tuple[str, str], attrs: Dict[str, Any] = {}):
         self.graph.add_edge(edge[0], edge[1], **attrs)
