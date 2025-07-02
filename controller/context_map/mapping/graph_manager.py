@@ -21,7 +21,7 @@ class GraphManager:
 
         if not self.graph_handler.graph.has_node(start_region):
             # no neighbours yet – just a stand-alone region
-            self.graph_handler.update_with_node(
+            self.graph_handler.update_with_node_flexible(
                 node=start_region,
                 edges=[],
                 attrs={"coords": list(start_coords), "type": "region"},
@@ -53,18 +53,26 @@ class GraphManager:
         # self.updater.update(location_updates=[self.current_region])
 
     # --- Objects
-    def add_object_detection(self, label: str, xy: Sequence[float]) -> None:
+    def add_object_detection(self, label: str, xy: Sequence[float] = None) -> None:
         if self.graph_handler.is_node_in_current_region(label):
             return
         # node_id = f"{label}_{uuid.uuid4().hex[:4]}"
-        node_id = label
-        attrs   = {"coords": list(map(float, xy)), "type": "object"}
-        self.graph_handler.update_with_node(node=node_id, edges=[self.current_region], attrs=attrs)
+        node_id = label.split("_")[0]
+        if self.graph_handler.is_node_in_current_region(label):
+            return
+        if xy != None:
+            attrs   = {"coords": list(map(float, xy)), "type": "object"}
+            self.updater.update(new_nodes=[{"name": node_id,
+                                "type": "object",
+                                "coords": f"[{xy[0]:.1f}, {xy[1]:.1f}]"}],
+                                new_connections=[[node_id, self.current_region]])
+        else:
+            attrs   = {"type": "object"}
+            self.updater.update(new_nodes=[{"name": node_id,
+                                    "type": "object"}])
+        self.graph_handler.update_with_node_flexible(node=node_id, edges=[self.current_region], attrs=attrs)
         # prepare LLM-prompt diff
-        self.updater.update(new_nodes=[{"name": node_id,
-                                        "type": "object",
-                                        "coords": f"[{xy[0]:.1f}, {xy[1]:.1f}]"}],
-                                        new_connections=[[node_id, self.current_region]])
+
         # ---------------------------------------------
         # Append graph snapshot to file
         # ---------------------------------------------
@@ -87,7 +95,7 @@ class GraphManager:
         if region_name is None:
             region_name = f"region_{uuid.uuid4().hex[:4]}"
         attrs  = {"coords": list(map(float, region_xy)), "type": "region"}
-        self.graph_handler.update_with_node(node=region_name, edges=[self.current_region], attrs=attrs)
+        self.graph_handler.update_with_node_flexible(node=region_name, edges=[self.current_region], attrs=attrs)
 
         self.updater.update(new_nodes=[{"name": region_name,
                                         "type": "region",
