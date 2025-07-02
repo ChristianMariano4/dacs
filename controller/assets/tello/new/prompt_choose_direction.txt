@@ -1,0 +1,11 @@
+The drone must choose which direction to move based on the goal: **"{task}"**.
+
+You are given 4 images representing what the drone sees in each direction.
+
+Think carefully about:
+1. Whether any view shows the **target object**, or **objects semantically related** to the goal (e.g., if the task is to find a banana, seeing a fruit bowl or a kitchen is relevant).
+2. Which direction looks most promising based on **relevant objects, open space, or environmental clues**.
+3. Avoid directions that are visually blocked, cluttered, or irrelevant.
+
+**Return ONLY the best direction** among: `Forward`, `Right`, `Backward`, or `Left`. Also include a **short explanation** (1 sentence) of why that direction is best for the given task.
+Respond in JSON format with the fields 'direction' and 'reason'.
