@@ -13,7 +13,6 @@ import numpy as np
 import torch
 
 from controller.context_map.mapping.graph_manager import GraphManager
-from controller.context_map.spine import SPINE
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 
 

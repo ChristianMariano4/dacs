@@ -215,7 +215,7 @@ class TelloWrapper(RobotWrapper):
             return None
         return FrameReader(self.drone.get_frame_read())
 
-    def move_forward(self, distance: int = int(REGION_THRESHOLD/3)) -> Tuple[bool, bool]:
+    def move_forward(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             self.drone.move_forward(cap_distance(distance))
             self.movement_x_accumulator += distance
@@ -224,7 +224,7 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Forward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_backward(self, distance: int = int(REGION_THRESHOLD/3)) -> Tuple[bool, bool]:
+    def move_backward(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_back(cap_distance(distance))
             self.drone.rotate_clockwise(180)
@@ -235,7 +235,7 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Backward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_left(self, distance: int =int(REGION_THRESHOLD/3)) -> Tuple[bool, bool]:
+    def move_left(self, distance: int =int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_left(cap_distance(distance))
             self.drone.rotate_counter_clockwise(90)
@@ -246,7 +246,7 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Left")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_right(self, distance: int = int(REGION_THRESHOLD/3)) -> Tuple[bool, bool]:
+    def move_right(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_right(cap_distance(distance))
             self.drone.rotate_clockwise(90)
