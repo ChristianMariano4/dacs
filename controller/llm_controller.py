@@ -13,7 +13,6 @@ import numpy as np
 import torch
 
 from controller.context_map.mapping.graph_manager import GraphManager
-from controller.context_map.spine import SPINE
 
 from controller.task import Task
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
@@ -33,6 +32,11 @@ from .minispec_interpreter import MiniSpecInterpreter, Statement
 from .abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 class IterationDecision(Enum):
     REPLAN = "replan",
