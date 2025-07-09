@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--use_virtual_robot', action='store_true')
     parser.add_argument('--use_http', action='store_true')
     parser.add_argument('--gear', action='store_true')
-    parser.add_argument('--cf', action='store_true')
+    parser.add_argument('--crazyflie', action='store_true')
 
 
     args = parser.parse_args()
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         robot_type = RobotType.VIRTUAL
     elif args.gear:
         robot_type = RobotType.GEAR
-    elif args.cf:
+    elif args.crazyflie:
         robot_type = RobotType.CRAZYFLIE
     typefly = TypeFly(robot_type, use_http=args.use_http)
     typefly.run()
