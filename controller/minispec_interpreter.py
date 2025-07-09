@@ -331,6 +331,12 @@ class Statement:
             val = interp.eval()
             if val.value == 'rp':
                 return MiniSpecReturnValue(f'High-level skill {skill.get_name()} failed', True)
+            
+            # If the skill returned with self.ret=True but the value is not 'rp',
+            # it's a normal return value, not a replan
+            if interp.ret and val.value != 'rp':
+                return MiniSpecReturnValue(val.value, False)  # Normal return, no replan
+            
             return val
 
         raise Exception(f'Skill {name} is not defined')
@@ -363,7 +369,16 @@ class Statement:
         # return arrow ---------------------------------------------------------
         if expr.startswith('->'):
             self.ret = True
-            return MiniSpecReturnValue(self.eval_expr(expr.lstrip('->')).value, True)
+            result = self.eval_expr(expr.lstrip('->'))
+
+            if result.replan:
+                return MiniSpecInterpreter(result.value, True)  # replan signal
+            elif isinstance(result.value, str) and any(keyword in result.value.lower()
+                                                       for keyword in ['failed', 'error', 'replan']):
+                return MiniSpecReturnValue(result.value, True)  # Error/replan signal
+            else:
+                # Normal return value (True, False, etc.) - not a replan
+                return MiniSpecReturnValue(self.eval_expr(expr.lstrip('->')).value, False)
 
         # assegnazione (=) -----------------------------------------------------
         eq_idx = self._top_level_eq_index(expr)
