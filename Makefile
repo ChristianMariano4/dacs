@@ -43,4 +43,5 @@ typefly:
 	# bash ./serving/webui/install_requirements.sh
 	cd ./proto && bash generate.sh
 	# python3 ./serving/webui/typefly.py --use_virtual_robot
-	python3 ./serving/webui/typefly.py
+	python3 ./serving/webui/typefly.py --crazyflie
+	# python3 ./serving/webui/typefly.py
