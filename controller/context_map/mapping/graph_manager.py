@@ -60,7 +60,7 @@ class GraphManager:
         node_id = label.split("_")[0]
         if self.graph_handler.is_node_in_current_region(label):
             return
-        if xy != None:
+        if xy is not None:
             attrs   = {"coords": list(map(float, xy)), "type": "object"}
             self.updater.update(new_nodes=[{"name": node_id,
                                 "type": "object",

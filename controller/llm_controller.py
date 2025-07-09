@@ -31,6 +31,11 @@ from .abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
 class IterationDecision(Enum):
     REPLAN = "replan",
     DONE = "done",
@@ -123,7 +128,7 @@ class LLMController():
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
-        with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/new/high_level_skills.json"), "r") as f:
             json_data = json.load(f)
             for skill in json_data:
                 self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
