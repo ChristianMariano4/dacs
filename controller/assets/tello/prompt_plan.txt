@@ -28,6 +28,7 @@ The 'task description' is a natural language sentence, describing the user's tas
 The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description' and 'current view of the environment' and generate a new response accordingly.
 The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names.
 The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
 
 Each entry of the graph contains the following types:
 - "regions" is a list of spatial regions. The regions are traversable ONLY IF they appear in the "region_connections" list
@@ -55,6 +56,9 @@ If you remember there is an object in a region previously explored, use the grap
 
 Here is the 'current position':
 {current_position} - in {current_region}
+
+Here is the 'minispec syntax':
+{minispec_syntax}
 
 Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks.
 'response':

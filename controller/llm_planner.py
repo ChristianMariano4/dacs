@@ -38,8 +38,11 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/guides.txt"), "r") as f:
             self.guides = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/plan_examples.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/new/plan_examples.txt"), "r") as f:
             self.plan_examples = f.read()
+
+        with open(os.path.join(CURRENT_DIR, f"./assets/minispec_syntax.txt"), "r") as f:
+            self.minispec_syntax = f.read()
 
         self.context_graph_examples = get_graph_examples()
 
@@ -62,11 +65,12 @@ class LLMPlanner():
         type_folder_name = 'tello'
         # self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
         # SkillItem.abbr_dict = {}
-        with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
-            json_data = json.load(f)
-            for skill in json_data:
-                if skill['skill_name'] not in SkillItem.abbr_dict.keys():
-                    self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+        #TODO: fix high level skill updating
+        # with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
+        #     json_data = json.load(f)
+        #     for skill in json_data:
+        #         if skill['skill_name'] not in SkillItem.abbr_dict.keys():
+        #             self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
                 
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
                                              system_skill_description_low=self.low_level_skillset,
@@ -78,7 +82,8 @@ class LLMPlanner():
                                              execution_history=execution_history,
                                              context_graph=context_graph,
                                              current_position=current_position,
-                                             current_region=current_region)
+                                             current_region=current_region,
+                                             minispec_syntax=self.minispec_syntax)
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
         return self.llm.request(prompt, model_name=self.model_name, stream=False)
