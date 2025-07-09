@@ -98,3 +98,12 @@ class VirtualRobotWrapper(RobotWrapper):
             return True, False
         time.sleep(1)
         return True, False
+    
+    def get_pose(self):
+        pass
+
+    def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
+        pass
+
+    def start_trajectory(self, gesture) -> Tuple[bool, bool]:
+        pass
