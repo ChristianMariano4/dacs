@@ -1,0 +1,7 @@
+[
+    {
+        "skill_name": "scan",
+        "skill_description": "Rotate to find object $1 when it's *not* in current scene",
+        "definition": "4{tp();?iv($1)==True{->True}tc(90)}->False;"
+    }
+]
