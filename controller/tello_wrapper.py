@@ -2,6 +2,7 @@ import math
 import threading
 import math
 import threading
+from controller import utils
 import time, cv2
 import numpy as np
 from typing import Tuple
@@ -9,6 +10,7 @@ from djitellopy import Tello
 
 from controller.constants import REGION_THRESHOLD
 from controller.context_map.mapping.graph_manager import GraphManager
+from utils.utils import process_trajectory, save_trajectory_csv, save_waypoints_csv
 
 from .abs.robot_wrapper import RobotWrapper
 
@@ -89,6 +91,10 @@ class TelloWrapper(RobotWrapper):
         self._odo_th = None
         self._odo_stop = threading.Event()
         self._inited    = False
+
+        # trajectory fields
+        self._recording = False
+        self._recorded_waypoints = []
     # ------------------------------------------------------------------
     # KEEP-ALIVE LOOP
     # ------------------------------------------------------------------
@@ -303,8 +309,256 @@ class TelloWrapper(RobotWrapper):
             return True
         return False
     
-    def create_new_trajectory(self):
-        pass
+    def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
+        """Create a new trajectory by recording current flight path"""
+        utils.print_t(f"New trajectory creation ... associated with gesture {gesture}")
 
-    def start_trajectory(self):
-        pass
+        # Land if currently flying
+        if self.move_enable and self.is_flying:
+            self.land(height=0.0, duration=4.5)
+            self.is_flying = False
+            time.sleep(3.0)
+
+        # Start recording
+        time.sleep(62.0)
+        self._record_trajectory(duration_s)
+
+        # Process and store trajectory
+        if self._recorded_waypoints:
+            processed_trajectory = process_trajectory(self._recorded_waypoints)
+            self.gesture_trajectory_mapping[gesture] = processed_trajectory
+            print(f'Trajectory recorded with {len(processed_trajectory)} waypoints')
+            print(f'DICTIONARY: {list(self.gesture_trajectory_mapping.keys())}')
+            return True, False
+        else:
+            print("No trajectory data recorded")
+            return False, False
+
+    def _record_trajectory(self, duration_s):
+        """Record trajectory using your odometry system"""
+        self._recorded_waypoints = []
+
+        # Countdown
+        for count in ['3', '2', '1']:
+            print(count)
+            time.sleep(1)
+
+        print('Start recording...')
+        
+        # Take off for recording
+        # self.drone.takeoff()
+        # self.is_flying = True
+        # time.sleep(2.0)  # Wait for stable hover
+
+        # Start recording
+        self._recording = True
+        start_time = time.time()
+        end_time = start_time + duration_s
+
+        while time.time() < end_time and self._recording:
+            # Get current pose from your odometry system
+            pose = self.get_pose() # Returns [x, y, z] in cm
+            state = self.drone.get_current_state()
+
+            if pose and state:
+                timestamp = time.time() - start_time
+                waypoint = {
+                    't': timestamp,
+                    'x': pose[0] / 100.0, # Convert to meters
+                    'y': pose[1] / 100.0,
+                    'z': pose[2] / 100.0,
+                    'yaw': math.radians(state.get('yaw', 0))
+                }
+                self._recorded_waypoints.append(waypoint)
+            
+            time.sleep(0.1) # 10Hz recording rate
+        
+        self._recording = False
+        print(f"Recording complete. Captured {len(self._recorded_waypoints)} waypoints")
+        save_trajectory_csv(self._recorded_waypoints, 'recorded_trajectory.csv')
+
+    def _execute_trajectory(self, trajectory):
+        """Execute trajectory - handles both polynomial and waypoint formats"""
+        
+        # Check if trajectory is polynomial (uav_trajectory.Trajectory object)
+        if hasattr(trajectory, 'polynomials') and hasattr(trajectory, 'duration'):
+            self._execute_polynomial_trajectory(trajectory)
+        else:
+            # Fallback to waypoint execution
+            self._execute_waypoint_trajectory(trajectory)
+
+
+    def _execute_polynomial_trajectory(self, trajectory):
+        """Execute polynomial trajectory with high precision"""
+        print(f"Executing polynomial trajectory (duration: {trajectory.duration:.2f}s)")
+
+        # Get starting position
+        start_pose = self.get_pose()
+        if not start_pose:
+            print("Cannot get current position")
+            return
+        
+        start_time = time.time()
+        dt = 0.1 # 10Hz execution rate
+
+        while True:
+            elapsed = time.time() -start_time
+
+            # Check if trajectory is complete
+            if elapsed >= trajectory.duration:
+                print("Polynomial trajectory execution complete")
+                break
+
+            # Evaluate trajectory at current time
+            try:
+                target_state = trajectory.eval(elapsed)
+
+                # Get current position
+                current_pose = self.get_pose()
+                if not current_pose:
+                    print("Lost position tracking")
+                    break
+                
+                curr_x, curr_y, curr_z = current_pose[0]/100.0,  current_pose[1]/100.0, current_pose[2]/100.0
+                # Calculate movement to target position (in cm for Tello)
+                dx = int((target_state.pos[0] - curr_x) * 100)
+                dy = int((target_state.pos[1] - curr_y) * 100)
+                dz = int((target_state.pos[2] - curr_z) * 100)
+
+                # Only send movement commands if significant displacement
+                if abs(dx) > 15 or abs(dy) > 15 or abs(dz) > 15:
+                    try:
+                        # Calculate speed based on desired velocity
+                        vel_magnitude = np.linalg.norm(target_state.vel) * 100  # m/s to cm/s
+                        speed = max(20, min(100, int(vel_magnitude))) # Clamp between 20-100 cm/s
+
+                        self.drone.go_xyz_speed(dx, dy, dz, speed)
+                    except Exception as e:
+                        print(f"Movement command failed: {e}")
+                
+                # Handle yaw
+                current_state = self.drone.get_current_state()
+                if current_state:
+                    current_yaw = math.radians(current_state.get('yaw', 0))
+                    target_yaw = target_state.yaw
+
+                    yaw_diff = target_yaw - current_yaw
+                    # Normalize yaw difference
+                    while yaw_diff > math.pi:
+                        yaw_diff -= 2 * math.pi
+                    while yaw_diff < -math.pi:
+                        yaw_diff += 2 * math.pi
+
+                    yaw_degrees = int(math.degrees(yaw_diff))
+                    if abs(yaw_degrees) > 15:
+                        try:
+                            if yaw_degrees > 0:
+                                self.turn_ccw(abs(yaw_degrees))
+                            else:
+                                self.turn_cw(abs(yaw_degrees))
+                        except Exception as e:
+                            print(f"Rotation failed: {e}")
+
+            except Exception as e:
+                print(f"Trajectory evaluation failed at t={elapsed:.2f}: {e}")
+                break
+            
+            time.sleep(dt)
+
+    def _execute_waypoint_trajectory(self, trajectory):
+        """Execute trajectory using discrete waypoints (fallback method)"""
+        """Execute trajectory using discrete waypoints (fallback method)"""
+        if len(trajectory) < 2:
+            print("Trajectory too short to execute")
+            return
+        
+        # Get starting position
+        start_pose = self.get_pose()
+        if not start_pose:
+            print("Cannot get current position")
+            return
+        
+        start_x, start_y, start_z = start_pose[0]/100.0, start_pose[1]/100.0, start_pose[2]/100.0
+        
+        print(f"Starting waypoint trajectory execution from ({start_x:.2f}, {start_y:.2f}, {start_z:.2f})")
+        
+        # Execute each waypoint
+        for i, waypoint in enumerate(trajectory[1:], 1):  # Skip first waypoint (starting position)
+            target_x = waypoint['x']
+            target_y = waypoint['y'] 
+            target_z = waypoint['z']
+            target_yaw = waypoint['yaw']
+            
+            # Calculate relative movement from current position
+            current_pose = self.get_pose()
+            if not current_pose:
+                print("Lost position tracking")
+                break
+                
+            curr_x, curr_y, curr_z = current_pose[0]/100.0, current_pose[1]/100.0, current_pose[2]/100.0
+            
+            # Calculate movement in cm (Tello units)
+            dx = int((target_x - curr_x) * 100)
+            dy = int((target_y - curr_y) * 100)
+            dz = int((target_z - curr_z) * 100)
+            
+            print(f"Waypoint {i}: Moving ({dx}, {dy}, {dz}) cm")
+            
+            # Execute movement if significant
+            if abs(dx) > 20 or abs(dy) > 20 or abs(dz) > 20:
+                try:
+                    # Use go_xyz_speed for smooth movement
+                    self.drone.go_xyz_speed(dx, dy, dz, 50)  # 50 cm/s speed
+                    time.sleep(2.0)  # Wait for movement to complete
+                except Exception as e:
+                    print(f"Movement failed: {e}")
+                    break
+            
+            # Handle yaw rotation
+            current_state = self.drone.get_current_state()
+            if current_state:
+                current_yaw = math.radians(current_state.get('yaw', 0))
+                yaw_diff = target_yaw - current_yaw
+                
+                # Normalize yaw difference to [-pi, pi]
+                while yaw_diff > math.pi:
+                    yaw_diff -= 2 * math.pi
+                while yaw_diff < -math.pi:
+                    yaw_diff += 2 * math.pi
+                
+                yaw_degrees = int(math.degrees(yaw_diff))
+                if abs(yaw_degrees) > 10:  # Only rotate if significant
+                    try:
+                        if yaw_degrees > 0:
+                            self.turn_ccw(abs(yaw_degrees))
+                        else:
+                            self.turn_cw(abs(yaw_degrees))
+                        time.sleep(1.0)
+                    except Exception as e:
+                        print(f"Rotation failed: {e}")
+        
+        print("Waypoint trajectory execution complete")
+
+    def start_trajectory(self, gesture) -> Tuple[bool, bool]:
+        """Execute a recorded trajectory"""
+        print('[BASIC_COMMANDS] Start trajectory command received')
+        
+        trajectory = self.gesture_trajectory_mapping.get(gesture)
+        if not trajectory:
+            print(f"No trajectory found for gesture: {gesture}")
+            return False, False
+        print(f"Executing trajectory with {len(trajectory)} waypoints")
+
+        # Take off if not flying
+        if not self.is_flying:
+            self.takeoff()
+            self.is_flying = True
+            time.sleep(2.0)
+
+        # Execute trajectory
+
+        duration = self._upload_trajectory(trajectory_id, traj) #duration=around 15s
+        print('Done! duration: ', duration)
+        self._run_sequence(trajectory_id=1, duration=duration)
+        # time.sleep(duration)
+        return True, False
