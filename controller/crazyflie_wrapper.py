@@ -268,7 +268,7 @@ class CrazyflieWrapper(RobotWrapper):
 
     def stop_stream(self):
         pass
-        # self.stream_on = False        # self.stream_on = False
+        # self.stream_on = False
         # if self.ai_deck_client.socket:
         #     self.ai_deck_client.close()
         # if self.ai_deck_client.socket:
@@ -478,4 +478,7 @@ class CrazyflieWrapper(RobotWrapper):
         pass
 
     def get_frame_reader(self):
+        pass
+
+    def get_pose(self):
         pass

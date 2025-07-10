@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import json
 import os
+from typing import Tuple
 
 from controller.context_map.mapping.graph_manager import GraphManager
 
@@ -86,6 +87,14 @@ class RobotWrapper(ABC):
 
     @abstractmethod
     def get_pose(self):
+        pass
+
+    @abstractmethod
+    def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
+        pass
+
+    @abstractmethod
+    def start_trajectory(self, gesture) -> Tuple[bool, bool]:
         pass
 
     def add_skill(self, skill_name: str, description: str, minispec_def: str):
