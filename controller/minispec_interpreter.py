@@ -325,7 +325,7 @@ class Statement:
         skill = Statement.high_level_skillset.get_skill(name)
         if skill:
             print_debug(f'Executing high-level skill: {skill.get_name()} {args}')
-            interp = MiniSpecProgram()
+            interp = MiniSpecProgram(env=self.env)
             interp.parse([skill.execute(args)])
             interp.finished = True
             val = interp.eval()
@@ -372,7 +372,7 @@ class Statement:
             result = self.eval_expr(expr.lstrip('->'))
 
             if result.replan:
-                return MiniSpecInterpreter(result.value, True)  # replan signal
+                return MiniSpecReturnValue(result.value, True)  # replan signal
             elif isinstance(result.value, str) and any(keyword in result.value.lower()
                                                        for keyword in ['failed', 'error', 'replan']):
                 return MiniSpecReturnValue(result.value, True)  # Error/replan signal

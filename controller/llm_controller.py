@@ -261,7 +261,7 @@ class LLMController():
             self.current_plan = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
             self.current_task.set_current_plan(self.current_plan)
             print_t(f"The plan is {self.current_task.get_current_plan()}.")
-            input_t("Press a key to execute that plan\n")
+            # input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()

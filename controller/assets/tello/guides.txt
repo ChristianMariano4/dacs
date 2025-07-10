@@ -8,3 +8,4 @@ Skills usage: You can use only pre-defined skills or skills defined at runtime, 
 Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
 Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
 Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
