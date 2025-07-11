@@ -131,7 +131,7 @@ class EnvironmentalAnalysisModule:
                 print(f"ERROR: Invalid direction '{direction}', using 'forward' as fallback")
                 direction = "forward"
 
-            print(f"{current_task}: chosen {direction} because {reason}")
+            input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
             return direction
         
         except Exception as e:

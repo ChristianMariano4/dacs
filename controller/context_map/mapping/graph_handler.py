@@ -192,7 +192,7 @@ class GraphHandler:
     def ensure_region_for_pose(
         self,
         pose_xy: Sequence[float],          # (x, y) in the SAME frame your graph uses
-        threshold: float = 150.0,            # cm; tweak to taste TODO: add global threshold
+        threshold: float = 10.0,            # cm; tweak to taste TODO: add global threshold
         connect_to_nearest: bool = True,   # make an edge to the closest region
     ) -> Tuple[str, bool]:
         """
@@ -248,6 +248,7 @@ class GraphHandler:
 
         # --- 5. Book-keeping ------------------------------------
         self.current_location = region_name
+        print(f"New region created {region_name}")
         return region_name, True
 
     def name_region(self, name):
