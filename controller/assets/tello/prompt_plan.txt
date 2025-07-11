@@ -38,6 +38,9 @@ Each entry of the graph contains the following types:
 Here are some extra guides for you to better understand the task and generate a better response:
 {guides}
 
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+{plan_examples}
+
 Here is the 'scene description':
 {scene_description}
 
