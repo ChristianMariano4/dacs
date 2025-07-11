@@ -4,7 +4,7 @@ import re
 import time
 import queue
 from enum import Enum
-from threading import Thread
+from threading import Thread, Lock
 from typing import List, Tuple, Union, Optional
 from queue import Queue
 
@@ -148,6 +148,8 @@ class Statement:
     execution_queue: Queue['Statement'] = None   # condivisa
     low_level_skillset: SkillSet = None
     high_level_skillset: SkillSet = None
+    # Add a reference to the interpreter to update program count
+    interpreter = None
 
     def __init__(self, env: dict) -> None:
         self.code_buffer = ''
@@ -188,6 +190,10 @@ class Statement:
                         self.executable = True
                         if exec and self.action:
                             self.execution_queue.put(self)
+                            # Update program count when adding to queue
+                            if Statement.interpreter:
+                                with Statement.interpreter.program_lock:
+                                    Statement.interpreter.program_count += 1
                         return True
 
                     # chiusura parentesi tonda a livello 0
@@ -201,6 +207,10 @@ class Statement:
                             self.executable = True
                             if exec and self.action:
                                 self.execution_queue.put(self)
+                                # Update program count when adding to queue
+                                if Statement.interpreter:
+                                    with Statement.interpreter.program_lock:
+                                        Statement.interpreter.program_count += 1
                             return True
                         
                     elif c == '}' and self.depth_paren == 0 and self.code_buffer.strip():
@@ -209,6 +219,10 @@ class Statement:
                         self.executable = True
                         if exec and self.action:
                             self.execution_queue.put(self)
+                            # Update program count when adding to queue
+                            if Statement.interpreter:
+                                with Statement.interpreter.program_lock:
+                                    Statement.interpreter.program_count += 1
                         # L'attuale '}' verrà gestita dal chiamante (MiniSpecProgram)
                         return True
 
@@ -234,6 +248,10 @@ class Statement:
                         self.executable = True
                         if exec:
                             self.execution_queue.put(self)
+                            # Update program count when adding to queue
+                            if Statement.interpreter:
+                                with Statement.interpreter.program_lock:
+                                    Statement.interpreter.program_count += 1
                         self.sub_statements = MiniSpecProgram(self.env)
                         self.parsing_state = ParsingState.SUB_STATEMENTS
                     else:
@@ -247,6 +265,10 @@ class Statement:
                         self.executable = True
                         if exec:
                             self.execution_queue.put(self)
+                            # Update program count when adding to queue
+                            if Statement.interpreter:
+                                with Statement.interpreter.program_lock:
+                                    Statement.interpreter.program_count += 1
                         self.sub_statements = MiniSpecProgram(self.env)
                         self.parsing_state = ParsingState.SUB_STATEMENTS
                     else:
@@ -489,6 +511,7 @@ class MiniSpecInterpreter:
             raise Exception('Statement: Skillset is not initialized')
 
         Statement.execution_queue = Queue()
+        Statement.interpreter = self  # Set reference to this interpreter
         self.execution_thread = Thread(target=self._executor, daemon=True)
         self.execution_thread.start()
 
@@ -497,6 +520,8 @@ class MiniSpecInterpreter:
         self.timestamp_get_plan = None
         self.timestamp_start_execution = None
         self.program_count = 0
+        self.program_lock = Lock()  # Lock for thread-safe program_count updates
+        self.is_executing = False  # Track if we're currently executing a program
 
     # ------------------------------------------------------------- public API
     def execute(self, code: Stream[ChatCompletion.ChatCompletionChunk] | List[str]) -> MiniSpecReturnValue:
@@ -504,10 +529,16 @@ class MiniSpecInterpreter:
         self.timestamp_get_plan = time.time()
 
         self.execution_history.clear()
+        
+        # Don't reset program_count here - let the parse function update it
+        with self.program_lock:
+            if not self.is_executing:
+                # Only reset if we're starting a fresh execution
+                self.program_count = 0
+            
         program = MiniSpecProgram(mq=self.message_queue)
         program.parse(code, exec=True)
-        self.program_count = len(program.statements)
-
+        
         print_t('>>> Program:', program, 'Time:', time.time() - self.timestamp_get_plan)
         # attende risultato thread
         return self.ret_queue.get()
@@ -519,9 +550,11 @@ class MiniSpecInterpreter:
                 time.sleep(0.005)
                 continue
 
-            if self.timestamp_start_execution is None:
-                self.timestamp_start_execution = time.time()
-                print_t('>>> Start execution')
+            with self.program_lock:
+                if self.timestamp_start_execution is None and self.program_count > 0:
+                    self.timestamp_start_execution = time.time()
+                    self.is_executing = True
+                    print_t('>>> Start execution')
 
             stmt = Statement.execution_queue.get()
             print_debug('Queue get statement:', stmt)
@@ -529,20 +562,24 @@ class MiniSpecInterpreter:
             print_t('Queue statement done:', stmt)
 
             self.execution_history.append(stmt) 
-            if stmt.ret:                           # early return
-                with Statement.execution_queue.mutex:
-                    Statement.execution_queue.queue.clear()
-                self.ret_queue.put(ret_val)
-                self._reset_timing()
-                continue                
+            
+            with self.program_lock:
+                if stmt.ret:                           # early return
+                    with Statement.execution_queue.mutex:
+                        Statement.execution_queue.queue.clear()
+                    self.ret_queue.put(ret_val)
+                    self._reset_timing()
+                    continue                
 
-            self.program_count -= 1
-            if self.program_count == 0:            # programma terminato
-                print_t('>>> Execution time:',
-                        time.time() - self.timestamp_start_execution)
-                self.ret_queue.put(ret_val)
-                self._reset_timing()
+                self.program_count -= 1
+                if self.program_count == 0:            # programma terminato
+                    print_t('>>> Execution time:',
+                            time.time() - self.timestamp_start_execution)
+                    self.ret_queue.put(ret_val)
+                    self._reset_timing()
 
     def _reset_timing(self):
-        self.timestamp_start_execution = None
-        self.program_count = 0
+        with self.program_lock:
+            self.timestamp_start_execution = None
+            self.is_executing = False
+            # Don't reset program_count to 0 here - let it be managed by the parser
