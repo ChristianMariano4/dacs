@@ -273,6 +273,14 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Down")
         return True, False
 
+    def go_xyz_speed(self, x: int, y: int, z:int, speed: int = 20) -> Tuple[bool, bool]:
+        if self.move_enable:
+            self.drone.go_xyz_speed_mid(x, y, z, speed)
+            time.sleep(0.5)
+        else:
+            print(f"[Drone] Move to {x} - {y} - {z} with speed {speed}")
+        return True, False
+
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
         if self.move_enable:
             self.drone.rotate_counter_clockwise(degree)

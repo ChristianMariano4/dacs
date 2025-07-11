@@ -54,35 +54,39 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def move_forward(self, distance: int) -> bool:
+    def move_forward(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_backward(self, distance: int) -> bool:
+    def move_backward(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_left(self, distance: int) -> bool:
+    def move_left(self, distance: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
-    def move_right(self, distance: int) -> bool:
+    def move_right(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_up(self, distance: int) -> bool:
+    def move_up(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_down(self, distance: int) -> bool:
+    def move_down(self, distance: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
-    def turn_ccw(self, degree: int) -> bool:
+    def go_xyz_speed(self, x: int, y: int, z:int, speed: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
-    def turn_cw(self, degree: int) -> bool:
+    def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
+        pass
+
+    @abstractmethod
+    def turn_cw(self, degree: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
