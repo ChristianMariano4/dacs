@@ -37,7 +37,7 @@ Iteration 5: New user task
 Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
 Task: Come back to region_0, because I need you here
 Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
-Response: gx(0, 0, 20); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
 
 Iteration 6: New user task
 Scene: []

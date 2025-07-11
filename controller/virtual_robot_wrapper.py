@@ -89,7 +89,11 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving down {distance} cm")
         time.sleep(1)
         return True, False
-
+    def go_xy_speed(self, x: int, y: int, speed: int = 20) -> Tuple[bool, bool]:
+        time.sleep(1)
+        print(f"[Drone] Move by an offset of {x} - {y} - current_height with speed {speed}")
+        return True, False
+    
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
         print(f"-> Turning CCW {degree} degrees")
         self.rotation_accumulator += degree

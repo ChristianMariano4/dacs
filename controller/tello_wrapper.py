@@ -273,14 +273,39 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Down")
         return True, False
 
-    def go_xy_speed(self, x: int, y: int, speed: int = 20) -> Tuple[bool, bool]:
-        if self.move_enable:
-            z = self.drone.get_height()
-            self.drone.go_xyz_speed_mid(x, y, z, speed)
-            time.sleep(0.5)
-        else:
-            print(f"[Drone] Move to {x} - {y} - {z} with speed {speed}")
-        return True, False
+    # def go_xy_speed(self, x: int, y: int, speed: int = 20) -> Tuple[bool, bool]:
+    #     if self.move_enable:
+    #         z = self.drone.get_height()
+    #         self.drone.go_xyz_speed(x, y, z, speed)
+    #         time.sleep(0.5)
+    #     else:
+    #         print(f"[Drone] Move to {x} - {y} - {z} with speed {speed}")
+    #     return True, False
+
+    def go_to_position(self, target_x, target_y):
+        """
+        Move to target position in drone's current reference frame
+        """
+        # Get current yaw
+        current_yaw = self.drone.get_yaw()  # degrees
+        yaw_rad = np.radians(current_yaw)
+
+        current_pos = self.get_pose()
+        
+        # Calculate displacement in world frame
+        dx_world = target_x - current_pos[0]
+        dy_world = target_y - current_pos[1]
+        
+        # Transform to drone frame (rotate by -yaw)
+        dx_drone = dx_world * np.cos(-yaw_rad) - dy_world * np.sin(-yaw_rad)
+        dy_drone = dx_world * np.sin(-yaw_rad) + dy_world * np.cos(-yaw_rad)
+        
+        # Convert to integers
+        dx_drone = int(round(dx_drone))
+        dy_drone = int(round(dy_drone))
+        
+        # Move in drone frame
+        self.drone.go_xyz_speed(dx_drone, dy_drone, self.drone.get_height(), speed=20)
 
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
         if self.move_enable:

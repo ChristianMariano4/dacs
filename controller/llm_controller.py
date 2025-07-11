@@ -90,7 +90,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_xy_speed, "Move to x y relative to the current position.", args=[SkillArg("x", int), SkillArg("y", int), SkillArg("speed", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right)", args=[SkillArg("direction", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
@@ -196,7 +196,7 @@ class LLMController():
         self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
-        time.sleep(2)
+        time.sleep(1)
         img_path = os.path.join(self.cache_folder, f"{self.directions.get(self.images_counter)}.jpg")
         self.images_counter = (self.images_counter + 1) % 4
         Image.fromarray(self.latest_frame).save(img_path)
@@ -262,7 +262,7 @@ class LLMController():
             self.current_plan = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
             self.current_task.set_current_plan(self.current_plan)
             print_t(f"The plan is {self.current_task.get_current_plan()}.")
-            # input_t("Press a key to execute that plan\n")
+            input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             try:
                 self.execution_time = time.time()
