@@ -78,7 +78,7 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def go_xyz_speed(self, x: int, y: int, z:int, speed: int) -> Tuple[bool, bool]:
+    def go_xy_speed(self, x: int, y: int, z:int, speed: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod

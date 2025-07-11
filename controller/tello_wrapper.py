@@ -273,8 +273,9 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Down")
         return True, False
 
-    def go_xyz_speed(self, x: int, y: int, z:int, speed: int = 20) -> Tuple[bool, bool]:
+    def go_xy_speed(self, x: int, y: int, speed: int = 20) -> Tuple[bool, bool]:
         if self.move_enable:
+            z = self.drone.get_height()
             self.drone.go_xyz_speed_mid(x, y, z, speed)
             time.sleep(0.5)
         else:

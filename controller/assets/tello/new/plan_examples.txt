@@ -36,12 +36,8 @@ Response: ?s("apple")==True{l("apple found");->True}_1=cd();en(_1);rp();
 Iteration 5: New user task
 Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
 Task: Come back to region_0, because I need you here
-Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0].
-To determine how to move, the robot must consider its yaw—the orientation it is currently facing, by retrieving it from graph.
-- If the robot is facing east (yaw = 0°) (positive x direction), it must turn 180° to face west before moving left.
-- If already facing west (yaw = 180°), no rotation is needed before moving forward.
-Therefore, we include a 180° rotation before moving back. Then the task will be endend, so I do not insert replan.
-Response: tc(180); mf(150); l("Returned to region_0 at [0, 0]");
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0, 20); l("Returned to region_0 at [0, 0]. Do you need anything else?");
 
 Iteration 6: New user task
 Scene: []
