@@ -90,6 +90,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.go_xyz_speed, "Move to x y z relative to the current position.", args=[SkillArg("x", int), SkillArg("y", int), SkillArg("z", int), SkillArg("speed", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right)", args=[SkillArg("direction", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
