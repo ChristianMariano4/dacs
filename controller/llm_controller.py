@@ -91,7 +91,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right)", args=[SkillArg("direction", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right) by a given distance in cm (150 cm by default)", args=[SkillArg("direction", str), SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
@@ -172,21 +172,21 @@ class LLMController():
         self.drone.move_forward(110)
         return None, False
     
-    def explore_new_region(self, direction: int) -> Tuple[None, bool]:
+    def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> Tuple[None, bool]:
         # next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
         match direction:
             case 0:
                 print("forward")
-                self.drone.move_forward()
+                self.drone.move_forward(distance=distance)
             case 180:
                 print("backward")
-                self.drone.move_backward()
+                self.drone.move_backward(distance=distance)
             case -90:
                 print("left")
-                self.drone.move_left()
+                self.drone.move_left(distance=distance)
             case 90:
                 print("right")
-                self.drone.move_right()
+                self.drone.move_right(distance=distance)
         return None, False
     
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
