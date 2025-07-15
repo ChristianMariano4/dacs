@@ -1,4 +1,6 @@
 The drone must choose which direction to move based on the goal: **"{task}"**.
+Take also in consideration an hint (if present) of what to focus on in the choice: **"{hint}"**.
+Ignore the hint if is not useful or feasible with the given images.
 
 You are given 4 images representing what the drone sees in each direction.
 
