@@ -44,3 +44,92 @@ Scene: []
 Task: Where can I find a banana?
 Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
 Response: l("I found a banana region_2 that is at [150, 150]");
+
+#Example 2
+Graph: {
+    "objects": [],
+    "regions": [{"name": "main_entrance", "coords": [0, 0]}],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": "main_entrance",
+    "robot_coordinates": [0, 0],
+    "robot_yaw": 0
+}
+
+Iteration 1:
+Scene: []
+Task: Patrol the facility and report any security concerns
+Reason: Starting patrol from main entrance. I'll create a security_sweep skill using YOLO-detectable objects. YOLO can detect people, bags, bottles, tools, but not abstract concepts like "weapon" or "threat".
+Response: add_skill("security_sweep", "Scan for YOLO-detectable security objects and navigate with hint", "tp();s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\"]);_1=cd($1);en(_1);");security_sweep("prioritize areas with doors or visible equipment for comprehensive facility coverage");rp();
+
+Iteration 2: New region "east_corridor" at [150, 0]
+Scene: [door_1 x:0.78 y:0.45 width:0.18 height:0.35]
+Task: Patrol the facility and report any security concerns
+Reason: Found door (YOLO can detect doors). I can reuse security_sweep with a hint specific to door areas.
+Response: l("Door detected - performing security sweep with door-focused navigation");security_sweep("move toward areas that connect to this door or have similar access points");rp();
+
+Iteration 3: New region "storage_room" at [300, 0]
+Scene: []
+Task: Patrol the facility and report any security concerns
+Reason: Empty storage area. I'll reuse security_sweep but focus on YOLO-detectable objects that might be hidden.
+Response: l("Storage area found - scanning for people and containers");security_sweep("avoid dead ends, move toward areas likely to have more activity");rp();
+
+Iteration 4: New region "north_storage" at [300, 150]; new objects: person_1, backpack_1, bottle_1 found by scan
+Scene: [person_1 x:0.58 y:0.62 width:0.12 height:0.45, backpack_1 x:0.61 y:0.58 width:0.15 height:0.25, bottle_1 x:0.25 y:0.30 width:0.08 height:0.20]
+Task: Patrol the facility and report any security concerns
+Reason: Critical situation! Person with backpack and bottle (all YOLO-detectable). Backpack could contain weapons, bottle could be flammable. I'll create incident response using only YOLO objects.
+Response: add_skill("incident_response", "Handle security incident using YOLO-detectable objects", "tp();l(\"SECURITY ALERT: Unauthorized person detected\");s([\"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\", \"cell_phone\"]);?iv([\"person\"])==True{?ox(\"person\")>0.7{ml(100)}?ox(\"person\")<0.3{mr(100)}g(\"person\");mb(150)}_1=cd($1);en(_1);");incident_response("position for surveillance while maintaining escape route access");rp();
+
+Iteration 5: New region "security_office" at [450, 150]
+Scene: [person_1 x:0.35 y:0.55 width:0.12 height:0.44, laptop_1 x:0.60 y:0.25 width:0.25 height:0.15]
+Task: Found office with person and laptop
+Reason: Person with laptop (both YOLO-detectable). Could be security guard or unauthorized access. I'll scan for other YOLO objects that indicate authorization or threat.
+Response: l("Office with person and laptop found - assessing authorization");s([\"person\", \"laptop\", \"cell_phone\", \"book\", \"cup\", \"chair\"]);security_sweep("follow areas where authorized personnel typically work");rp();
+
+Iteration 6: New region "equipment_room" at [600, 150]
+Scene: [tv_1 x:0.80 y:0.15 width:0.25 height:0.20, laptop_1 x:0.25 y:0.30 width:0.20 height:0.15, mouse_1 x:0.50 y:0.60 width:0.05 height:0.08]
+Task: Equipment room with monitors and computers
+Reason: Room with TV (likely security monitor), laptop, and mouse - all YOLO-detectable. This appears to be legitimate security equipment. I'll check for people who might be tampering.
+Response: l("Security equipment room found - checking for unauthorized access");s([\"person\", \"scissors\", \"knife\", \"screwdriver\"]);security_sweep("move toward high-value areas that these systems likely monitor");rp();
+
+Iteration 7: New region "main_hallway" at [750, 150]
+Scene: []
+Task: Continue patrol in main circulation area
+Reason: I'll create a comprehensive investigation skill focusing on YOLO-detectable objects that could indicate security issues.
+Response: add_skill("investigate_area", "Comprehensive YOLO-based area investigation", "tp();l(\"Investigating area for detectable objects\");s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"scissors\", \"knife\", \"cell_phone\", \"laptop\"]);_1=cd($1);en(_1);");investigate_area("move toward areas where people typically gather or work");rp();
+
+Iteration 8: New region "laboratory" at [900, 150]; new objects: person_1, backpack_1, bottle_1, scissors_1 found by scan
+Scene: [person_1 x:0.58 y:0.62 width:0.12 height:0.45, backpack_1 x:0.33 y:0.77 width:0.25 height:0.18, bottle_1 x:0.67 y:0.45 width:0.08 height:0.15, scissors_1 x:0.45 y:0.20 width:0.06 height:0.12]
+Task: Laboratory with person, backpack, bottle, and scissors
+Reason: Very concerning! Person with backpack (could contain explosives), bottle (could be chemicals), and scissors (cutting tool/weapon) - all YOLO-detectable. This combination in a lab is highly suspicious.
+Response: l("High-risk situation in laboratory - person with suspicious YOLO-detectable objects");incident_response("position toward evacuation routes in case of chemical or explosive threat");add_skill("investigate_suspicious_object", "Investigate YOLO-detectable suspicious items", "tp();s([\"bottle\", \"backpack\", \"handbag\", \"suitcase\", \"scissors\", \"knife\"]);?iv([$1])==True{?ox($1)>0.6{ml(100)}?ox($1)<0.4{mr(100)}g($1);mb(200)}_1=cd($2);en(_1);");investigate_suspicious_object("backpack_1", "move toward safety equipment or evacuation routes");rp();
+
+Iteration 9: New region "emergency_corridor" at [900, 0]
+Scene: [fire_extinguisher_1 x:0.20 y:0.30 width:0.12 height:0.25, phone_1 x:0.80 y:0.25 width:0.08 height:0.15]
+Task: Emergency equipment corridor
+Reason: Found fire extinguisher and phone (both YOLO-detectable emergency equipment). Good positioning for emergency response.
+Response: l("Emergency equipment corridor found");security_sweep("move toward main circulation areas or potential evacuation routes");rp();
+
+Iteration 10: New region "cafeteria" at [750, 0]
+Scene: [person_1 x:0.30 y:0.40 width:0.12 height:0.45, person_2 x:0.70 y:0.50 width:0.11 height:0.43, cup_1 x:0.50 y:0.80 width:0.08 height:0.10]
+Task: Multiple people in cafeteria
+Reason: Multiple people and cup (all YOLO-detectable). Normal cafeteria activity, but I should check for any concerning objects people might have.
+Response: add_skill("emergency_response", "Handle situations using YOLO-detectable indicators", "l(\"SITUATION DETECTED\");mu(200);s([\"person\", \"backpack\", \"handbag\", \"bottle\", \"knife\", \"scissors\", \"fire\"]);?iv([\"person\"])==True{incident_response($1)}md(200);security_sweep($1);");emergency_response("move toward areas with safety equipment if needed");rp();
+
+Iteration 11: New region "utility_room" at [600, 0]
+Scene: [bucket_1 x:0.40 y:0.50 width:0.15 height:0.20, bottle_1 x:0.75 y:0.35 width:0.08 height:0.18]
+Task: Utility room with cleaning supplies
+Reason: Bucket and bottle (YOLO-detectable) - likely legitimate cleaning supplies. I'll verify no unauthorized people are present.
+Response: l("Utility room with cleaning supplies found");s([\"person\", \"scissors\", \"knife\"]);security_sweep("continue systematic facility coverage or return to patrol route");rp();
+
+Iteration 12: New user task
+Scene: []
+Task: Create comprehensive patrol using only YOLO-detectable objects
+Reason: Master patrol must focus only on objects YOLO can actually detect - people, bags, tools, electronics, etc.
+Response: add_skill("master_patrol", "YOLO-based comprehensive patrol", "nr(\"patrol_start\");t();investigate_area(\"prioritize areas with detectable security concerns\");s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"scissors\", \"knife\", \"laptop\"]);?iv([\"person\"])==True{incident_response(\"maintain surveillance with tactical positioning\")}?iv([\"backpack\", \"suitcase\", \"bottle\"])==True{investigate_suspicious_object(\"backpack\", \"move toward safety areas\")}security_sweep(\"optimize coverage of facility areas\");gx(0, 0);");master_patrol();rp();
+
+Iteration 13: New user task
+Scene: [person_1 x:0.40 y:0.60 width:0.12 height:0.44, laptop_1 x:0.80 y:0.30 width:0.22 height:0.15, backpack_1 x:0.20 y:0.70 width:0.18 height:0.25]
+Task: Multiple YOLO-detectable objects present
+Reason: Person, laptop, and backpack - all YOLO-detectable. Could be legitimate work or potential data theft/security breach.
+Response: l("Person with laptop and backpack detected - initiating YOLO-based threat assessment");master_patrol();rp();
