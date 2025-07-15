@@ -243,8 +243,11 @@ class VisionSkillWrapper():
         self.update_scene_description()
         return self.scene_description
 
-    def is_visible(self, object_name: str) -> Tuple[bool, bool]:
-        return self.get_obj_info(object_name) is not None, False
+    def is_visible(self, objects: list[str]) -> Tuple[bool, bool]:
+        for a in objects:
+            if self.get_obj_info(a) is not None:
+                return True, False
+        return False, False
 
     def object_x(self, object_name: str) -> Tuple[Union[float, str], bool]:
         info = self.get_obj_info(object_name)

@@ -3,6 +3,7 @@ from datetime import datetime
 from io import BytesIO
 import json
 import json
+from typing import Optional
 from PIL import Image
 import numpy as np
 import base64
@@ -56,7 +57,7 @@ class EnvironmentalAnalysisModule:
         print(scene_description)
         return scene_description
         
-    def choose_direction(self, current_task, base_path):
+    def choose_direction(self, current_task, base_path, hint: Optional[str]):
         try:
             # Read and encode the images
             forward_image = encode_image(Image.open(os.path.join(base_path, 'forward.jpg')))
@@ -64,7 +65,7 @@ class EnvironmentalAnalysisModule:
             backward_image = encode_image(Image.open(os.path.join(base_path, 'backward.jpg')))
             left_image = encode_image(Image.open(os.path.join(base_path, 'left.jpg')))
 
-            prompt = self.direction_prompt.format(task=current_task)
+            prompt = self.direction_prompt.format(task=current_task, hint=hint)
 
             # Make the API call
             response = self.client.chat.completions.create(
