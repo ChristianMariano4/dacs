@@ -98,7 +98,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("start_trajectory", self.drone.start_trajectory, "Start a trajectory mapped by a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target object", args=[SkillArg("object_name", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_y", self.vision.object_y, "Get object's Y-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
@@ -107,7 +107,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on images and graph"))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on video streaming, graph, current task and an hint (if needed) given as argument", args=[SkillArg("gesture", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
@@ -206,12 +206,12 @@ class LLMController():
         self.append_message((img_path,))
         return None, False
     
-    def skill_choose_direction(self) -> Tuple[int, bool]:
+    def skill_choose_direction(self, hint: Optional[str]) -> Tuple[int, bool]:
         """
         Finds all jpg images in cache_folder, sorts them (if possible), 
         and returns a list of file paths for LLM direction selection.
         """
-        dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder)
+        dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
         if dir in ["forward","right","backward","left"]:
             next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
             print(f"Next yaw {next_yaw}")
