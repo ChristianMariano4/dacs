@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 import asyncio
 import uuid
 
-from controller.constants import REGION_THRESHOLD
+from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD
 from controller.task import Task
 
 import cv2
@@ -21,7 +21,7 @@ from .yolo_client import YoloClient
 from .yolo_grpc_client import YoloGRPCClient
 from .tello_wrapper import TelloWrapper
 from .virtual_robot_wrapper import VirtualRobotWrapper
-from .abs.robot_wrapper import RobotWrapper
+from .abs.robot_wrapper import SKILL_FILE, RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
@@ -108,6 +108,8 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on images and graph"))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
+        
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
         # - needs another iteration (replanning with context updated)
@@ -228,6 +230,37 @@ class LLMController():
     def skill_delay(self, s: float) -> Tuple[None, bool]:
         time.sleep(s)
         return None, False
+    
+    def skill_add_skill(self, skill_name: str, description: str, minispec_def: str):
+        skill_name = skill_name.strip('\'"')
+        minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
+        print(f"Skill added: {skill_name}: {minispec_def}")
+
+        # Load existing skills
+        if os.path.exists(HIGH_LEVEL_SKILL_FILE):
+            with open(HIGH_LEVEL_SKILL_FILE, "r") as f:
+                skills = json.load(f)
+                if not isinstance(skills, list):
+                    print("Error: Skill file is not a list. Resetting.")
+                    skills = []
+        else:
+            skills = []
+
+        # Remove old skill with same name if it exists
+        skills = [s for s in skills if s.get("skill_name") != skill_name]
+
+        # Add or update the skill
+        skills.append({
+            "skill_name": skill_name,
+            "skill_description": description,
+            "definition": minispec_def
+        })
+
+        # Write back to file
+        with open(SKILL_FILE, "w") as f:
+            json.dump(skills, f, indent=4)
+
+        return True, False
 
     def append_message(self, message: str):
         if self.message_queue is not None:
