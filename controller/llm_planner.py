@@ -4,6 +4,7 @@ from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
 from controller.assets.tello.examples import get_graph_examples
+from controller.constants import X_BOUND, Y_BOUND
 from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
@@ -83,7 +84,12 @@ class LLMPlanner():
                                              context_graph=context_graph,
                                              current_position=current_position,
                                              current_region=current_region,
-                                             minispec_syntax=self.minispec_syntax)
+                                             minispec_syntax=self.minispec_syntax,
+                                             x_bound_neg=-X_BOUND,
+                                             x_bound_pos=X_BOUND,
+                                             y_bound_neg=-Y_BOUND,
+                                             y_bound_neg=Y_BOUND,
+                                             )
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
         return self.llm.request(prompt, model_name=self.model_name, stream=False)

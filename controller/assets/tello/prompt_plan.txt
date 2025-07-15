@@ -25,15 +25,16 @@ Then, invoke the new skill by using the full name, because you do not still know
 
 The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
 The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
-The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description' and 'current view of the environment' and generate a new response accordingly.
-The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
 The 'current position' is where you are in the environment.
 The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the x and y coordinates beyond which the drone should not go, as they fall outside the target area.
 
 Each entry of the graph contains the following types:
-- "regions" is a list of spatial regions. The regions are traversable ONLY IF they appear in the "region_connections" list
-- "object_connections" is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
-- "region_connections" is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
 
 Here are some extra guides for you to better understand the task and generate a better response:
 {guides}
@@ -50,12 +51,15 @@ Here is the 'task description':
 Here is the 'execution history' (has value if replanning):
 {execution_history}
 
-Here is the 'current view of the environment'. Consider this graph when choosing the direction to explore.
-If you remember there is an object in a region previously explored, use the graph to come back there and scan in that region to localize that object again.
+Here is the 'current view of the environment':
 {context_graph}
 
 Here is the 'current position':
 {current_position} - in {current_region}
+
+Here are the 'boundaries': 
+x coordinate: [{x_bound_neg}-{x_bound_pos}]
+y coordinate: [{y_bound_neg}-{y_bound_pos}]
 
 Here is the 'minispec syntax':
 {minispec_syntax}
