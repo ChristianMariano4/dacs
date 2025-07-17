@@ -13,25 +13,25 @@ Iteration 1:
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through choose_direction, because I have no information in the graph in which region to go to.
-Response: ?s("apple")==True{l("apple found");->True}_1=cd();en(_1);rp();
+Response: ?s(["apple"])==True{l("apple found");->True}_1=cd();en(_1);rp();
 
 Iteration 2: New region region_1 at [0, 150]
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will now try another direction to increase search coverage. I decide to move right by 150 cm to form a spatial branch.
-Response: mr(150); ?s("apple")==True{l("apple found");->True}rp();
+Response: mr(150); ?s(["apple"])==True{l("apple found");->True}rp();
 
 Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
 Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
 Task: I need an apple. Is there one in the scene?
 Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using choose_direction skill after having scanned the area to exploit visual information to choose direction.
-Response: ?s("apple")==True{l("apple found");->True}_1=cd();en(_1);rp();
+Response: ?s(["apple"])==True{l("apple found");->True}_1=cd();en(_1);rp();
 
 Iteration 4: 
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
-Response: ?s("apple")==True{l("apple found");->True}_1=cd();en(_1);rp();
+Response: ?s(["apple"])==True{l("apple found");->True}_1=cd();en(_1);rp();
 
 Iteration 5: New user task
 Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
@@ -46,12 +46,12 @@ Reason: By looking at the graph I know from previous exploration that a banana w
 Response: l("I found a banana region_2 that is at [150, 150]");
 
 #Example 2
-Graph: {
+Initial Graph: {
     "objects": [],
-    "regions": [{"name": "main_entrance", "coords": [0, 0]}],
+    "regions": [{"name": "region_0", "coords": [0, 0]}],
     "object_connections": [],
     "region_connections": [],
-    "robot_location": "main_entrance",
+    "robot_location": "region_0",
     "robot_coordinates": [0, 0],
     "robot_yaw": 0
 }
@@ -59,77 +59,145 @@ Graph: {
 Iteration 1:
 Scene: []
 Task: Patrol the facility and report any security concerns
-Reason: Starting patrol from main entrance. I'll create a security_sweep skill using YOLO-detectable objects. YOLO can detect people, bags, bottles, tools, but not abstract concepts like "weapon" or "threat".
-Response: add_skill("security_sweep", "Scan for YOLO-detectable security objects and navigate with hint", "tp();s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\"]);_1=cd($1);en(_1);");security_sweep("prioritize areas with doors or visible equipment for comprehensive facility coverage");rp();
+Reason: Starting patrol from region_0. When I use choose_direction, it will analyze the 4 directional pictures and RENAME region_0 to something meaningful based on what it sees, then select a direction to explore toward region_1.
+Response: add_skill("security_sweep", "Scan for threats and navigate to new regions", "tp();?s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\"])==True{l(\"Security threats detected during scan\")}_1=cd($1);l(\"Current region renamed and moving toward region_1: \" + _1);en(_1, 150);");security_sweep("prioritize areas with doors or visible equipment for comprehensive facility coverage");rp();
 
-Iteration 2: New region "east_corridor" at [150, 0]
+Updated Graph after cd() renames region_0: {
+    "objects": [],
+    "regions": [
+        {"name": "main_entrance_lobby", "coords": [0, 0]},
+        {"name": "region_1", "coords": [150, 0]}
+    ],
+    "object_connections": [],
+    "region_connections": [
+        {"from": "main_entrance_lobby", "to": "region_1", "direction": "east"}
+    ],
+    "robot_location": "region_1",
+    "robot_coordinates": [150, 0],
+    "robot_yaw": 0
+}
+
+Iteration 2: Now in region_1
 Scene: [door_1 x:0.78 y:0.45 width:0.18 height:0.35]
-Task: Patrol the facility and report any security concerns
-Reason: Found door (YOLO can detect doors). I can reuse security_sweep with a hint specific to door areas.
-Response: l("Door detected - performing security sweep with door-focused navigation");security_sweep("move toward areas that connect to this door or have similar access points");rp();
+Task: Continue patrol from region_1
+Reason: I'm now in region_1 (which was created by exploration). I can see a door here. When I use choose_direction, it will rename region_1 based on what it sees (the door), then select direction toward region_2.
+Response: l("In region_1 with door visible - choose_direction will rename this region and select path to region_2");security_sweep("move toward areas that connect to this exit or storage areas");rp();
 
-Iteration 3: New region "storage_room" at [300, 0]
+Updated Graph after cd() renames region_1: {
+    "objects": [
+        {"name": "door_1", "location": "corridor_with_exit_door", "coords": [0.78, 0.45]}
+    ],
+    "regions": [
+        {"name": "main_entrance_lobby", "coords": [0, 0]},
+        {"name": "corridor_with_exit_door", "coords": [150, 0]},
+        {"name": "region_2", "coords": [300, 0]}
+    ],
+    "object_connections": [],
+    "region_connections": [
+        {"from": "main_entrance_lobby", "to": "corridor_with_exit_door", "direction": "east"},
+        {"from": "corridor_with_exit_door", "to": "region_2", "direction": "east"}
+    ],
+    "robot_location": "region_2",
+    "robot_coordinates": [300, 0],
+    "robot_yaw": 0
+}
+
+Iteration 3: Now in region_2
 Scene: []
-Task: Patrol the facility and report any security concerns
-Reason: Empty storage area. I'll reuse security_sweep but focus on YOLO-detectable objects that might be hidden.
-Response: l("Storage area found - scanning for people and containers");security_sweep("avoid dead ends, move toward areas likely to have more activity");rp();
+Task: Investigate region_2
+Reason: I'm in region_2 which appears empty. Choose_direction will analyze what's around and rename region_2 appropriately, then choose direction to region_3.
+Response: l("In region_2 - appears empty but scanning for threats and naming");security_sweep("move toward areas with higher activity or security significance");rp();
 
-Iteration 4: New region "north_storage" at [300, 150]; new objects: person_1, backpack_1, bottle_1 found by scan
+Updated Graph after cd() renames region_2: {
+    "objects": [
+        {"name": "door_1", "location": "corridor_with_exit_door", "coords": [0.78, 0.45]}
+    ],
+    "regions": [
+        {"name": "main_entrance_lobby", "coords": [0, 0]},
+        {"name": "corridor_with_exit_door", "coords": [150, 0]},
+        {"name": "storage_area_main", "coords": [300, 0]},
+        {"name": "region_3", "coords": [300, 150]}
+    ],
+    "object_connections": [],
+    "region_connections": [
+        {"from": "main_entrance_lobby", "to": "corridor_with_exit_door", "direction": "east"},
+        {"from": "corridor_with_exit_door", "to": "storage_area_main", "direction": "east"},
+        {"from": "storage_area_main", "to": "region_3", "direction": "north"}
+    ],
+    "robot_location": "region_3",
+    "robot_coordinates": [300, 150],
+    "robot_yaw": 0
+}
+
+Iteration 4: Now in region_3; new objects: person_1, backpack_1, bottle_1 found by scan
 Scene: [person_1 x:0.58 y:0.62 width:0.12 height:0.45, backpack_1 x:0.61 y:0.58 width:0.15 height:0.25, bottle_1 x:0.25 y:0.30 width:0.08 height:0.20]
-Task: Patrol the facility and report any security concerns
-Reason: Critical situation! Person with backpack and bottle (all YOLO-detectable). Backpack could contain weapons, bottle could be flammable. I'll create incident response using only YOLO objects.
-Response: add_skill("incident_response", "Handle security incident using YOLO-detectable objects", "tp();l(\"SECURITY ALERT: Unauthorized person detected\");s([\"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\", \"cell_phone\"]);?iv([\"person\"])==True{?ox(\"person\")>0.7{ml(100)}?ox(\"person\")<0.3{mr(100)}g(\"person\");mb(150)}_1=cd($1);en(_1);");incident_response("position for surveillance while maintaining escape route access");rp();
+Task: Handle security threat in region_3
+Reason: Critical situation in region_3! Person with suspicious objects. Choose_direction will rename region_3 based on the security breach it detects, then choose direction to region_4.
+Response: add_skill("incident_response", "Handle incidents and navigate to new regions", "tp();l(\"SECURITY ALERT in \" + nr() + \": Unauthorized person detected\");?s([\"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"knife\", \"scissors\"])==True{l(\"Additional threats in \" + nr())}?iv([\"person\"])==True{g(\"person\");mb(150)}_1=cd($1);l(\"Region renamed and moving to region_4: \" + _1);en(_1, 100);");l("CRITICAL: Person with backpack and bottle in region_3");incident_response("move toward security command center for backup");rp();
 
-Iteration 5: New region "security_office" at [450, 150]
-Scene: [person_1 x:0.35 y:0.55 width:0.12 height:0.44, laptop_1 x:0.60 y:0.25 width:0.25 height:0.15]
-Task: Found office with person and laptop
-Reason: Person with laptop (both YOLO-detectable). Could be security guard or unauthorized access. I'll scan for other YOLO objects that indicate authorization or threat.
-Response: l("Office with person and laptop found - assessing authorization");s([\"person\", \"laptop\", \"cell_phone\", \"book\", \"cup\", \"chair\"]);security_sweep("follow areas where authorized personnel typically work");rp();
+Updated Graph after cd() renames region_3: {
+    "objects": [
+        {"name": "door_1", "location": "corridor_with_exit_door", "coords": [0.78, 0.45]},
+        {"name": "person_1", "location": "north_storage_with_breach", "coords": [0.58, 0.62]},
+        {"name": "backpack_1", "location": "north_storage_with_breach", "coords": [0.61, 0.58]},
+        {"name": "bottle_1", "location": "north_storage_with_breach", "coords": [0.25, 0.30]}
+    ],
+    "regions": [
+        {"name": "main_entrance_lobby", "coords": [0, 0]},
+        {"name": "corridor_with_exit_door", "coords": [150, 0]},
+        {"name": "storage_area_main", "coords": [300, 0]},
+        {"name": "north_storage_with_breach", "coords": [300, 150]},
+        {"name": "region_4", "coords": [400, 150]}
+    ],
+    "object_connections": [
+        {"from": "person_1", "to": "backpack_1", "relationship": "carrying"},
+        {"from": "person_1", "to": "bottle_1", "relationship": "near"}
+    ],
+    "region_connections": [
+        {"from": "main_entrance_lobby", "to": "corridor_with_exit_door", "direction": "east"},
+        {"from": "corridor_with_exit_door", "to": "storage_area_main", "direction": "east"},
+        {"from": "storage_area_main", "to": "north_storage_with_breach", "direction": "north"},
+        {"from": "north_storage_with_breach", "to": "region_4", "direction": "east"}
+    ],
+    "robot_location": "region_4",
+    "robot_coordinates": [400, 150],
+    "robot_yaw": 0
+}
 
-Iteration 6: New region "equipment_room" at [600, 150]
-Scene: [tv_1 x:0.80 y:0.15 width:0.25 height:0.20, laptop_1 x:0.25 y:0.30 width:0.20 height:0.15, mouse_1 x:0.50 y:0.60 width:0.05 height:0.08]
-Task: Equipment room with monitors and computers
-Reason: Room with TV (likely security monitor), laptop, and mouse - all YOLO-detectable. This appears to be legitimate security equipment. I'll check for people who might be tampering.
-Response: l("Security equipment room found - checking for unauthorized access");s([\"person\", \"scissors\", \"knife\", \"screwdriver\"]);security_sweep("move toward high-value areas that these systems likely monitor");rp();
+Iteration 5: Now in region_4
+Scene: [security_guard_1 x:0.35 y:0.55 width:0.12 height:0.44, laptop_1 x:0.60 y:0.25 width:0.25 height:0.15]
+Task: Coordinate with security in region_4
+Reason: Perfect! Found security personnel in region_4. Choose_direction will rename this to reflect it's a security command center, then navigate to region_5.
+Response: l("Found security guard and laptop in region_4 - reporting north_storage_with_breach incident");add_skill("master_patrol", "Complete patrol with region renaming intelligence", "l(\"PATROL SUMMARY - Region Intelligence:\");l(\"- region_0 → main_entrance_lobby (renamed by cd)\");l(\"- region_1 → corridor_with_exit_door (renamed by cd)\");l(\"- region_2 → storage_area_main (renamed by cd)\");l(\"- region_3 → north_storage_with_breach (renamed by cd)\");l(\"- region_4 → will be renamed by cd\");_1=cd(\"return toward main_entrance_lobby for patrol completion\");l(\"Final region navigation: \" + _1);gx(0, 0);");master_patrol();rp();
 
-Iteration 7: New region "main_hallway" at [750, 150]
-Scene: []
-Task: Continue patrol in main circulation area
-Reason: I'll create a comprehensive investigation skill focusing on YOLO-detectable objects that could indicate security issues.
-Response: add_skill("investigate_area", "Comprehensive YOLO-based area investigation", "tp();l(\"Investigating area for detectable objects\");s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"scissors\", \"knife\", \"cell_phone\", \"laptop\"]);_1=cd($1);en(_1);");investigate_area("move toward areas where people typically gather or work");rp();
-
-Iteration 8: New region "laboratory" at [900, 150]; new objects: person_1, backpack_1, bottle_1, scissors_1 found by scan
-Scene: [person_1 x:0.58 y:0.62 width:0.12 height:0.45, backpack_1 x:0.33 y:0.77 width:0.25 height:0.18, bottle_1 x:0.67 y:0.45 width:0.08 height:0.15, scissors_1 x:0.45 y:0.20 width:0.06 height:0.12]
-Task: Laboratory with person, backpack, bottle, and scissors
-Reason: Very concerning! Person with backpack (could contain explosives), bottle (could be chemicals), and scissors (cutting tool/weapon) - all YOLO-detectable. This combination in a lab is highly suspicious.
-Response: l("High-risk situation in laboratory - person with suspicious YOLO-detectable objects");incident_response("position toward evacuation routes in case of chemical or explosive threat");add_skill("investigate_suspicious_object", "Investigate YOLO-detectable suspicious items", "tp();s([\"bottle\", \"backpack\", \"handbag\", \"suitcase\", \"scissors\", \"knife\"]);?iv([$1])==True{?ox($1)>0.6{ml(100)}?ox($1)<0.4{mr(100)}g($1);mb(200)}_1=cd($2);en(_1);");investigate_suspicious_object("backpack_1", "move toward safety equipment or evacuation routes");rp();
-
-Iteration 9: New region "emergency_corridor" at [900, 0]
-Scene: [fire_extinguisher_1 x:0.20 y:0.30 width:0.12 height:0.25, phone_1 x:0.80 y:0.25 width:0.08 height:0.15]
-Task: Emergency equipment corridor
-Reason: Found fire extinguisher and phone (both YOLO-detectable emergency equipment). Good positioning for emergency response.
-Response: l("Emergency equipment corridor found");security_sweep("move toward main circulation areas or potential evacuation routes");rp();
-
-Iteration 10: New region "cafeteria" at [750, 0]
-Scene: [person_1 x:0.30 y:0.40 width:0.12 height:0.45, person_2 x:0.70 y:0.50 width:0.11 height:0.43, cup_1 x:0.50 y:0.80 width:0.08 height:0.10]
-Task: Multiple people in cafeteria
-Reason: Multiple people and cup (all YOLO-detectable). Normal cafeteria activity, but I should check for any concerning objects people might have.
-Response: add_skill("emergency_response", "Handle situations using YOLO-detectable indicators", "l(\"SITUATION DETECTED\");mu(200);s([\"person\", \"backpack\", \"handbag\", \"bottle\", \"knife\", \"scissors\", \"fire\"]);?iv([\"person\"])==True{incident_response($1)}md(200);security_sweep($1);");emergency_response("move toward areas with safety equipment if needed");rp();
-
-Iteration 11: New region "utility_room" at [600, 0]
-Scene: [bucket_1 x:0.40 y:0.50 width:0.15 height:0.20, bottle_1 x:0.75 y:0.35 width:0.08 height:0.18]
-Task: Utility room with cleaning supplies
-Reason: Bucket and bottle (YOLO-detectable) - likely legitimate cleaning supplies. I'll verify no unauthorized people are present.
-Response: l("Utility room with cleaning supplies found");s([\"person\", \"scissors\", \"knife\"]);security_sweep("continue systematic facility coverage or return to patrol route");rp();
-
-Iteration 12: New user task
-Scene: []
-Task: Create comprehensive patrol using only YOLO-detectable objects
-Reason: Master patrol must focus only on objects YOLO can actually detect - people, bags, tools, electronics, etc.
-Response: add_skill("master_patrol", "YOLO-based comprehensive patrol", "nr(\"patrol_start\");t();investigate_area(\"prioritize areas with detectable security concerns\");s([\"person\", \"backpack\", \"handbag\", \"suitcase\", \"bottle\", \"scissors\", \"knife\", \"laptop\"]);?iv([\"person\"])==True{incident_response(\"maintain surveillance with tactical positioning\")}?iv([\"backpack\", \"suitcase\", \"bottle\"])==True{investigate_suspicious_object(\"backpack\", \"move toward safety areas\")}security_sweep(\"optimize coverage of facility areas\");gx(0, 0);");master_patrol();rp();
-
-Iteration 13: New user task
-Scene: [person_1 x:0.40 y:0.60 width:0.12 height:0.44, laptop_1 x:0.80 y:0.30 width:0.22 height:0.15, backpack_1 x:0.20 y:0.70 width:0.18 height:0.25]
-Task: Multiple YOLO-detectable objects present
-Reason: Person, laptop, and backpack - all YOLO-detectable. Could be legitimate work or potential data theft/security breach.
-Response: l("Person with laptop and backpack detected - initiating YOLO-based threat assessment");master_patrol();rp();
+Final Updated Graph after cd() renames region_4: {
+    "objects": [
+        {"name": "door_1", "location": "corridor_with_exit_door", "coords": [0.78, 0.45]},
+        {"name": "person_1", "location": "north_storage_with_breach", "coords": [0.58, 0.62]},
+        {"name": "backpack_1", "location": "north_storage_with_breach", "coords": [0.61, 0.58]},
+        {"name": "bottle_1", "location": "north_storage_with_breach", "coords": [0.25, 0.30]},
+        {"name": "security_guard_1", "location": "security_command_center", "coords": [0.35, 0.55]},
+        {"name": "laptop_1", "location": "security_command_center", "coords": [0.60, 0.25]}
+    ],
+    "regions": [
+        {"name": "main_entrance_lobby", "coords": [0, 0]},
+        {"name": "corridor_with_exit_door", "coords": [150, 0]},
+        {"name": "storage_area_main", "coords": [300, 0]},
+        {"name": "north_storage_with_breach", "coords": [300, 150]},
+        {"name": "security_command_center", "coords": [400, 150]}
+    ],
+    "object_connections": [
+        {"from": "person_1", "to": "backpack_1", "relationship": "carrying"},
+        {"from": "person_1", "to": "bottle_1", "relationship": "near"},
+        {"from": "security_guard_1", "to": "laptop_1", "relationship": "using"}
+    ],
+    "region_connections": [
+        {"from": "main_entrance_lobby", "to": "corridor_with_exit_door", "direction": "east"},
+        {"from": "corridor_with_exit_door", "to": "storage_area_main", "direction": "east"},
+        {"from": "storage_area_main", "to": "north_storage_with_breach", "direction": "north"},
+        {"from": "north_storage_with_breach", "to": "security_command_center", "direction": "east"}
+    ],
+    "robot_location": "main_entrance_lobby",
+    "robot_coordinates": [0, 0],
+    "robot_yaw": 0
+}
