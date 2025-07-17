@@ -17,8 +17,8 @@ Tello.LOGGER.setLevel(logging.WARNING)
 MOVEMENT_MIN = 20
 MOVEMENT_MAX = 500
 
-SCENE_CHANGE_DISTANCE = 120
-SCENE_CHANGE_ANGLE = 90
+SCENE_CHANGE_DISTANCE = 1000 #TODO: delete these
+SCENE_CHANGE_ANGLE = 1000
 
 def adjust_exposure(img, alpha=1.0, beta=0):
     """

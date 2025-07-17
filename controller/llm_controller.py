@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 import asyncio
 import uuid
 
-from controller.constants import REGION_THRESHOLD
+from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD
 from controller.task import Task
 
 import cv2
@@ -21,7 +21,7 @@ from .yolo_client import YoloClient
 from .yolo_grpc_client import YoloGRPCClient
 from .tello_wrapper import TelloWrapper
 from .virtual_robot_wrapper import VirtualRobotWrapper
-from .abs.robot_wrapper import RobotWrapper
+from .abs.robot_wrapper import SKILL_FILE, RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
@@ -84,10 +84,10 @@ class LLMController():
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_forward", self.drone.move_forward, "Move forward by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_backward", self.drone.move_backward, "Move backward by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_left", self.drone.move_left, "Move left by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_forward", self.drone.move_north, "Move forward by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_backward", self.drone.move_south, "Move backward by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_left", self.drone.move_west, "Move left by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_east, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
@@ -98,7 +98,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("start_trajectory", self.drone.start_trajectory, "Start a trajectory mapped by a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target object", args=[SkillArg("object_name", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_y", self.vision.object_y, "Get object's Y-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
@@ -107,7 +107,9 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on images and graph"))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on video streaming, graph, current task and an hint (if needed) given as argument", args=[SkillArg("gesture", Optional[str])]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
+        
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
         # - needs another iteration (replanning with context updated)
@@ -169,30 +171,28 @@ class LLMController():
             elif x < 0.45:
                 self.drone.turn_ccw(int((0.5 - x) * 70))
 
-        self.drone.move_forward(110)
+        self.drone.move_north(110)
         return None, False
     
     def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> Tuple[None, bool]:
-        # next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
+        # next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}
         match direction:
             case 0:
-                print("forward")
-                self.drone.move_forward(distance=distance)
+                self.drone.move_north(distance=distance)
             case 180:
-                print("backward")
-                self.drone.move_backward(distance=distance)
+                self.drone.move_south(distance=distance)
             case -90:
-                print("left")
-                self.drone.move_left(distance=distance)
+                self.drone.move_west(distance=distance)
             case 90:
-                print("right")
-                self.drone.move_right(distance=distance)
+                self.drone.move_east(distance=distance)
+            case _:
+                self.drone.move_direction(direction, distance)
         return None, False
     
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
     #     self.graph_manager.add_region(self.drone.get_pose(), region_name)
 
-    def name_region(self, region_name: str) -> Tuple[None, bool]:
+    def _name_region(self, region_name: str) -> Tuple[None, bool]:
         self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
@@ -204,14 +204,16 @@ class LLMController():
         self.append_message((img_path,))
         return None, False
     
-    def skill_choose_direction(self) -> Tuple[int, bool]:
+    def skill_choose_direction(self, hint: Optional[str]) -> Tuple[int, bool]:
         """
         Finds all jpg images in cache_folder, sorts them (if possible), 
         and returns a list of file paths for LLM direction selection.
         """
-        dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder)
-        if dir in ["forward","right","backward","left"]:
-            next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
+        (dir, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
+        self._name_region(region_name)
+        valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
+        if dir in valid_directions:
+            next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}[dir]
             print(f"Next yaw {next_yaw}")
             return next_yaw, False
         return 0, False
@@ -228,6 +230,37 @@ class LLMController():
     def skill_delay(self, s: float) -> Tuple[None, bool]:
         time.sleep(s)
         return None, False
+    
+    def skill_add_skill(self, skill_name: str, description: str, minispec_def: str):
+        skill_name = skill_name.strip('\'"')
+        minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
+        print(f"Skill added: {skill_name}: {minispec_def}")
+
+        # Load existing skills
+        if os.path.exists(HIGH_LEVEL_SKILL_FILE):
+            with open(HIGH_LEVEL_SKILL_FILE, "r") as f:
+                skills = json.load(f)
+                if not isinstance(skills, list):
+                    print("Error: Skill file is not a list. Resetting.")
+                    skills = []
+        else:
+            skills = []
+
+        # Remove old skill with same name if it exists
+        skills = [s for s in skills if s.get("skill_name") != skill_name]
+
+        # Add or update the skill
+        skills.append({
+            "skill_name": skill_name,
+            "skill_description": description,
+            "definition": minispec_def
+        })
+
+        # Write back to file
+        with open(SKILL_FILE, "w") as f:
+            json.dump(skills, f, indent=4)
+
+        return True, False
 
     def append_message(self, message: str):
         if self.message_queue is not None:

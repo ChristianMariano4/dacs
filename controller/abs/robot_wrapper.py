@@ -6,8 +6,6 @@ from typing import Tuple
 
 from controller.context_map.mapping.graph_manager import GraphManager
 
-SKILL_FILE = "controller/assets/tello/high_level_skills.json"
-
 class RobotType(Enum):
     VIRTUAL = "virtual"
     TELLO = "tello"
@@ -54,21 +52,26 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def move_forward(self, distance: int) -> Tuple[bool, bool]:
+    def move_north(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_backward(self, distance: int) -> Tuple[bool, bool]:
+    def move_south(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_left(self, distance: int) -> Tuple[bool, bool]:
+    def move_west(self, distance: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
-    def move_right(self, distance: int) -> Tuple[bool, bool]:
+    def move_east(self, distance: int) -> Tuple[bool, bool]:
         pass
-    
+
+    @abstractmethod
+    def move_direction(self, direction: int, distance: int) -> Tuple[bool, bool]:
+        '''The direction is given by the degrees used to rotate. Skill used internally and not given to LLM'''
+        pass
+
     @abstractmethod
     def move_up(self, distance: int) -> Tuple[bool, bool]:
         pass
@@ -104,34 +107,3 @@ class RobotWrapper(ABC):
     @abstractmethod
     def start_trajectory(self, gesture) -> Tuple[bool, bool]:
         pass
-
-    def add_skill(self, skill_name: str, description: str, minispec_def: str):
-        skill_name = skill_name.strip('\'"')
-        minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
-        print(f"Skill added: {skill_name}: {minispec_def}")
-
-        # Load existing skills
-        if os.path.exists(SKILL_FILE):
-            with open(SKILL_FILE, "r") as f:
-                skills = json.load(f)
-                if not isinstance(skills, list):
-                    print("Error: Skill file is not a list. Resetting.")
-                    skills = []
-        else:
-            skills = []
-
-        # Remove old skill with same name if it exists
-        skills = [s for s in skills if s.get("skill_name") != skill_name]
-
-        # Add or update the skill
-        skills.append({
-            "skill_name": skill_name,
-            "skill_description": description,
-            "definition": minispec_def
-        })
-
-        # Write back to file
-        with open(SKILL_FILE, "w") as f:
-            json.dump(skills, f, indent=4)
-
-        return True, False

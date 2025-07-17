@@ -56,25 +56,25 @@ class VirtualRobotWrapper(RobotWrapper):
     def start_trajectory(self):
         pass
 
-    def move_forward(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_north(self, distance: int = 10) -> Tuple[bool, bool]:
         print(f"-> Moving forward {distance} cm")
         self.movement_x_accumulator += distance
         time.sleep(1)
         return True, False
 
-    def move_backward(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_south(self, distance: int = 10) -> Tuple[bool, bool]:
         print(f"-> Moving backward {distance} cm")
         self.movement_x_accumulator -= distance
         time.sleep(1)
         return True, False
 
-    def move_left(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_west(self, distance: int = 10) -> Tuple[bool, bool]:
         print(f"-> Moving left {distance} cm")
         self.movement_y_accumulator += distance
         time.sleep(1)
         return True, False
 
-    def move_right(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_east(self, distance: int = 10) -> Tuple[bool, bool]:
         print(f"-> Moving right {distance} cm")
         self.movement_y_accumulator -= distance
         time.sleep(1)

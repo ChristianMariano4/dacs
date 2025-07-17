@@ -252,9 +252,13 @@ class GraphHandler:
         return region_name, True
 
     def name_region(self, name):
-        result = self.lookup_node(name)
+         #TODO: check if it is right
+        result = self.lookup_node(self.current_location)
+        if str(result[0]["name"]).startswith("region"):
+            # the region has been already name before
+            return
         if result[1]:
-            result[0]["name"] = name #TODO: check if it is right
+            result[0]["name"] = name
 
     def reset(
         self,

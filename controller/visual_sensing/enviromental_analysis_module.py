@@ -3,6 +3,7 @@ from datetime import datetime
 from io import BytesIO
 import json
 import json
+from typing import Optional
 from PIL import Image
 import numpy as np
 import base64
@@ -56,17 +57,23 @@ class EnvironmentalAnalysisModule:
         print(scene_description)
         return scene_description
         
-    def choose_direction(self, current_task, base_path):
+    def choose_direction(self, current_task, base_path, hint: Optional[str]):
         try:
-            # Read and encode the images
-            forward_image = encode_image(Image.open(os.path.join(base_path, 'forward.jpg')))
-            right_image = encode_image(Image.open(os.path.join(base_path, 'right.jpg')))
-            backward_image = encode_image(Image.open(os.path.join(base_path, 'backward.jpg')))
-            left_image = encode_image(Image.open(os.path.join(base_path, 'left.jpg')))
+            # Read and encode all 8 directional images
+            north_image = encode_image(Image.open(os.path.join(base_path, 'forward.jpg')))
+            east_image = encode_image(Image.open(os.path.join(base_path, 'right.jpg')))
+            south_image = encode_image(Image.open(os.path.join(base_path, 'backward.jpg')))
+            west_image = encode_image(Image.open(os.path.join(base_path, 'left.jpg')))
+            
+            # Diagonal direction images
+            north_east_image = encode_image(Image.open(os.path.join(base_path, 'north-east.jpg')))
+            north_west_image = encode_image(Image.open(os.path.join(base_path, 'north-west.jpg')))
+            south_east_image = encode_image(Image.open(os.path.join(base_path, 'south-east.jpg')))
+            south_west_image = encode_image(Image.open(os.path.join(base_path, 'south-west.jpg')))
 
-            prompt = self.direction_prompt.format(task=current_task)
+            prompt = self.direction_prompt.format(task=current_task, hint=hint)
 
-            # Make the API call
+        # Make the API call with all 8 images
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -74,10 +81,14 @@ class EnvironmentalAnalysisModule:
                         "role": "user",
                         "content": [
                             {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + forward_image, "name": "forward.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + right_image, "name": "right.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + backward_image, "name": "backward.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + left_image, "name": "left.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_image, "name": "north.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + east_image, "name": "east.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_image, "name": "south.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + west_image, "name": "west.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_east_image, "name": "north-east.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_west_image, "name": "north-west.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_east_image, "name": "south-east.jpg"}},
+                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_west_image, "name": "south-west.jpg"}},
                         ]
                     }
                 ],
@@ -92,83 +103,65 @@ class EnvironmentalAnalysisModule:
                 print("ERROR: Received empty response from OpenAI API")
                 print(f"Full response object: {response}")
                 # Return default direction as fallback
-                return "forward"
-            
+                return "north"
+                
             # Parse JSON response
             try:
                 parsed = json.loads(response_content)
             except json.JSONDecodeError as e:
                 print(f"JSON parsing error: {e}")
                 print(f"Response content: {response_content}")
-                # Try to extract direction from malformed response
-                if "forward" in response_content.lower():
-                    return "forward"
-                elif "right" in response_content.lower():
-                    return "right"
-                elif "backward" in response_content.lower():
-                    return "backward"
-                elif "left" in response_content.lower():
-                    return "left"
+                # Try to extract direction from malformed response - now includes diagonal directions
+                response_lower = response_content.lower()
+                
+                # Check for diagonal directions first (more specific)
+                if "north-east" in response_lower or "northeast" in response_lower:
+                    return "north-east"
+                elif "north-west" in response_lower or "northwest" in response_lower:
+                    return "north-west"
+                elif "south-east" in response_lower or "southeast" in response_lower:
+                    return "south-east"
+                elif "south-west" in response_lower or "southwest" in response_lower:
+                    return "south-west"
+                # Then check cardinal directions
+                elif "north" in response_lower:
+                    return "north"
+                elif "west" in response_lower:
+                    return "west"
+                elif "south" in response_lower:
+                    return "south"
+                elif "west" in response_lower:
+                    return "west"
                 else:
-                    return "forward"  # Default fallback
-                    # Validate parsed response structure
+                    return "north"  # Default fallback
+
+            # Validate parsed response structure
             if not isinstance(parsed, dict):
                 print(f"ERROR: Expected dict, got {type(parsed)}")
-                return "forward"
+                return "north"
             
             if "direction" not in parsed:
                 print(f"ERROR: 'direction' key not found in response: {parsed}")
-                return "forward"
+                return "north"
             
-            direction : str= parsed["direction"]
+            direction : str = parsed["direction"]
             direction = direction.lower()
             reason = parsed.get("reason", "No reason provided")
+            region_name = parsed.get("region_name", None)
             
 
-            # Validate direction value
-            valid_directions = ["forward", "right", "backward", "left", "none"]
+            # Validate direction value - now includes diagonal directions
+            valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
             if direction not in valid_directions:
-                print(f"ERROR: Invalid direction '{direction}', using 'forward' as fallback")
-                direction = "forward"
+                print(f"ERROR: Invalid direction '{direction}', using 'north' as fallback")
+                direction = "north"
 
             input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
-            return direction
+            return direction, region_name
         
         except Exception as e:
             print(f"ERROR in choose_direction: {e}")
             print(f"Exception type: {type(e)}")
             import traceback
             traceback.print_exc()
-            return "forward"  # Safe fallback
-    
-    
-    def _log_direction_chat(self, current_task, response_content, direction, base_path):
-        """Log the direction choice chat to a file"""
-        try:
-            # Create logs directory if it doesn't exist
-            log_dir = os.path.join(base_path, 'logs')
-            os.makedirs(log_dir, exist_ok=True)
-            
-            # Create log filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_file = os.path.join(log_dir, f"direction_chat_{timestamp}.log")
-            
-            # Prepare log entry
-            log_entry = {
-                "timestamp": datetime.now().isoformat(),
-                "task": current_task,
-                "prompt": f"The goal is: '{current_task}'\nI've attached 4 directional images. Return one of: forward, right, backward, left, or none. Respond in JSON format with the structure: {'direction':'right'}",
-                "images_used": ["forward.jpg", "right.jpg", "backward.jpg", "left.jpg"],
-                "raw_response": response_content,
-                "chosen_direction": direction,
-                "model": "gpt-4o"
-            }
-            
-            # Write to log file
-            with open(log_file, 'w') as f:
-                json.dump(log_entry, f, indent=2)
-            
-            print(f"[LOG] Direction chat logged to {log_file}")
-            
-        except Exception as e:
-            print(f"[LOG ERROR] Failed to log direction chat: {e}")
+            return "north"  # Safe fallback
