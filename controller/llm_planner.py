@@ -88,7 +88,7 @@ class LLMPlanner():
                                              x_bound_neg=-X_BOUND,
                                              x_bound_pos=X_BOUND,
                                              y_bound_neg=-Y_BOUND,
-                                             y_bound_neg=Y_BOUND,
+                                             y_bound_pos=Y_BOUND,
                                              )
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
