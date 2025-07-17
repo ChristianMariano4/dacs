@@ -92,7 +92,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right) by a given distance in cm (150 cm by default)", args=[SkillArg("direction", str), SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
+        # self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
@@ -194,7 +194,7 @@ class LLMController():
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
     #     self.graph_manager.add_region(self.drone.get_pose(), region_name)
 
-    def name_region(self, region_name: str) -> Tuple[None, bool]:
+    def _name_region(self, region_name: str) -> Tuple[None, bool]:
         self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
@@ -211,7 +211,8 @@ class LLMController():
         Finds all jpg images in cache_folder, sorts them (if possible), 
         and returns a list of file paths for LLM direction selection.
         """
-        dir = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
+        (dir, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
+        self._name_region(region_name)
         if dir in ["forward","right","backward","left"]:
             next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
             print(f"Next yaw {next_yaw}")

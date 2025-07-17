@@ -124,6 +124,7 @@ class EnvironmentalAnalysisModule:
             direction : str= parsed["direction"]
             direction = direction.lower()
             reason = parsed.get("reason", "No reason provided")
+            region_name = parsed.get("region_name", None)
             
 
             # Validate direction value
@@ -133,7 +134,7 @@ class EnvironmentalAnalysisModule:
                 direction = "forward"
 
             input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
-            return direction
+            return direction, region_name
         
         except Exception as e:
             print(f"ERROR in choose_direction: {e}")
