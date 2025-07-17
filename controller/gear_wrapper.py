@@ -117,7 +117,7 @@ class GearWrapper(RobotWrapper):
             return None
         return self.robot.sensor_data
     
-    def move_forward(self, distance: int) -> Tuple[bool, bool]:
+    def move_north(self, distance: int) -> Tuple[bool, bool]:
         print(f"-> Moving forward {distance} cm")
         self.robot.send_command_hover(0, 0, 0, 0)
         small_move = distance <= 15
@@ -130,7 +130,7 @@ class GearWrapper(RobotWrapper):
                 front_distance = clean_sensor_data(array[2, :])
                 right_distance = clean_sensor_data(array[7, :])
                 if max(front_distance) < 50:
-                    self.move_backward(10)
+                    self.move_south(10)
 
                 x = np.concatenate((left_distance, front_distance, right_distance))
                 x = torch.tensor(x, dtype=torch.float32)
@@ -164,7 +164,7 @@ class GearWrapper(RobotWrapper):
         self.robot.send_command_hover(0, 0, 0, 0)
         return True, False
 
-    def move_backward(self, distance: int) -> Tuple[bool, bool]:
+    def move_south(self, distance: int) -> Tuple[bool, bool]:
         print(f"-> Moving backward {distance} cm")
         self.robot.send_command_hover(0, 0, 0, 0)
         while distance > 0:
@@ -174,7 +174,7 @@ class GearWrapper(RobotWrapper):
         self.robot.send_command_hover(0, 0, 0, 0)
         return True, False
 
-    def move_left(self, distance: int) -> Tuple[bool, bool]:
+    def move_west(self, distance: int) -> Tuple[bool, bool]:
         print(f"-> Moving left {distance} cm")
         self.robot.send_command_hover(0, 0, 0, 0)
         while distance > 0:
@@ -184,7 +184,7 @@ class GearWrapper(RobotWrapper):
         self.robot.send_command_hover(0, 0, 0, 0)
         return True, False
 
-    def move_right(self, distance: int) -> Tuple[bool, bool]:
+    def move_east(self, distance: int) -> Tuple[bool, bool]:
         print(f"-> Moving right {distance} cm")
         self.robot.send_command_hover(0, 0, 0, 0)
         while distance > 0:

@@ -18,8 +18,8 @@ Tello.LOGGER.setLevel(logging.WARNING)
 MOVEMENT_MIN = 20
 MOVEMENT_MAX = 500
 
-SCENE_CHANGE_DISTANCE = 120
-SCENE_CHANGE_ANGLE = 90
+SCENE_CHANGE_DISTANCE = 1000 #TODO: delete these
+SCENE_CHANGE_ANGLE = 1000
 
 def adjust_exposure(img, alpha=1.0, beta=0):
     """
@@ -215,7 +215,7 @@ class TelloWrapper(RobotWrapper):
             return None
         return FrameReader(self.drone.get_frame_read())
 
-    def move_forward(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
+    def move_north(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             self.drone.move_forward(cap_distance(distance))
             self.movement_x_accumulator += distance
@@ -224,7 +224,7 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Forward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_backward(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
+    def move_south(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_back(cap_distance(distance))
             self.drone.rotate_clockwise(180)
@@ -235,7 +235,7 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Backward")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_left(self, distance: int =int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
+    def move_west(self, distance: int =int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_left(cap_distance(distance))
             self.drone.rotate_counter_clockwise(90)
@@ -246,15 +246,26 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Move Left")
         return True, distance > SCENE_CHANGE_DISTANCE
 
-    def move_right(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
+    def move_east(self, distance: int = int(REGION_THRESHOLD)) -> Tuple[bool, bool]:
         if self.move_enable:
             # self.drone.move_right(cap_distance(distance))
             self.drone.rotate_clockwise(90)
-            self.drone.move_forward(50)
+            self.drone.move_forward(cap_distance(distance))
             self.movement_y_accumulator -= distance
             time.sleep(0.5)
         else:
             print("[Drone] Move Right")
+        return True, distance > SCENE_CHANGE_DISTANCE
+    
+    def move_direction(self, direction: int, distance: int):
+        if self.move_enable:
+            # self.drone.move_right(cap_distance(distance))
+            self.drone.rotate_clockwise(direction)
+            self.drone.move_forward(cap_distance(distance))
+            self.movement_y_accumulator -= distance
+            time.sleep(0.5)
+        else:
+            print(f"[Drone] Move after rotating of {direction} degrees")
         return True, distance > SCENE_CHANGE_DISTANCE
 
     def move_up(self, distance: int) -> Tuple[bool, bool]:

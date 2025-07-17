@@ -450,16 +450,16 @@ class CrazyflieWrapper(RobotWrapper):
             time.sleep(duration)
 
 
-    def move_forward(self, distance: int) -> bool:
+    def move_north(self, distance: int) -> bool:
         pass
     
-    def move_backward(self, distance: int) -> bool:
+    def move_south(self, distance: int) -> bool:
         pass
     
-    def move_left(self, distance: int) -> bool:
+    def move_west(self, distance: int) -> bool:
         pass
 
-    def move_right(self, distance: int) -> bool:
+    def move_east(self, distance: int) -> bool:
         pass
     
     def move_up(self, distance: int) -> bool:

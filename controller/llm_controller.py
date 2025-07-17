@@ -84,10 +84,10 @@ class LLMController():
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_forward", self.drone.move_forward, "Move forward by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_backward", self.drone.move_backward, "Move backward by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_left", self.drone.move_left, "Move left by a distance", args=[SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_right, "Move right by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_forward", self.drone.move_north, "Move forward by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_backward", self.drone.move_south, "Move backward by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_left", self.drone.move_west, "Move left by a distance", args=[SkillArg("distance", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_east, "Move right by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
@@ -171,24 +171,22 @@ class LLMController():
             elif x < 0.45:
                 self.drone.turn_ccw(int((0.5 - x) * 70))
 
-        self.drone.move_forward(110)
+        self.drone.move_north(110)
         return None, False
     
     def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> Tuple[None, bool]:
-        # next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
+        # next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}
         match direction:
             case 0:
-                print("forward")
-                self.drone.move_forward(distance=distance)
+                self.drone.move_north(distance=distance)
             case 180:
-                print("backward")
-                self.drone.move_backward(distance=distance)
+                self.drone.move_south(distance=distance)
             case -90:
-                print("left")
-                self.drone.move_left(distance=distance)
+                self.drone.move_west(distance=distance)
             case 90:
-                print("right")
-                self.drone.move_right(distance=distance)
+                self.drone.move_east(distance=distance)
+            case _:
+                self.drone.move_direction(direction, distance)
         return None, False
     
     # def add_region(self, region_name: str) -> Tuple[None, bool]:
@@ -213,8 +211,9 @@ class LLMController():
         """
         (dir, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
         self._name_region(region_name)
-        if dir in ["forward","right","backward","left"]:
-            next_yaw = {"forward":0,"right":90,"backward":180,"left":-90}[dir]
+        valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
+        if dir in valid_directions:
+            next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}[dir]
             print(f"Next yaw {next_yaw}")
             return next_yaw, False
         return 0, False

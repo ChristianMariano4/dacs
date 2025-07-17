@@ -2,6 +2,6 @@
     {
         "skill_name": "scan",
         "skill_description": "Rotate to find objects passed as argument as a list when they are *not* in current scene",
-        "definition": "4{tp();?iv($1)==True{->True}tc(90)}->False;"
+        "definition": "8{tp();?iv($1)==True{->True}tc(45)}->False;"
     }
 ]

@@ -52,21 +52,26 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def move_forward(self, distance: int) -> Tuple[bool, bool]:
+    def move_north(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_backward(self, distance: int) -> Tuple[bool, bool]:
+    def move_south(self, distance: int) -> Tuple[bool, bool]:
         pass
     
     @abstractmethod
-    def move_left(self, distance: int) -> Tuple[bool, bool]:
+    def move_west(self, distance: int) -> Tuple[bool, bool]:
         pass
 
     @abstractmethod
-    def move_right(self, distance: int) -> Tuple[bool, bool]:
+    def move_east(self, distance: int) -> Tuple[bool, bool]:
         pass
-    
+
+    @abstractmethod
+    def move_direction(self, direction: int, distance: int) -> Tuple[bool, bool]:
+        '''The direction is given by the degrees used to rotate. Skill used internally and not given to LLM'''
+        pass
+
     @abstractmethod
     def move_up(self, distance: int) -> Tuple[bool, bool]:
         pass
