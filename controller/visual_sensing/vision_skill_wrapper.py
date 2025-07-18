@@ -1,4 +1,4 @@
-from typing import Union, Tuple, Optional
+from typing import List, Union, Tuple, Optional
 import numpy as np
 import time, math
 import cv2
@@ -243,9 +243,12 @@ class VisionSkillWrapper():
         self.update_scene_description()
         return self.scene_description
 
-    def is_visible(self, objects: list[str]) -> Tuple[bool, bool]:
+    def is_visible(self, objects: List[str]) -> Tuple[bool, bool]:
+        print(objects)
         for a in objects:
+            obj = self.get_obj_info(a)
             if self.get_obj_info(a) is not None:
+                print(obj)
                 return True, False
         return False, False
 

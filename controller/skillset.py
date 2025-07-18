@@ -162,7 +162,19 @@ class HighLevelSkillItem(SkillItem):
         # replace all $1, $2, ... with segments
         definition = self.definition
         for i in range(0, len(arg_list)):
-            definition = definition.replace(f"${i + 1}", arg_list[i])
+            arg = arg_list[i]
+            # Convert the argument to string representation
+            if isinstance(arg, list):
+                # For lists, convert to string representation that can be parsed back
+                arg_str = str(arg)  # This will give '["apple"]' for ["apple"]
+            elif isinstance(arg, str):
+                # For strings, wrap in quotes
+                arg_str = f'"{arg}"'
+            else:
+                # For numbers, convert directly
+                arg_str = str(arg)
+            definition = definition.replace(f"${i + 1}", arg_str)
+            # definition = definition.replace(f"${i + 1}", arg_list[i])
         return definition
 
     def __repr__(self) -> str:

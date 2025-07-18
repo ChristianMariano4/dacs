@@ -182,7 +182,7 @@ class GraphHandler:
         if graph_path == "":
             self.graph = nx.Graph()
             self.as_json_str = "{}"
-            self.current_location = ""
+            self.current_location = "region_0"
         else:
             with open(graph_path) as f:
                 data = json.load(f)
@@ -252,13 +252,33 @@ class GraphHandler:
         return region_name, True
 
     def name_region(self, name):
-         #TODO: check if it is right
-        result = self.lookup_node(self.current_location)
-        if str(result[0]["name"]).startswith("region"):
-            # the region has been already name before
+        """Add a display name to the current region."""
+        if not self.current_location:
+            print("No current location set")
             return
-        if result[1]:
-            result[0]["name"] = name
+        
+        # Verify the node exists and is a region
+        if not self.contains_node(self.current_location):
+            print(f"Current location {self.current_location} not found")
+            return
+        
+        node_attrs = self.graph.nodes[self.current_location]
+        if node_attrs.get("type") != "region":
+            print(f"Current location {self.current_location} is not a region")
+            return
+
+        # Add or update the display_name attribute
+        self.update_node_description(self.current_location, display_name=name)
+        print(f"Added display name '{name}' to {self.current_location}")
+
+        # print(self.current_location)
+        result = self.lookup_node(self.current_location)
+        print(result[0])
+        # if str(result[0]["name"]).startswith("region"):
+        #     # the region has been already name before
+        #     return
+        # if result[1]:
+        #     result[0]["name"] = name
 
     def reset(
         self,
@@ -299,25 +319,41 @@ class GraphHandler:
             "object_connections": [],
             "region_connections": [],
         }
+        
         for node in self.graph.nodes:
-            node_type = self.graph.nodes[node]["type"]
+            node_attrs = self.graph.nodes[node]
+            node_type = node_attrs["type"]
+            
             if node_type == "region":
-                coords = self.graph.nodes[node]["coords"]
-                coords = f"[{coords[0]:0.1f}, {coords[1]:0.1f}]"  # TODO best way?
-                graph_dict[f"{node_type}s"].append({"name": node, "coords": coords})
+                coords = node_attrs["coords"]
+                coords = f"[{coords[0]:0.1f}, {coords[1]:0.1f}]"
+                
+                # Use display_name if available, otherwise use the node identifier
+                name = node_attrs.get("display_name", node)
+                
+                graph_dict[f"{node_type}s"].append({"name": name, "coords": coords})
             else:
-                graph_dict[f"{node_type}s"].append({"name": node})
+                # For objects, check for display_name as well
+                name = node_attrs.get("display_name", node)
+                graph_dict[f"{node_type}s"].append({"name": name})
 
-
+            # Handle edges
             for neighbor in self.get_neighbors(node):
                 if tuple(sorted((node, neighbor))) not in added_edges:
+                    # Get the display names for edge representation
+                    node_name = self.graph.nodes[node].get("display_name", node)
+                    neighbor_name = self.graph.nodes[neighbor].get("display_name", neighbor)
+                    
                     graph_dict[f"{node_type}_connections"].append(
-                        sorted([node, neighbor])
+                        sorted([node_name, neighbor_name])
                     )
                     added_edges.add(tuple(sorted((node, neighbor))))
 
         if self.current_location != None:
-            graph_dict["current_location"] = self.current_location
+            # Use display name for current location too
+            current_loc_attrs = self.graph.nodes.get(self.current_location, {})
+            current_loc_name = current_loc_attrs.get("display_name", self.current_location)
+            graph_dict["current_location"] = current_loc_name
 
         graph_dict.update(extra_data)
 

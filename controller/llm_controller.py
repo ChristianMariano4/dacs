@@ -1,7 +1,7 @@
 from enum import Enum
 from PIL import Image
 import queue, time, os, json
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import asyncio
 import uuid
 
@@ -21,7 +21,7 @@ from .yolo_client import YoloClient
 from .yolo_grpc_client import YoloGRPCClient
 from .tello_wrapper import TelloWrapper
 from .virtual_robot_wrapper import VirtualRobotWrapper
-from .abs.robot_wrapper import SKILL_FILE, RobotWrapper
+from .abs.robot_wrapper import RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
@@ -42,7 +42,7 @@ class IterationDecision(Enum):
     IMPOSSIBLE = "impossible"
 
 class LLMController():
-    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None):
+    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
         self.shared_frame = SharedFrame()
         if use_http:
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
@@ -55,6 +55,7 @@ class LLMController():
         self.controller_active = True
         self.controller_wait_takeoff = True
         self.message_queue = message_queue
+        self.user_answer_queue = user_answer_queue
         self.current_task = None
         if message_queue is None:
             self.cache_folder = os.path.join(CURRENT_DIR, 'cache')
@@ -92,13 +93,13 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right) by a given distance in cm", args=[SkillArg("direction", str), SkillArg("distance", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self.name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self._name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("start_trajectory", self.drone.start_trajectory, "Start a trajectory mapped by a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list[str])]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_y", self.vision.object_y, "Get object's Y-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
@@ -109,6 +110,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on video streaming, graph, current task and an hint (if needed) given as argument", args=[SkillArg("gesture", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task", args=[SkillArg("question", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -145,7 +147,8 @@ class LLMController():
         self.execution_time = time.time()
         self.env_analysis_module = EnvironmentalAnalysisModule()
         self.images_counter = 0
-        self.directions = {0: "forward", 1: "right", 2: "backward", 3: "left"}
+        self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
+
 
     def get_drone(self) -> RobotWrapper:
         return self.drone
@@ -196,9 +199,9 @@ class LLMController():
         self.graph_manager.name_region(region_name)
 
     def skill_take_picture(self) -> Tuple[None, bool]:
-        time.sleep(1)
+        time.sleep(0.1)
         img_path = os.path.join(self.cache_folder, f"{self.directions.get(self.images_counter)}.jpg")
-        self.images_counter = (self.images_counter + 1) % 4
+        self.images_counter = (self.images_counter + 1) % 8
         Image.fromarray(self.latest_frame).save(img_path)
         print_t(f"[C] Picture saved to {img_path}")
         self.append_message((img_path,))
@@ -257,10 +260,18 @@ class LLMController():
         })
 
         # Write back to file
-        with open(SKILL_FILE, "w") as f:
+        with open(HIGH_LEVEL_SKILL_FILE, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
+    
+
+    def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
+        '''Log to the user a question made by LLM and attach question-answer pair in plan history'''
+        self.append_message(f"[Q] {question}")
+        print_t(f"[Q] {question}")
+        return None, True, True
+        
 
     def append_message(self, message: str):
         if self.message_queue is not None:
@@ -297,6 +308,7 @@ class LLMController():
             print_t(f"The plan is {self.current_task.get_current_plan()}.")
             input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
+            print_t("Message appended")
             try:
                 self.execution_time = time.time()
                 ret_val = self.execute_minispec(self.current_task.get_current_plan())
@@ -305,7 +317,14 @@ class LLMController():
             
             # TODO: enable. disable replan for debugging
             # break
-            if ret_val is not None and ret_val.replan:
+            if ret_val is not None and ret_val.wait:
+                user_question_answer = self.user_answer_queue.get(block=True)
+                print(user_question_answer)
+                user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
+                self.current_task.update_execution_history(user_question_answer_str)
+                print_t(f"[C] > Replanning after user answer<: {ret_val.value}, {user_question_answer_str}")
+                continue
+            elif ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
             else:

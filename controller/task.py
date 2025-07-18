@@ -4,7 +4,7 @@ from controller.minispec_interpreter import Statement
 class Task():
     def __init__(self, task_description):
         self.task_description = task_description
-        self.execution_history: list[Statement] = []
+        self.execution_history: list[Statement | str] = []
         self.current_plan = ""
         self.last_achievements = ""
         self.drone_position = None
@@ -18,7 +18,7 @@ class Task():
     def get_task_description(self):
         return self.task_description
     
-    def update_execution_history(self, new_statement: Statement):
+    def update_execution_history(self, new_statement: Statement | str):
         self.execution_history.append(new_statement)
     
     def get_execution_history(self):

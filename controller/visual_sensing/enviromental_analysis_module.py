@@ -71,6 +71,11 @@ class EnvironmentalAnalysisModule:
             south_east_image = encode_image(Image.open(os.path.join(base_path, 'south-east.jpg')))
             south_west_image = encode_image(Image.open(os.path.join(base_path, 'south-west.jpg')))
 
+            total_size = sum(len(img) for img in [
+                north_image, east_image, south_image, west_image,
+                north_east_image, north_west_image, south_east_image, south_west_image
+            ])
+            print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
             prompt = self.direction_prompt.format(task=current_task, hint=hint)
 
         # Make the API call with all 8 images
@@ -151,7 +156,7 @@ class EnvironmentalAnalysisModule:
             
 
             # Validate direction value - now includes diagonal directions
-            valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
+            valid_directions = ["north", "east", "south", "west", "north-east", "north-west", "south-east", "south-west"]
             if direction not in valid_directions:
                 print(f"ERROR: Invalid direction '{direction}', using 'north' as fallback")
                 direction = "north"

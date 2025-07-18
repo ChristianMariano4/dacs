@@ -26,7 +26,9 @@ class TypeFly:
             os.makedirs(self.cache_folder)
         self.message_queue = queue.Queue()
         self.message_queue.put(self.cache_folder)
-        self.llm_controller = LLMController(robot_type, use_http, self.message_queue)
+        self.user_answer_queue = queue.Queue()
+        self.user_question_answer = [] # list of last question-answer pair between LLM and user
+        self.llm_controller = LLMController(robot_type, use_http, self.message_queue, self.user_answer_queue)
         self.system_stop = False
         self.ui = gr.Blocks(title="TypeFly")
         self.asyncio_loop = asyncio.get_event_loop()
@@ -138,6 +140,34 @@ class TypeFly:
             yield "Shutting down..."
         elif len(message) == 0:
             return "[WARNING] Empty command!]"
+        elif len(self.user_question_answer) == 1: # the message inserted by user is the answer of previous question made by LLM
+            print_t(f"[DEBUG] Treating as answer to: {self.user_question_answer[0]}")
+            self.user_question_answer.append(message)
+            temp = self.user_question_answer.copy()
+            self.user_answer_queue.put(temp) # put in shared queue the pair to pass to llm_controller
+            self.user_question_answer = []
+            yield "Answer sent"
+
+            # Continue processing messages from the queue
+            complete_response = 'Answer sent\n'
+            while True:
+                msg = self.message_queue.get()
+                if isinstance(msg, tuple):
+                    history.append((None, msg))
+                elif isinstance(msg, str):
+                    if msg == 'end':
+                        return complete_response + "\nCommand Complete!"
+                    
+                    if msg.startswith('[LOG]') or msg.startswith('[Q]'):
+                        complete_response += '\n'
+                    if msg.startswith('[Q]'):
+                        self.user_question_answer.append(msg)
+
+                    if msg.endswith('\\\\'):
+                        complete_response += msg.rstrip('\\\\')
+                    else:
+                        complete_response += msg + '\n'
+                yield complete_response
         else:
             task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message,))
             task_thread.start()
@@ -150,8 +180,11 @@ class TypeFly:
                     if msg == 'end':
                         return "Command Complete!"
                     
-                    if msg.startswith('[LOG]'):
+                    if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
+                    if msg.startswith('[Q]'):
+                        self.user_question_answer.append(msg)
+
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:

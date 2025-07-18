@@ -44,13 +44,17 @@ def evaluate_value(value: str) -> MiniSpecValueType:
 
 class MiniSpecReturnValue:
     """Wrapper per valore di ritorno + flag di replanning"""
-    def __init__(self, value: MiniSpecValueType, replan: bool):
+    def __init__(self, value: MiniSpecValueType, replan: bool, wait: Optional[bool] = False):
         self.value = value
         self.replan = replan
+        self.wait = wait
 
     @staticmethod
     def from_tuple(t: Tuple[MiniSpecValueType, bool]):
-        return MiniSpecReturnValue(t[0], t[1])
+        if len(t) == 3:
+            return MiniSpecReturnValue(t[0], t[1], t[2])
+        else:
+            return MiniSpecReturnValue(t[0], t[1], False)
 
     @staticmethod
     def default():
@@ -324,8 +328,32 @@ class Statement:
         if rest:
             args_str = rest[0].rstrip(')')
             args = split_args(args_str)
-            args = [self.get_env_value(a) if a.strip().startswith('_')
-                    else a.strip().strip('\'"') for a in args]
+            # args = [self.get_env_value(a) if a.strip().startswith('_')
+            #         else a.strip().strip('\'"') for a in args]
+            
+            # Process each argument
+            processed_args = []
+            for a in args:
+                a = a.strip()
+
+                # Check if it's a list literal
+                if a.startswith('[') and a.endswith(']'):
+                    import ast
+                    try:
+                        # Parse the list literal
+                        parsed_list = ast.literal_eval(a)
+                        processed_args.append(parsed_list)
+                    except:
+                        # If parsing fails, treat as string
+                        processed_args.append(a.strip('\'"'))
+                elif a.startswith('_'):
+                    # Variable reference
+                    processed_args.append(self.get_env_value(a))
+                else:
+                    # Regular string argument
+                    processed_args.append(a.strip('\'"'))
+
+            args = processed_args
         else:
             args = []
 

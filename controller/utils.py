@@ -45,21 +45,34 @@ def split_args(s: str) -> list[str]:
         args.append(cur.strip())
     return args
 
-def encode_image(image):
-    """Convert an image (PIL or numpy) to base64 string"""
+def encode_image(image, quality=70, max_size=(500, 500)):
+    """Compress and convert an image (PIL or numpy) to base64 string."""
     if isinstance(image, np.ndarray):
-        # If it's an OpenCV image
-        success, buffer = cv2.imencode('.jpg', image)
+        # Resize if needed
+        height, width = image.shape[:2]
+        if max(height, width) > max(max_size):
+            scale = min(max_size[0] / width, max_size[1] / height)
+            new_size = (int(width * scale), int(height * scale))
+            image = cv2.resize(image, new_size, interpolation=cv2.INTER_AREA)
+
+        # Compress and encode
+        success, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
         if not success:
             raise ValueError("Could not encode numpy image")
         return base64.b64encode(buffer).decode("utf-8")
+
     elif isinstance(image, Image.Image):
-        # If it's a PIL image
+        # Resize if needed
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+        # Compress and encode
         buffered = BytesIO()
-        image.save(buffered, format="JPEG")
+        image.save(buffered, format="JPEG", quality=quality, optimize=True)
         return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
     else:
         raise TypeError(f"Unsupported image type {type(image)}")
+
     
 # ───── CSV Utilities ─────
 

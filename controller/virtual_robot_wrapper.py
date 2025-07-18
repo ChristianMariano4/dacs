@@ -120,3 +120,9 @@ class VirtualRobotWrapper(RobotWrapper):
 
     def start_trajectory(self, gesture) -> Tuple[bool, bool]:
         pass
+
+    def go_to_position(self, current_pos, target_pos, speed=50):
+        pass
+
+    def move_direction(self, direction, distance):
+        pass
