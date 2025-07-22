@@ -207,18 +207,18 @@ class LLMController():
         self.append_message((img_path,))
         return None, False
     
-    def skill_choose_direction(self, hint: Optional[str]) -> Tuple[int, bool]:
+    def skill_choose_direction(self, hint: Optional[str]) -> Tuple[None, bool]:
         """
         Finds all jpg images in cache_folder, sorts them (if possible), 
         and returns a list of file paths for LLM direction selection.
         """
-        (dir, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
+        (dir, distance, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
         self._name_region(region_name)
         valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
         if dir in valid_directions:
             next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}[dir]
             print(f"Next yaw {next_yaw}")
-            return next_yaw, False
+            self.drone.move_direction(next_yaw, distance)
         return 0, False
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
