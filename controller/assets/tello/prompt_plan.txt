@@ -57,9 +57,11 @@ Here is the 'current view of the environment':
 Here is the 'current position':
 {current_position} - in {current_region}
 
-Here are the 'boundaries': 
-x coordinate: [{x_bound_neg}-{x_bound_pos}]
-y coordinate: [{y_bound_neg}-{y_bound_pos}]
+Here are the 'boundaries':
+- top-left: [{x_top_left}, {y_top_left}]
+- top-right: [{x_top_right}, {y_top_right}]
+- bottom-right: [{x_bottom_right}, {y_bottom_right}]
+- bottom-left: [{x_bottom_left}, {y_bottom_left}]
 
 Here is the 'minispec syntax':
 {minispec_syntax}
