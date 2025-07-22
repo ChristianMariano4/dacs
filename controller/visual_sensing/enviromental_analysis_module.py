@@ -152,7 +152,9 @@ class EnvironmentalAnalysisModule:
             direction : str = parsed["direction"]
             direction = direction.lower()
             reason = parsed.get("reason", "No reason provided")
+            distance = parsed.get("distance", None)
             region_name = parsed.get("region_name", None)
+
             
 
             # Validate direction value - now includes diagonal directions
@@ -162,7 +164,7 @@ class EnvironmentalAnalysisModule:
                 direction = "north"
 
             input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
-            return direction, region_name
+            return direction, distance, region_name
         
         except Exception as e:
             print(f"ERROR in choose_direction: {e}")
