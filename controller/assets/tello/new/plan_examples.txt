@@ -5,9 +5,8 @@ Graph: {
     "object_connections": [],
     "region_connections": [],
     "robot_location": region_0,
-    "robot_coordinates": [0, 0]
-    "robot_yaw: 0
 }
+Here is the 'current position': [0   0] - in region_0
 
 Iteration 1:
 Scene: []
