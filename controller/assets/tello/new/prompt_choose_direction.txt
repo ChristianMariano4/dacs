@@ -1,6 +1,12 @@
 The drone must choose which direction to move based on the goal: **"{task}"**.
 Take also in consideration an hint (if present) of what to focus on in the choice: **"{hint}"**.
 Ignore the hint if is not useful or feasible with the given images.
+Take also in consideration the boundaries, answering only with a direction and a distance that are feasible with them.
+
+Here are the 'boundaries':
+{boundaries}
+
+Here is the 'current position': {current_position}
 
 You are given 8 images representing what the drone sees in each direction.
 
@@ -11,5 +17,5 @@ Think carefully about:
 
 What is more, based on the 8 images, name the current region where the drone is.
 
-**Return ONLY the best direction** among: `North`, `North-West`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. Also include a **short explanation** (1 sentence) of why that direction is best for the given task.
-Respond in JSON format with the fields 'direction', 'reason' and 'region_name'.
+**Return the best direction** among: `North`, `North-West`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. What is more return the distance in cm that you consider the best to move. Also include a **short explanation** (1 sentence) of why that direction is best for the given task.
+Respond in JSON format with the fields 'direction', 'distance', 'reason' and 'region_name'.
