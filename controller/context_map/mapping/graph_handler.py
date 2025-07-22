@@ -192,7 +192,7 @@ class GraphHandler:
     def ensure_region_for_pose(
         self,
         pose_xy: Sequence[float],          # (x, y) in the SAME frame your graph uses
-        threshold: float = 10.0,            # cm; tweak to taste TODO: add global threshold
+        threshold: float = 100.0,            # cm; tweak to taste TODO: add global threshold
         connect_to_nearest: bool = True,   # make an edge to the closest region
     ) -> Tuple[str, bool]:
         """
