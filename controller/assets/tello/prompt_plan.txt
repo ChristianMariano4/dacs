@@ -29,7 +29,7 @@ The 'execution history' is the actions have been taken from previous responses. 
 The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
 The 'current position' is where you are in the environment.
 The 'minispec syntax' is the syntax of the language that is required to be used.
-The 'boundaries' are the x and y coordinates beyond which the drone should not go, as they fall outside the target area.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement.
 
 Each entry of the graph contains the following types:
 - 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
