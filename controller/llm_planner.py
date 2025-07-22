@@ -72,6 +72,12 @@ class LLMPlanner():
         #     for skill in json_data:
         #         if skill['skill_name'] not in SkillItem.abbr_dict.keys():
         #             self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+
+
+        # - top-left: [{x_top_left}, {y_top_left}]
+        # - top-right: [{x_top_right}, {y_top_right}]
+        # - bottom-right: [{x_bottom_right}, {y_bottom_right}]
+        # - bottom-left: [{x_bottom_left}, {y_bottom_left}]
                 
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
                                              system_skill_description_low=self.low_level_skillset,
@@ -85,10 +91,14 @@ class LLMPlanner():
                                              current_position=current_position,
                                              current_region=current_region,
                                              minispec_syntax=self.minispec_syntax,
-                                             x_bound_neg=-X_BOUND,
-                                             x_bound_pos=X_BOUND,
-                                             y_bound_neg=-Y_BOUND,
-                                             y_bound_pos=Y_BOUND,
+                                             x_top_left=-X_BOUND,
+                                             y_top_left=Y_BOUND,
+                                             x_top_right=X_BOUND,
+                                             y_top_right=Y_BOUND,
+                                             x_bottom_right=X_BOUND,
+                                             y_bottom_right=-Y_BOUND,
+                                             x_bottom_left=-X_BOUND,
+                                             y_bottom_left=-Y_BOUND,
                                              )
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
