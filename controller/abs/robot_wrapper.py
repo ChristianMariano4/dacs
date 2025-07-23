@@ -81,7 +81,7 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def go_to_position(self, current_pos, target_pos, speed=50):
+    def go_to_position(self, current_pos, target_pos, speed=50) -> Tuple[bool, bool]:
         pass
 
     # @abstractmethod
