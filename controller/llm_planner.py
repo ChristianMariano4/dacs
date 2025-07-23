@@ -8,7 +8,7 @@ from controller.constants import X_BOUND, Y_BOUND
 from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
-from .llm_wrapper import LLMWrapper, GPT3, GPT4
+from .llm_wrapper import LLMWrapper, GPT3, GPT4, RequestType
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .utils import print_t
 from .minispec_interpreter import MiniSpecValueType, evaluate_value
@@ -80,29 +80,43 @@ class LLMPlanner():
         # - bottom-left: [{x_bottom_left}, {y_bottom_left}]
                 
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
-                                             system_skill_description_low=self.low_level_skillset,
-                                             guides=self.guides,
-                                             plan_examples=self.plan_examples,
-                                             error_message=error_message,
-                                             scene_description=scene_description,
-                                             task_description=task_description,
-                                             execution_history=execution_history,
-                                             context_graph=context_graph,
-                                             current_position=current_position,
-                                             current_region=current_region,
-                                             minispec_syntax=self.minispec_syntax,
-                                             x_top_left=-X_BOUND,
-                                             y_top_left=Y_BOUND,
-                                             x_top_right=X_BOUND,
-                                             y_top_right=Y_BOUND,
-                                             x_bottom_right=X_BOUND,
-                                             y_bottom_right=-Y_BOUND,
-                                             x_bottom_left=-X_BOUND,
-                                             y_bottom_left=-Y_BOUND,
-                                             )
+                                            system_skill_description_low=self.low_level_skillset,
+                                            guides=self.guides,
+                                            plan_examples=self.plan_examples,
+                                            error_message=error_message,
+                                            scene_description=scene_description,
+                                            task_description=task_description,
+                                            execution_history=execution_history,
+                                            context_graph=context_graph,
+                                            current_position=current_position,
+                                            current_region=current_region,
+                                            minispec_syntax=self.minispec_syntax,
+                                            x_top_left=-X_BOUND,
+                                            y_top_left=Y_BOUND,
+                                            x_top_right=X_BOUND,
+                                            y_top_right=Y_BOUND,
+                                            x_bottom_right=X_BOUND,
+                                            y_bottom_right=-Y_BOUND,
+                                            x_bottom_left=-X_BOUND,
+                                            y_bottom_left=-Y_BOUND,
+                                            )
+        
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
-        return self.llm.request(prompt, model_name=self.model_name, stream=False)
+
+        response_content = self.llm.request(prompt, model_name=self.model_name, stream=False, request_type=RequestType.SIMPLE)
+
+        # Clean up the content - remove markdown code blocks if present
+        if response_content.startswith("```json"):
+            response_content = response_content.replace("```json", "").replace("```", "").strip()
+
+        if not response_content: # resend the request
+            return None, None
+        
+        parsed = json.loads(response_content)
+        plan = parsed.get("plan", None)
+        reason = parsed.get("reason", None)
+        return plan, reason
     
     def probe(self, question: str) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()
