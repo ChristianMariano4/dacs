@@ -17,5 +17,5 @@ Think carefully about:
 
 What is more, based on the 8 images, name the current region where the drone is.
 
-**Return the best direction** among: `North`, `North-West`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. What is more return the distance in cm that you consider the best to move. Also include a **short explanation** (1 sentence) of why that direction is best for the given task.
+**Return the best direction** among: `North`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. What is more return the distance in cm that you consider the best to move. Also include a **short explanation** (1 sentence) of why that direction is best for the given task and why that distance.
 Respond in JSON format with the fields 'direction', 'distance', 'reason' and 'region_name'.
