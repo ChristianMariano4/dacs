@@ -84,7 +84,7 @@ class TelloWrapper(RobotWrapper):
 
         # odometry fields
         self.pose = np.zeros(3)          # (x, y, z) in metres
-        self._yaw0 = 0.0                 # yaw at take-off
+        self._yaw0 = None                 
         self._last_ts = None
         self._odo_th = None
         self._odo_stop = threading.Event()
@@ -117,33 +117,78 @@ class TelloWrapper(RobotWrapper):
             self._ka_thread.start()
     
     def _odometry_loop(self):
+        """Main odometry loop that integrates drone velocities to estimate position."""
+       
         while not self._odo_stop.is_set():
             state = self.drone.get_current_state()
+            # Velocities (vgx, vgy, vgz): cm/s
+            # Height (h): cm
+            # Angles (roll, pitch, yaw): degrees
+            # Acceleration (agx, agy, agz): 0.001g (milligravity)
+            # Temperature (templ, temph): Celsius
+            # TOF distance (tof): cm
+            # Barometer (baro): cm
             if not state:
                 time.sleep(0.01)
                 continue
 
             now = time.time()
+            # Initialize timing and reference yaw on first valid state
             if self._last_ts is None:
                 self._last_ts = now
+                self._yaw0 = 0.0                 # yaw at take-off
                 continue
+
             dt = now - self._last_ts
             self._last_ts = now
-            if dt > 0.2:                     # guard against stale packets
+
+            # Guard against stale packets or time jumps
+            if dt > 0.2 or dt <= 0:
                 continue
+            
+            try:
+                # Get velocities in body frame (convert from cm/s to m/s)
+                v_body = np.array([
+                        state.get("vgx", 0) / 100.0,
+                        state.get("vgy", 0) / 100.0,
+                        state.get("vgz", 0) / 100.0
+                    ])
+                # Get orientation angles
+                roll = math.radians(state.get("roll", 0))
+                pitch = math.radians(state.get("pitch", 0))
+                yaw = math.radians(state.get("yaw", 0) - self._yaw0)
+                # Build rotation matrix (Z-Y-X Euler angles convention)
+                # This transforms from body frame to world frame
+                cy, sy = math.cos(yaw), math.sin(yaw)
+                cp, sp = math.cos(pitch), math.sin(pitch)
+                cr, sr = math.cos(roll), math.sin(roll)
 
-            # body-frame velocity → world frame → integrate
-            v_body = np.array([state["vgx"], state["vgy"], state["vgz"]]) / 100.0
-            yaw = math.radians(state["yaw"] - self._yaw0)
-            cy, sy = math.cos(yaw), math.sin(yaw)
-            Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
-            v_world = Rz @ v_body
+                # Full rotation matrix from body to world frame
+                R = np.array([
+                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
+                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
+                    [-sp, cp*sr, cp*cr]
+                ])
 
-            self.pose[:2] += v_world[:2] * dt
-            self.pose[2]   = state["h"] / 100.0
+                # Transform velocity to world frame
+                v_world = R @ v_body
+                
+                # Transform velocity to world frame
+                self.pose[0] += v_world[0] * dt
+                self.pose[1] += v_world[1] * dt
 
-            self.graph_manager.update_pose(list(self.pose * 100.0))
-            time.sleep(0.01)
+                # For height, use direct sensor reading (more accurate than integration)
+                # Convert from cm to m
+                self.pose[2] = state.get("h", 0) / 100.0
+
+                # Update graph manager if available (convert back to cm for visualization)
+                if self.graph_manager:
+                    self.graph_manager.update_pose(list(self.pose * 100.0))
+
+            except Exception as e:
+                print(f"Odometry update error: {e}")
+                continue
+            time.sleep(0.001)
 
     def _start_odometry(self):               
         if self._odo_th is None:             # start exactly *once*
@@ -293,7 +338,7 @@ class TelloWrapper(RobotWrapper):
     #         print(f"[Drone] Move to {x} - {y} - {z} with speed {speed}")
     #     return True, False
 
-    def go_to_position(self, target_x, target_y):
+    def go_to_position(self, target_x, target_y) -> Tuple[bool, bool]:
         """
         Move to target position in drone's current reference frame
         """
@@ -308,15 +353,16 @@ class TelloWrapper(RobotWrapper):
         dy_world = target_y - current_pos[1]
         
         # Transform to drone frame (rotate by -yaw)
-        dx_drone = dx_world * np.cos(-yaw_rad) - dy_world * np.sin(-yaw_rad)
-        dy_drone = dx_world * np.sin(-yaw_rad) + dy_world * np.cos(-yaw_rad)
+        # dx_drone = dx_world * np.cos(-yaw_rad) - dy_world * np.sin(-yaw_rad)
+        # dy_drone = dx_world * np.sin(-yaw_rad) + dy_world * np.cos(-yaw_rad)
         
         # Convert to integers
-        dx_drone = int(round(dx_drone))
-        dy_drone = int(round(dy_drone))
+        dx_drone = int(round(dx_world))
+        dy_drone = int(round(dy_world))
         
         # Move in drone frame
-        self.drone.go_xyz_speed(dx_drone, dy_drone, self.drone.get_height(), speed=20)
+        self.drone.go_xyz_speed(dx_drone, dy_drone, 0, speed=20)
+        return True, False
 
     def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
         if self.move_enable:
