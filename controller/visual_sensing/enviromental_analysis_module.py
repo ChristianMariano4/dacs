@@ -35,10 +35,10 @@ class EnvironmentalAnalysisModule:
         with open("controller/assets/tello/new/prompt_choose_direction.txt", "r") as f:
             self.direction_prompt = f.read()
 
-        self.boundaries = {
-             "top-left": (-X_BOUND, Y_BOUND),
+        self.boundaries = { 
+             "top-left": (X_BOUND, -Y_BOUND),
              "top-right": (X_BOUND, Y_BOUND),
-             "bottom-right": (X_BOUND, -Y_BOUND),
+             "bottom-right": (-X_BOUND, Y_BOUND),
              "bottom-left": (-X_BOUND, -Y_BOUND),
         }
 
@@ -87,10 +87,18 @@ class EnvironmentalAnalysisModule:
                 north_east_image, north_west_image, south_east_image, south_west_image
             ])
             print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
-            prompt = self.direction_prompt.format(task=current_task, hint=hint, boundaries=self.boundaries, current_position=current_position)
+            prompt = self.direction_prompt.format(task=current_task, 
+                                                  hint=hint, 
+                                                  boundaries=self.boundaries,
+                                                  x_top=X_BOUND,
+                                                  x_bottom=X_BOUND,
+                                                  y_right=Y_BOUND,
+                                                  y_left=-Y_BOUND,
+                                                  current_position=current_position,
+                                                  )
 
             # Make the API call with all 8 images
-            images = (north_image, north_east_image, east_image, south_east_image, south_image, south_west_image, north_west_image, west_image)
+            images = (north_image, north_east_image, east_image, south_east_image, south_image, south_west_image, west_image, north_west_image)
             response_content = self.llm_wrapper.request(prompt, images=images, request_type=RequestType.EXPLORE_DIRECTION)
             print(f"Raw API response: {response_content}")
 

@@ -91,14 +91,10 @@ class LLMPlanner():
                                             current_position=current_position,
                                             current_region=current_region,
                                             minispec_syntax=self.minispec_syntax,
-                                            x_top_left=-X_BOUND,
-                                            y_top_left=Y_BOUND,
-                                            x_top_right=X_BOUND,
-                                            y_top_right=Y_BOUND,
-                                            x_bottom_right=X_BOUND,
-                                            y_bottom_right=-Y_BOUND,
-                                            x_bottom_left=-X_BOUND,
-                                            y_bottom_left=-Y_BOUND,
+                                            x_top=X_BOUND,
+                                            x_bottom=-X_BOUND,
+                                            y_left=-Y_BOUND,
+                                            y_right=Y_BOUND,
                                             )
         
         #print(prompt)
