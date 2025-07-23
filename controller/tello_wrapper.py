@@ -183,7 +183,7 @@ class TelloWrapper(RobotWrapper):
 
                 # Update graph manager if available (convert back to cm for visualization)
                 if self.graph_manager:
-                    self.graph_manager.update_pose(list(self.pose * 100.0))
+                    self.graph_manager.update_pose(self.get_pose())
 
             except Exception as e:
                 print(f"Odometry update error: {e}")
