@@ -1,0 +1,1688 @@
+You are an excellent robot pilot and your task is to fullfil user's task by generating a MiniSpec plan, or to give helpful advice if the user's input is unclear or unreasonable.
+
+You are only allowed to use the API defined by low level and high level skills and you must carefully consider the 'scene description', the 'task description', the 'current view of the environment' and the 'current position'.
+The 'system skills description' defines the robot's capabilities through two types of skills:
+- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
+- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
+
+Description of the two skill sets:
+- High-level skills:
+abbr:s,name:scan,definition:8{tp();?iv($1)==True{->True}tc(45)}->False;,args:[objects_name:list],description:Rotate to find objects passed as argument as a list when they are *not* in current scene
+
+- Low-level skills:
+abbr:mf,name:move_forward,args:[distance:float],description:Move forward by a distance
+abbr:mb,name:move_backward,args:[distance:float],description:Move backward by a distance
+abbr:ml,name:move_left,args:[distance:float],description:Move left by a distance
+abbr:mr,name:move_right,args:[distance:float],description:Move right by a distance
+abbr:mu,name:move_up,args:[distance:float],description:Move up by a distance
+abbr:md,name:move_down,args:[distance:float],description:Move down by a distance
+abbr:gx,name:go_xy,args:[x:int, y:int],description:Move to x y absolute position.
+abbr:en,name:explore_new_region,args:[direction:str, distance:float],description:Explore a new region (forward, backward, left, right) by a given distance in cm
+abbr:nr,name:name_region,args:[region_name:str],description:Give a meaningful name to current region node in context graph
+abbr:tc,name:turn_cw,args:[degrees:int],description:Rotate clockwise/right by certain degrees
+abbr:tu,name:turn_ccw,args:[degrees:int],description:Rotate counterclockwise/left by certain degrees
+abbr:cn,name:create_new_trajectory,args:[gesture:str],description:Create and save a new trajectory, mapping it to a gesture
+abbr:st,name:start_trajectory,args:[gesture:str],description:Start a trajectory mapped by a gesture
+abbr:d,name:delay,args:[seconds:float],description:Wait for specified seconds
+abbr:iv,name:is_visible,args:[objects_name:list],description:Check the visibility of target YOLO-detectable objects
+abbr:ox,name:object_x,args:[object_name:str],description:Get object's X-coordinate in (0,1)
+abbr:oy,name:object_y,args:[object_name:str],description:Get object's Y-coordinate in (0,1)
+abbr:ow,name:object_width,args:[object_name:str],description:Get object's width in (0,1)
+abbr:oh,name:object_height,args:[object_name:str],description:Get object's height in (0,1)
+abbr:od,name:object_dis,args:[object_name:str],description:Get object's distance in cm
+abbr:p,name:probe,args:[question:str],description:Probe the LLM for reasoning
+abbr:l,name:log,args:[text:str],description:Output text to console
+abbr:tp,name:take_picture,args:[],description:Take a picture
+abbr:ed,name:explore_direction,args:[hint:Optional],description:Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument
+abbr:as,name:add_skill,args:[name:str, description:str, definition:str],description:Define a new high-level skill through already existing low and high-level ones
+abbr:au,name:ask_user,args:[question:str],description:Ask user a question in order to retrieve some missing information about his task
+abbr:rp,name:re_plan,args:[],description:Replanning
+abbr:g,name:goto,args:[object_name[*x-value]:str],description:goto the object
+abbr:t,name:time,args:[],description:Get current execution time
+
+
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill.
+To define a new high-level skill, follow these steps:
+1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
+2. Name the skill meaningfully.
+3. Provide the definition and immediately invoke it.
+
+For example, if the user says “Scan the area and report all people you see,” and no such skill exists, you can define a generic new high-level skill, calling the low-level function add_skill 'as(skill_name, minispec_def)' with:
+- skill_name: the name you want to give the new high-level skill
+- description: the description of the skill
+- minispec_def: the string definition using MiniSpec syntax
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
+
+The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
+The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+
+Each entry of the graph contains the following types:
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+
+Here are some extra guides for you to better understand the task and generate a better response:
+Handling Typos and Ambiguous Language: When encountering typos or vague language in user inputs, strive to clarify and correct these ambiguities. If a typo is evident, adjust the input to reflect the most likely intended meaning. For vague or unclear expressions, seek additional information from the user by returning a question to the user.
+Analytical Scene and Task Assessment: Evaluate the scene and task critically. If a specific condition or requirement is clearly deduced from the scene description, generate the corresponding action directly.
+Relevance to Current Scene: When considering tasks, assess their relevance to the current scene. If a task does not pertain to the existing scene, disregard any details from the current scene in formulating your response.
+Extraction of Key Information: Extract 'object_name' arguments or answers to questions primarily from the 'scene description'. If the necessary information is not present in the current scene, especially when the user asks the robot to move first or check somewhere else, use the probe 'p,' followed by the 'question', to determine the 'object_name' or answer subsequently.
+Handling Replan: When previous response and execution status are provided, it means part of the task has been executed. In this case, the system should replan the remaining task based on the current scene and the previous response.
+Under no circumstances should the system navigate the robot to hurt itself or others. If the task involves potential harm, the system should refuse to execute the task and provide a suitable explanation to the user.
+Skills usage: You can use only pre-defined skills or skills defined at runtime, but not non-existing ones.
+Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
+Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
+Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
+Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Coordinates: the system used is X-Axis (Forward–Backward) for first parameter and  Y-Axis (Left–Right) for second one
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+}
+Here is the 'current position': [0   0] - in region_0
+'boundaries': {"top_left": , "top_right": , 
+                "bottom_right": , "bottom_left": }
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [500, -500]
+- top-right: [500, 500]
+- bottom-right: [-500, 500]
+- bottom-left: [-500, -500]
+Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True};ed();rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using explore_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s(["apple"])==True{l("apple found");Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");->True}ed();rp();
+
+Iteration 4: 
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 5: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
+
+Iteration 7: New user task
+Scene: []
+Task: Go in position 1000, 100
+Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+Iteration 8: New user task
+Scene: []
+Task: Go in position 300, 200
+Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Response: gx(300, 200);
+
+Here is the 'scene description':
+[chair_1 x:0.53 y:0.37 width:0.17 height:0.34, chair_2 x:0.19 y:0.55 width:0.16 height:0.21, chair_3 x:0.33 y:0.35 width:0.07 height:0.21, person_4 x:0.60 y:0.30 width:0.10 height:0.26, tv_5 x:0.13 y:0.16 width:0.26 height:0.27, tv_6 x:0.95 y:0.06 width:0.11 height:0.11, tv_7 x:0.98 y:0.19 width:0.04 height:0.20, keyboard_8 x:0.09 y:0.34 width:0.18 height:0.04, keyboard_9 x:0.26 y:0.32 width:0.09 height:0.05, suitcase_10 x:0.39 y:0.64 width:0.16 height:0.29, tv_11 x:0.44 y:0.11 width:0.26 height:0.22, backpack_12 x:0.39 y:0.64 width:0.16 height:0.29, keyboard_13 x:0.10 y:0.34 width:0.17 height:0.03, keyboard_14 x:0.09 y:0.32 width:0.18 height:0.05]
+
+Here is the 'task description':
+[A] move forward
+
+Here is the 'execution history' (has value if replanning):
+[]
+
+Here is the 'current view of the environment':
+{
+  "objects": [
+    {
+      "name": "chair"
+    },
+    {
+      "name": "person"
+    },
+    {
+      "name": "tv"
+    },
+    {
+      "name": "handbag"
+    },
+    {
+      "name": "backpack"
+    },
+    {
+      "name": "keyboard"
+    },
+    {
+      "name": "mouse"
+    },
+    {
+      "name": "dining table"
+    },
+    {
+      "name": "suitcase"
+    }
+  ],
+  "regions": [
+    {
+      "name": "region_0",
+      "coords": "[0.0, 0.0]"
+    }
+  ],
+  "object_connections": [],
+  "region_connections": [
+    [
+      "chair",
+      "region_0"
+    ],
+    [
+      "person",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "tv"
+    ],
+    [
+      "handbag",
+      "region_0"
+    ],
+    [
+      "backpack",
+      "region_0"
+    ],
+    [
+      "keyboard",
+      "region_0"
+    ],
+    [
+      "mouse",
+      "region_0"
+    ],
+    [
+      "dining table",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "suitcase"
+    ]
+  ],
+  "current_location": "region_0"
+}
+
+Here is the 'current position':
+[-0.03149808  0.13947171] - in region_0
+
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [50, 50]
+- top-right: [50, 50]
+- bottom-right: [-50, 50]
+- bottom-left: [-50, 50]
+Valid positions lie within x ∈ [x_bottom, x_top] and y ∈ [y_left, y_right].
+
+Here is the 'minispec syntax':
+<program> ::= { <block-statement> [';'] | <statement> ';' }
+<statement> ::= <variable-assign> | <function-call> | <return>
+<block-statement> ::= <loop> | <conditional>
+<loop> ::= <int> '{' <program> '}'
+<function-call> ::= <function-name> ['(' <argument> ')']
+<variable-assign> ::= <variable> '=' <function-call>
+<conditional> ::= '?' <condition> '{' <program> '}'
+<condition> ::= <operand> <comparator> <operand> { '&' <condition> | '|' <condition> }
+<comparator> ::= '>' | '<' | '==' | '!='
+<function-name> ::= <alpha> { <alpha> }
+<argument> ::= <value> { ',' <value> }
+<return> ::= '->' <value>
+<operand> ::= <value> | <function-call>
+<value> ::= <literal-value> | <variable>
+<variable> ::= '_' <int>
+<literal-value> ::= <int> | <float> | <string> | <bool>
+
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
+Respond in JSON format with the fields 'plan' and 'reason'.
+---
+{
+  "id": "chatcmpl-BwSdbOsVxV94iITmzSZlREQctjMaw",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"plan\":\"mf(10);\",\"reason\":\"Moving forward by 10 units safely within the defined boundaries to fulfill the user's request to ‘move forward.’\"}",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": [],
+        "audio": null,
+        "function_call": null,
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1753272807,
+  "model": "o4-mini-2025-04-16",
+  "object": "chat.completion",
+  "service_tier": "default",
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 434,
+    "prompt_tokens": 4472,
+    "total_tokens": 4906,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 384,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0
+    }
+  }
+}
+---
+You are an excellent robot pilot and your task is to fullfil user's task by generating a MiniSpec plan, or to give helpful advice if the user's input is unclear or unreasonable.
+
+You are only allowed to use the API defined by low level and high level skills and you must carefully consider the 'scene description', the 'task description', the 'current view of the environment' and the 'current position'.
+The 'system skills description' defines the robot's capabilities through two types of skills:
+- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
+- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
+
+Description of the two skill sets:
+- High-level skills:
+abbr:s,name:scan,definition:8{tp();?iv($1)==True{->True}tc(45)}->False;,args:[objects_name:list],description:Rotate to find objects passed as argument as a list when they are *not* in current scene
+
+- Low-level skills:
+abbr:mf,name:move_forward,args:[distance:float],description:Move forward by a distance
+abbr:mb,name:move_backward,args:[distance:float],description:Move backward by a distance
+abbr:ml,name:move_left,args:[distance:float],description:Move left by a distance
+abbr:mr,name:move_right,args:[distance:float],description:Move right by a distance
+abbr:mu,name:move_up,args:[distance:float],description:Move up by a distance
+abbr:md,name:move_down,args:[distance:float],description:Move down by a distance
+abbr:gx,name:go_xy,args:[x:int, y:int],description:Move to x y absolute position.
+abbr:en,name:explore_new_region,args:[direction:str, distance:float],description:Explore a new region (forward, backward, left, right) by a given distance in cm
+abbr:nr,name:name_region,args:[region_name:str],description:Give a meaningful name to current region node in context graph
+abbr:tc,name:turn_cw,args:[degrees:int],description:Rotate clockwise/right by certain degrees
+abbr:tu,name:turn_ccw,args:[degrees:int],description:Rotate counterclockwise/left by certain degrees
+abbr:cn,name:create_new_trajectory,args:[gesture:str],description:Create and save a new trajectory, mapping it to a gesture
+abbr:st,name:start_trajectory,args:[gesture:str],description:Start a trajectory mapped by a gesture
+abbr:d,name:delay,args:[seconds:float],description:Wait for specified seconds
+abbr:iv,name:is_visible,args:[objects_name:list],description:Check the visibility of target YOLO-detectable objects
+abbr:ox,name:object_x,args:[object_name:str],description:Get object's X-coordinate in (0,1)
+abbr:oy,name:object_y,args:[object_name:str],description:Get object's Y-coordinate in (0,1)
+abbr:ow,name:object_width,args:[object_name:str],description:Get object's width in (0,1)
+abbr:oh,name:object_height,args:[object_name:str],description:Get object's height in (0,1)
+abbr:od,name:object_dis,args:[object_name:str],description:Get object's distance in cm
+abbr:p,name:probe,args:[question:str],description:Probe the LLM for reasoning
+abbr:l,name:log,args:[text:str],description:Output text to console
+abbr:tp,name:take_picture,args:[],description:Take a picture
+abbr:ed,name:explore_direction,args:[hint:Optional],description:Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument
+abbr:as,name:add_skill,args:[name:str, description:str, definition:str],description:Define a new high-level skill through already existing low and high-level ones
+abbr:au,name:ask_user,args:[question:str],description:Ask user a question in order to retrieve some missing information about his task
+abbr:rp,name:re_plan,args:[],description:Replanning
+abbr:g,name:goto,args:[object_name[*x-value]:str],description:goto the object
+abbr:t,name:time,args:[],description:Get current execution time
+
+
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill.
+To define a new high-level skill, follow these steps:
+1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
+2. Name the skill meaningfully.
+3. Provide the definition and immediately invoke it.
+
+For example, if the user says “Scan the area and report all people you see,” and no such skill exists, you can define a generic new high-level skill, calling the low-level function add_skill 'as(skill_name, minispec_def)' with:
+- skill_name: the name you want to give the new high-level skill
+- description: the description of the skill
+- minispec_def: the string definition using MiniSpec syntax
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
+
+The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
+The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+
+Each entry of the graph contains the following types:
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+
+Here are some extra guides for you to better understand the task and generate a better response:
+Handling Typos and Ambiguous Language: When encountering typos or vague language in user inputs, strive to clarify and correct these ambiguities. If a typo is evident, adjust the input to reflect the most likely intended meaning. For vague or unclear expressions, seek additional information from the user by returning a question to the user.
+Analytical Scene and Task Assessment: Evaluate the scene and task critically. If a specific condition or requirement is clearly deduced from the scene description, generate the corresponding action directly.
+Relevance to Current Scene: When considering tasks, assess their relevance to the current scene. If a task does not pertain to the existing scene, disregard any details from the current scene in formulating your response.
+Extraction of Key Information: Extract 'object_name' arguments or answers to questions primarily from the 'scene description'. If the necessary information is not present in the current scene, especially when the user asks the robot to move first or check somewhere else, use the probe 'p,' followed by the 'question', to determine the 'object_name' or answer subsequently.
+Handling Replan: When previous response and execution status are provided, it means part of the task has been executed. In this case, the system should replan the remaining task based on the current scene and the previous response.
+Under no circumstances should the system navigate the robot to hurt itself or others. If the task involves potential harm, the system should refuse to execute the task and provide a suitable explanation to the user.
+Skills usage: You can use only pre-defined skills or skills defined at runtime, but not non-existing ones.
+Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
+Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
+Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
+Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Coordinates: the system used is X-Axis (Forward–Backward) for first parameter and  Y-Axis (Left–Right) for second one
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+}
+Here is the 'current position': [0   0] - in region_0
+'boundaries': {"top_left": , "top_right": , 
+                "bottom_right": , "bottom_left": }
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [500, -500]
+- top-right: [500, 500]
+- bottom-right: [-500, 500]
+- bottom-left: [-500, -500]
+Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True};ed();rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using explore_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s(["apple"])==True{l("apple found");Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");->True}ed();rp();
+
+Iteration 4: 
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 5: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
+
+Iteration 7: New user task
+Scene: []
+Task: Go in position 1000, 100
+Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+Iteration 8: New user task
+Scene: []
+Task: Go in position 300, 200
+Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Response: gx(300, 200);
+
+Here is the 'scene description':
+[chair_1 x:0.51 y:0.36 width:0.17 height:0.35, person_2 x:0.61 y:0.29 width:0.10 height:0.30, tv_3 x:0.09 y:0.13 width:0.18 height:0.26, chair_4 x:0.12 y:0.56 width:0.17 height:0.25, tv_5 x:0.43 y:0.10 width:0.27 height:0.21, chair_6 x:0.30 y:0.35 width:0.08 height:0.23, person_7 x:0.15 y:0.34 width:0.20 height:0.69, keyboard_8 x:0.88 y:0.29 width:0.12 height:0.03, mouse_9 x:0.96 y:0.30 width:0.05 height:0.03, chair_10 x:0.41 y:0.33 width:0.09 height:0.23, tv_11 x:0.91 y:0.12 width:0.04 height:0.06, person_12 x:0.17 y:0.43 width:0.24 height:0.87, suitcase_13 x:0.33 y:0.64 width:0.18 height:0.32, handbag_14 x:0.33 y:0.64 width:0.18 height:0.32, backpack_15 x:0.33 y:0.64 width:0.18 height:0.32]
+
+Here is the 'task description':
+[A] move forward by 100
+
+Here is the 'execution history' (has value if replanning):
+[]
+
+Here is the 'current view of the environment':
+{
+  "objects": [
+    {
+      "name": "chair"
+    },
+    {
+      "name": "person"
+    },
+    {
+      "name": "tv"
+    },
+    {
+      "name": "handbag"
+    },
+    {
+      "name": "backpack"
+    },
+    {
+      "name": "keyboard"
+    },
+    {
+      "name": "mouse"
+    },
+    {
+      "name": "dining table"
+    },
+    {
+      "name": "suitcase"
+    },
+    {
+      "name": "car"
+    },
+    {
+      "name": "laptop"
+    },
+    {
+      "name": "cup"
+    }
+  ],
+  "regions": [
+    {
+      "name": "region_0",
+      "coords": "[0.0, 0.0]"
+    }
+  ],
+  "object_connections": [],
+  "region_connections": [
+    [
+      "chair",
+      "region_0"
+    ],
+    [
+      "person",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "tv"
+    ],
+    [
+      "handbag",
+      "region_0"
+    ],
+    [
+      "backpack",
+      "region_0"
+    ],
+    [
+      "keyboard",
+      "region_0"
+    ],
+    [
+      "mouse",
+      "region_0"
+    ],
+    [
+      "dining table",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "suitcase"
+    ],
+    [
+      "car",
+      "region_0"
+    ],
+    [
+      "laptop",
+      "region_0"
+    ],
+    [
+      "cup",
+      "region_0"
+    ]
+  ],
+  "current_location": "region_0"
+}
+
+Here is the 'current position':
+[ 8.1298719  -0.14552961] - in region_0
+
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [50, 50]
+- top-right: [50, 50]
+- bottom-right: [-50, 50]
+- bottom-left: [-50, 50]
+Valid positions lie within x ∈ [x_bottom, x_top] and y ∈ [y_left, y_right].
+
+Here is the 'minispec syntax':
+<program> ::= { <block-statement> [';'] | <statement> ';' }
+<statement> ::= <variable-assign> | <function-call> | <return>
+<block-statement> ::= <loop> | <conditional>
+<loop> ::= <int> '{' <program> '}'
+<function-call> ::= <function-name> ['(' <argument> ')']
+<variable-assign> ::= <variable> '=' <function-call>
+<conditional> ::= '?' <condition> '{' <program> '}'
+<condition> ::= <operand> <comparator> <operand> { '&' <condition> | '|' <condition> }
+<comparator> ::= '>' | '<' | '==' | '!='
+<function-name> ::= <alpha> { <alpha> }
+<argument> ::= <value> { ',' <value> }
+<return> ::= '->' <value>
+<operand> ::= <value> | <function-call>
+<value> ::= <literal-value> | <variable>
+<variable> ::= '_' <int>
+<literal-value> ::= <int> | <float> | <string> | <bool>
+
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
+Respond in JSON format with the fields 'plan' and 'reason'.
+---
+{
+  "id": "chatcmpl-BwSduDXQpauMxLOYGMOUhZ7MmsF6V",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"plan\":\"l(\\\"It is not possible to move forward by 100 cm because it would exceed the boundary\\\");\",\"reason\":\"Moving forward by 100 cm from x=8.13 would place the robot beyond the x_max boundary of 50, so the command cannot be executed as requested.\"}",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": [],
+        "audio": null,
+        "function_call": null,
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1753272826,
+  "model": "o4-mini-2025-04-16",
+  "object": "chat.completion",
+  "service_tier": "default",
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 400,
+    "prompt_tokens": 4577,
+    "total_tokens": 4977,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 320,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 0
+    }
+  }
+}
+---
+You are an excellent robot pilot and your task is to fullfil user's task by generating a MiniSpec plan, or to give helpful advice if the user's input is unclear or unreasonable.
+
+You are only allowed to use the API defined by low level and high level skills and you must carefully consider the 'scene description', the 'task description', the 'current view of the environment' and the 'current position'.
+The 'system skills description' defines the robot's capabilities through two types of skills:
+- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
+- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
+
+Description of the two skill sets:
+- High-level skills:
+abbr:s,name:scan,definition:8{tp();?iv($1)==True{->True}tc(45)}->False;,args:[objects_name:list],description:Rotate to find objects passed as argument as a list when they are *not* in current scene
+
+- Low-level skills:
+abbr:mf,name:move_forward,args:[distance:float],description:Move forward by a distance
+abbr:mb,name:move_backward,args:[distance:float],description:Move backward by a distance
+abbr:ml,name:move_left,args:[distance:float],description:Move left by a distance
+abbr:mr,name:move_right,args:[distance:float],description:Move right by a distance
+abbr:mu,name:move_up,args:[distance:float],description:Move up by a distance
+abbr:md,name:move_down,args:[distance:float],description:Move down by a distance
+abbr:gx,name:go_xy,args:[x:int, y:int],description:Move to x y absolute position.
+abbr:en,name:explore_new_region,args:[direction:str, distance:float],description:Explore a new region (forward, backward, left, right) by a given distance in cm
+abbr:nr,name:name_region,args:[region_name:str],description:Give a meaningful name to current region node in context graph
+abbr:tc,name:turn_cw,args:[degrees:int],description:Rotate clockwise/right by certain degrees
+abbr:tu,name:turn_ccw,args:[degrees:int],description:Rotate counterclockwise/left by certain degrees
+abbr:cn,name:create_new_trajectory,args:[gesture:str],description:Create and save a new trajectory, mapping it to a gesture
+abbr:st,name:start_trajectory,args:[gesture:str],description:Start a trajectory mapped by a gesture
+abbr:d,name:delay,args:[seconds:float],description:Wait for specified seconds
+abbr:iv,name:is_visible,args:[objects_name:list],description:Check the visibility of target YOLO-detectable objects
+abbr:ox,name:object_x,args:[object_name:str],description:Get object's X-coordinate in (0,1)
+abbr:oy,name:object_y,args:[object_name:str],description:Get object's Y-coordinate in (0,1)
+abbr:ow,name:object_width,args:[object_name:str],description:Get object's width in (0,1)
+abbr:oh,name:object_height,args:[object_name:str],description:Get object's height in (0,1)
+abbr:od,name:object_dis,args:[object_name:str],description:Get object's distance in cm
+abbr:p,name:probe,args:[question:str],description:Probe the LLM for reasoning
+abbr:l,name:log,args:[text:str],description:Output text to console
+abbr:tp,name:take_picture,args:[],description:Take a picture
+abbr:ed,name:explore_direction,args:[hint:Optional],description:Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument
+abbr:as,name:add_skill,args:[name:str, description:str, definition:str],description:Define a new high-level skill through already existing low and high-level ones
+abbr:au,name:ask_user,args:[question:str],description:Ask user a question in order to retrieve some missing information about his task
+abbr:rp,name:re_plan,args:[],description:Replanning
+abbr:g,name:goto,args:[object_name[*x-value]:str],description:goto the object
+abbr:t,name:time,args:[],description:Get current execution time
+
+
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill.
+To define a new high-level skill, follow these steps:
+1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
+2. Name the skill meaningfully.
+3. Provide the definition and immediately invoke it.
+
+For example, if the user says “Scan the area and report all people you see,” and no such skill exists, you can define a generic new high-level skill, calling the low-level function add_skill 'as(skill_name, minispec_def)' with:
+- skill_name: the name you want to give the new high-level skill
+- description: the description of the skill
+- minispec_def: the string definition using MiniSpec syntax
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
+
+The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
+The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+
+Each entry of the graph contains the following types:
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+
+Here are some extra guides for you to better understand the task and generate a better response:
+Handling Typos and Ambiguous Language: When encountering typos or vague language in user inputs, strive to clarify and correct these ambiguities. If a typo is evident, adjust the input to reflect the most likely intended meaning. For vague or unclear expressions, seek additional information from the user by returning a question to the user.
+Analytical Scene and Task Assessment: Evaluate the scene and task critically. If a specific condition or requirement is clearly deduced from the scene description, generate the corresponding action directly.
+Relevance to Current Scene: When considering tasks, assess their relevance to the current scene. If a task does not pertain to the existing scene, disregard any details from the current scene in formulating your response.
+Extraction of Key Information: Extract 'object_name' arguments or answers to questions primarily from the 'scene description'. If the necessary information is not present in the current scene, especially when the user asks the robot to move first or check somewhere else, use the probe 'p,' followed by the 'question', to determine the 'object_name' or answer subsequently.
+Handling Replan: When previous response and execution status are provided, it means part of the task has been executed. In this case, the system should replan the remaining task based on the current scene and the previous response.
+Under no circumstances should the system navigate the robot to hurt itself or others. If the task involves potential harm, the system should refuse to execute the task and provide a suitable explanation to the user.
+Skills usage: You can use only pre-defined skills or skills defined at runtime, but not non-existing ones.
+Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
+Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
+Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
+Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Coordinates: the system used is X-Axis (Forward–Backward) for first parameter and  Y-Axis (Left–Right) for second one
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+}
+Here is the 'current position': [0   0] - in region_0
+'boundaries': {"top_left": , "top_right": , 
+                "bottom_right": , "bottom_left": }
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [500, -500]
+- top-right: [500, 500]
+- bottom-right: [-500, 500]
+- bottom-left: [-500, -500]
+Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True};ed();rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using explore_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s(["apple"])==True{l("apple found");Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");->True}ed();rp();
+
+Iteration 4: 
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 5: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
+
+Iteration 7: New user task
+Scene: []
+Task: Go in position 1000, 100
+Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+Iteration 8: New user task
+Scene: []
+Task: Go in position 300, 200
+Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Response: gx(300, 200);
+
+Here is the 'scene description':
+[chair_1 x:0.30 y:0.39 width:0.08 height:0.24, chair_2 x:0.51 y:0.39 width:0.17 height:0.35, person_3 x:0.60 y:0.33 width:0.11 height:0.31, chair_4 x:0.12 y:0.60 width:0.15 height:0.24, tv_5 x:0.45 y:0.18 width:0.21 height:0.13, person_6 x:0.15 y:0.38 width:0.20 height:0.71, tv_7 x:0.97 y:0.21 width:0.05 height:0.21, chair_8 x:0.41 y:0.36 width:0.09 height:0.22, backpack_9 x:0.33 y:0.68 width:0.18 height:0.32, laptop_10 x:0.75 y:0.29 width:0.12 height:0.10, laptop_11 x:0.09 y:0.17 width:0.18 height:0.30, tv_12 x:0.42 y:0.12 width:0.26 height:0.24]
+
+Here is the 'task description':
+[A] go to 30 30
+
+Here is the 'execution history' (has value if replanning):
+[]
+
+Here is the 'current view of the environment':
+{
+  "objects": [
+    {
+      "name": "chair"
+    },
+    {
+      "name": "person"
+    },
+    {
+      "name": "tv"
+    },
+    {
+      "name": "handbag"
+    },
+    {
+      "name": "backpack"
+    },
+    {
+      "name": "keyboard"
+    },
+    {
+      "name": "mouse"
+    },
+    {
+      "name": "dining table"
+    },
+    {
+      "name": "suitcase"
+    },
+    {
+      "name": "car"
+    },
+    {
+      "name": "laptop"
+    },
+    {
+      "name": "cup"
+    }
+  ],
+  "regions": [
+    {
+      "name": "region_0",
+      "coords": "[0.0, 0.0]"
+    }
+  ],
+  "object_connections": [],
+  "region_connections": [
+    [
+      "chair",
+      "region_0"
+    ],
+    [
+      "person",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "tv"
+    ],
+    [
+      "handbag",
+      "region_0"
+    ],
+    [
+      "backpack",
+      "region_0"
+    ],
+    [
+      "keyboard",
+      "region_0"
+    ],
+    [
+      "mouse",
+      "region_0"
+    ],
+    [
+      "dining table",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "suitcase"
+    ],
+    [
+      "car",
+      "region_0"
+    ],
+    [
+      "laptop",
+      "region_0"
+    ],
+    [
+      "cup",
+      "region_0"
+    ]
+  ],
+  "current_location": "region_0"
+}
+
+Here is the 'current position':
+[ 8.1298719  -0.14552961] - in region_0
+
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [50, 50]
+- top-right: [50, 50]
+- bottom-right: [-50, 50]
+- bottom-left: [-50, 50]
+Valid positions lie within x ∈ [x_bottom, x_top] and y ∈ [y_left, y_right].
+
+Here is the 'minispec syntax':
+<program> ::= { <block-statement> [';'] | <statement> ';' }
+<statement> ::= <variable-assign> | <function-call> | <return>
+<block-statement> ::= <loop> | <conditional>
+<loop> ::= <int> '{' <program> '}'
+<function-call> ::= <function-name> ['(' <argument> ')']
+<variable-assign> ::= <variable> '=' <function-call>
+<conditional> ::= '?' <condition> '{' <program> '}'
+<condition> ::= <operand> <comparator> <operand> { '&' <condition> | '|' <condition> }
+<comparator> ::= '>' | '<' | '==' | '!='
+<function-name> ::= <alpha> { <alpha> }
+<argument> ::= <value> { ',' <value> }
+<return> ::= '->' <value>
+<operand> ::= <value> | <function-call>
+<value> ::= <literal-value> | <variable>
+<variable> ::= '_' <int>
+<literal-value> ::= <int> | <float> | <string> | <bool>
+
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
+Respond in JSON format with the fields 'plan' and 'reason'.
+---
+{
+  "id": "chatcmpl-BwSeDXWQxV7KJkP0FRUZaBI7GKNcf",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"plan\":\"gx(30, 30);\",\"reason\":\"The target coordinates (30, 30) are within the allowed boundaries [-50,50] in both axes, so the robot can directly move there using go_xy.\"}",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": [],
+        "audio": null,
+        "function_call": null,
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1753272845,
+  "model": "o4-mini-2025-04-16",
+  "object": "chat.completion",
+  "service_tier": "default",
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 259,
+    "prompt_tokens": 4506,
+    "total_tokens": 4765,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 192,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 3328
+    }
+  }
+}
+---
+You are an excellent robot pilot and your task is to fullfil user's task by generating a MiniSpec plan, or to give helpful advice if the user's input is unclear or unreasonable.
+
+You are only allowed to use the API defined by low level and high level skills and you must carefully consider the 'scene description', the 'task description', the 'current view of the environment' and the 'current position'.
+The 'system skills description' defines the robot's capabilities through two types of skills:
+- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
+- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
+
+Description of the two skill sets:
+- High-level skills:
+abbr:s,name:scan,definition:8{tp();?iv($1)==True{->True}tc(45)}->False;,args:[objects_name:list],description:Rotate to find objects passed as argument as a list when they are *not* in current scene
+
+- Low-level skills:
+abbr:mf,name:move_forward,args:[distance:float],description:Move forward by a distance
+abbr:mb,name:move_backward,args:[distance:float],description:Move backward by a distance
+abbr:ml,name:move_left,args:[distance:float],description:Move left by a distance
+abbr:mr,name:move_right,args:[distance:float],description:Move right by a distance
+abbr:mu,name:move_up,args:[distance:float],description:Move up by a distance
+abbr:md,name:move_down,args:[distance:float],description:Move down by a distance
+abbr:gx,name:go_xy,args:[x:int, y:int],description:Move to x y absolute position.
+abbr:en,name:explore_new_region,args:[direction:str, distance:float],description:Explore a new region (forward, backward, left, right) by a given distance in cm
+abbr:nr,name:name_region,args:[region_name:str],description:Give a meaningful name to current region node in context graph
+abbr:tc,name:turn_cw,args:[degrees:int],description:Rotate clockwise/right by certain degrees
+abbr:tu,name:turn_ccw,args:[degrees:int],description:Rotate counterclockwise/left by certain degrees
+abbr:cn,name:create_new_trajectory,args:[gesture:str],description:Create and save a new trajectory, mapping it to a gesture
+abbr:st,name:start_trajectory,args:[gesture:str],description:Start a trajectory mapped by a gesture
+abbr:d,name:delay,args:[seconds:float],description:Wait for specified seconds
+abbr:iv,name:is_visible,args:[objects_name:list],description:Check the visibility of target YOLO-detectable objects
+abbr:ox,name:object_x,args:[object_name:str],description:Get object's X-coordinate in (0,1)
+abbr:oy,name:object_y,args:[object_name:str],description:Get object's Y-coordinate in (0,1)
+abbr:ow,name:object_width,args:[object_name:str],description:Get object's width in (0,1)
+abbr:oh,name:object_height,args:[object_name:str],description:Get object's height in (0,1)
+abbr:od,name:object_dis,args:[object_name:str],description:Get object's distance in cm
+abbr:p,name:probe,args:[question:str],description:Probe the LLM for reasoning
+abbr:l,name:log,args:[text:str],description:Output text to console
+abbr:tp,name:take_picture,args:[],description:Take a picture
+abbr:ed,name:explore_direction,args:[hint:Optional],description:Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument
+abbr:as,name:add_skill,args:[name:str, description:str, definition:str],description:Define a new high-level skill through already existing low and high-level ones
+abbr:au,name:ask_user,args:[question:str],description:Ask user a question in order to retrieve some missing information about his task
+abbr:rp,name:re_plan,args:[],description:Replanning
+abbr:g,name:goto,args:[object_name[*x-value]:str],description:goto the object
+abbr:t,name:time,args:[],description:Get current execution time
+
+
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill.
+To define a new high-level skill, follow these steps:
+1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
+2. Name the skill meaningfully.
+3. Provide the definition and immediately invoke it.
+
+For example, if the user says “Scan the area and report all people you see,” and no such skill exists, you can define a generic new high-level skill, calling the low-level function add_skill 'as(skill_name, minispec_def)' with:
+- skill_name: the name you want to give the new high-level skill
+- description: the description of the skill
+- minispec_def: the string definition using MiniSpec syntax
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
+
+The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
+The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+
+Each entry of the graph contains the following types:
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+
+Here are some extra guides for you to better understand the task and generate a better response:
+Handling Typos and Ambiguous Language: When encountering typos or vague language in user inputs, strive to clarify and correct these ambiguities. If a typo is evident, adjust the input to reflect the most likely intended meaning. For vague or unclear expressions, seek additional information from the user by returning a question to the user.
+Analytical Scene and Task Assessment: Evaluate the scene and task critically. If a specific condition or requirement is clearly deduced from the scene description, generate the corresponding action directly.
+Relevance to Current Scene: When considering tasks, assess their relevance to the current scene. If a task does not pertain to the existing scene, disregard any details from the current scene in formulating your response.
+Extraction of Key Information: Extract 'object_name' arguments or answers to questions primarily from the 'scene description'. If the necessary information is not present in the current scene, especially when the user asks the robot to move first or check somewhere else, use the probe 'p,' followed by the 'question', to determine the 'object_name' or answer subsequently.
+Handling Replan: When previous response and execution status are provided, it means part of the task has been executed. In this case, the system should replan the remaining task based on the current scene and the previous response.
+Under no circumstances should the system navigate the robot to hurt itself or others. If the task involves potential harm, the system should refuse to execute the task and provide a suitable explanation to the user.
+Skills usage: You can use only pre-defined skills or skills defined at runtime, but not non-existing ones.
+Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
+Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
+Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
+Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Coordinates: the system used is X-Axis (Forward–Backward) for first parameter and  Y-Axis (Left–Right) for second one
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+}
+Here is the 'current position': [0   0] - in region_0
+'boundaries': {"top_left": , "top_right": , 
+                "bottom_right": , "bottom_left": }
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [500, -500]
+- top-right: [500, 500]
+- bottom-right: [-500, 500]
+- bottom-left: [-500, -500]
+Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True};ed();rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using explore_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s(["apple"])==True{l("apple found");Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");->True}ed();rp();
+
+Iteration 4: 
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 5: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
+
+Iteration 7: New user task
+Scene: []
+Task: Go in position 1000, 100
+Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+Iteration 8: New user task
+Scene: []
+Task: Go in position 300, 200
+Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Response: gx(300, 200);
+
+Here is the 'scene description':
+[chair_1 x:0.60 y:0.40 width:0.18 height:0.37, person_2 x:0.71 y:0.34 width:0.14 height:0.33, keyboard_3 x:0.16 y:0.39 width:0.20 height:0.03, laptop_4 x:0.93 y:0.29 width:0.11 height:0.11, chair_5 x:0.24 y:0.61 width:0.17 height:0.31, tv_6 x:0.18 y:0.17 width:0.37 height:0.33, tv_7 x:0.96 y:0.20 width:0.08 height:0.13, handbag_8 x:0.50 y:0.73 width:0.18 height:0.36, tv_9 x:0.51 y:0.12 width:0.22 height:0.24, laptop_10 x:0.85 y:0.23 width:0.08 height:0.11, chair_11 x:0.46 y:0.36 width:0.06 height:0.23, chair_12 x:0.49 y:0.36 width:0.12 height:0.23, cup_13 x:0.16 y:0.35 width:0.02 height:0.06, mouse_14 x:0.19 y:0.36 width:0.04 height:0.02]
+
+Here is the 'task description':
+[A] go to 100 100
+
+Here is the 'execution history' (has value if replanning):
+[]
+
+Here is the 'current view of the environment':
+{
+  "objects": [
+    {
+      "name": "chair"
+    },
+    {
+      "name": "person"
+    },
+    {
+      "name": "tv"
+    },
+    {
+      "name": "handbag"
+    },
+    {
+      "name": "backpack"
+    },
+    {
+      "name": "keyboard"
+    },
+    {
+      "name": "mouse"
+    },
+    {
+      "name": "dining table"
+    },
+    {
+      "name": "suitcase"
+    },
+    {
+      "name": "car"
+    },
+    {
+      "name": "laptop"
+    },
+    {
+      "name": "cup"
+    },
+    {
+      "name": "book"
+    }
+  ],
+  "regions": [
+    {
+      "name": "region_0",
+      "coords": "[0.0, 0.0]"
+    }
+  ],
+  "object_connections": [],
+  "region_connections": [
+    [
+      "chair",
+      "region_0"
+    ],
+    [
+      "person",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "tv"
+    ],
+    [
+      "handbag",
+      "region_0"
+    ],
+    [
+      "backpack",
+      "region_0"
+    ],
+    [
+      "keyboard",
+      "region_0"
+    ],
+    [
+      "mouse",
+      "region_0"
+    ],
+    [
+      "dining table",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "suitcase"
+    ],
+    [
+      "car",
+      "region_0"
+    ],
+    [
+      "laptop",
+      "region_0"
+    ],
+    [
+      "cup",
+      "region_0"
+    ],
+    [
+      "book",
+      "region_0"
+    ]
+  ],
+  "current_location": "region_0"
+}
+
+Here is the 'current position':
+[ 24.46188596 -16.89666764] - in region_0
+
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [50, 50]
+- top-right: [50, 50]
+- bottom-right: [-50, 50]
+- bottom-left: [-50, 50]
+Valid positions lie within x ∈ [x_bottom, x_top] and y ∈ [y_left, y_right].
+
+Here is the 'minispec syntax':
+<program> ::= { <block-statement> [';'] | <statement> ';' }
+<statement> ::= <variable-assign> | <function-call> | <return>
+<block-statement> ::= <loop> | <conditional>
+<loop> ::= <int> '{' <program> '}'
+<function-call> ::= <function-name> ['(' <argument> ')']
+<variable-assign> ::= <variable> '=' <function-call>
+<conditional> ::= '?' <condition> '{' <program> '}'
+<condition> ::= <operand> <comparator> <operand> { '&' <condition> | '|' <condition> }
+<comparator> ::= '>' | '<' | '==' | '!='
+<function-name> ::= <alpha> { <alpha> }
+<argument> ::= <value> { ',' <value> }
+<return> ::= '->' <value>
+<operand> ::= <value> | <function-call>
+<value> ::= <literal-value> | <variable>
+<variable> ::= '_' <int>
+<literal-value> ::= <int> | <float> | <string> | <bool>
+
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
+Respond in JSON format with the fields 'plan' and 'reason'.
+---
+{
+  "id": "chatcmpl-BwSeWhAc4upfbD4I0hYHGqQp8WomJ",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"plan\":\"l(\\\"It is not possible to fulfill the task in the specified boundaries\\\");\",\"reason\":\"The requested position (100,100) lies outside the allowed x∈[-50,50], y∈[-50,50] boundaries, so the task cannot be executed.\"}",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": [],
+        "audio": null,
+        "function_call": null,
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1753272864,
+  "model": "o4-mini-2025-04-16",
+  "object": "chat.completion",
+  "service_tier": "default",
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 270,
+    "prompt_tokens": 4578,
+    "total_tokens": 4848,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 192,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 3328
+    }
+  }
+}
+---
+You are an excellent robot pilot and your task is to fullfil user's task by generating a MiniSpec plan, or to give helpful advice if the user's input is unclear or unreasonable.
+
+You are only allowed to use the API defined by low level and high level skills and you must carefully consider the 'scene description', the 'task description', the 'current view of the environment' and the 'current position'.
+The 'system skills description' defines the robot's capabilities through two types of skills:
+- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
+- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
+
+Description of the two skill sets:
+- High-level skills:
+abbr:s,name:scan,definition:8{tp();?iv($1)==True{->True}tc(45)}->False;,args:[objects_name:list],description:Rotate to find objects passed as argument as a list when they are *not* in current scene
+
+- Low-level skills:
+abbr:mf,name:move_forward,args:[distance:float],description:Move forward by a distance
+abbr:mb,name:move_backward,args:[distance:float],description:Move backward by a distance
+abbr:ml,name:move_left,args:[distance:float],description:Move left by a distance
+abbr:mr,name:move_right,args:[distance:float],description:Move right by a distance
+abbr:mu,name:move_up,args:[distance:float],description:Move up by a distance
+abbr:md,name:move_down,args:[distance:float],description:Move down by a distance
+abbr:gx,name:go_xy,args:[x:int, y:int],description:Move to x y absolute position.
+abbr:en,name:explore_new_region,args:[direction:str, distance:float],description:Explore a new region (forward, backward, left, right) by a given distance in cm
+abbr:nr,name:name_region,args:[region_name:str],description:Give a meaningful name to current region node in context graph
+abbr:tc,name:turn_cw,args:[degrees:int],description:Rotate clockwise/right by certain degrees
+abbr:tu,name:turn_ccw,args:[degrees:int],description:Rotate counterclockwise/left by certain degrees
+abbr:cn,name:create_new_trajectory,args:[gesture:str],description:Create and save a new trajectory, mapping it to a gesture
+abbr:st,name:start_trajectory,args:[gesture:str],description:Start a trajectory mapped by a gesture
+abbr:d,name:delay,args:[seconds:float],description:Wait for specified seconds
+abbr:iv,name:is_visible,args:[objects_name:list],description:Check the visibility of target YOLO-detectable objects
+abbr:ox,name:object_x,args:[object_name:str],description:Get object's X-coordinate in (0,1)
+abbr:oy,name:object_y,args:[object_name:str],description:Get object's Y-coordinate in (0,1)
+abbr:ow,name:object_width,args:[object_name:str],description:Get object's width in (0,1)
+abbr:oh,name:object_height,args:[object_name:str],description:Get object's height in (0,1)
+abbr:od,name:object_dis,args:[object_name:str],description:Get object's distance in cm
+abbr:p,name:probe,args:[question:str],description:Probe the LLM for reasoning
+abbr:l,name:log,args:[text:str],description:Output text to console
+abbr:tp,name:take_picture,args:[],description:Take a picture
+abbr:ed,name:explore_direction,args:[hint:Optional],description:Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument
+abbr:as,name:add_skill,args:[name:str, description:str, definition:str],description:Define a new high-level skill through already existing low and high-level ones
+abbr:au,name:ask_user,args:[question:str],description:Ask user a question in order to retrieve some missing information about his task
+abbr:rp,name:re_plan,args:[],description:Replanning
+abbr:g,name:goto,args:[object_name[*x-value]:str],description:goto the object
+abbr:t,name:time,args:[],description:Get current execution time
+
+
+Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to dynamically define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill.
+To define a new high-level skill, follow these steps:
+1. Use MiniSpec syntax to define a skill using low-level or existing high-level primitives.
+2. Name the skill meaningfully.
+3. Provide the definition and immediately invoke it.
+
+For example, if the user says “Scan the area and report all people you see,” and no such skill exists, you can define a generic new high-level skill, calling the low-level function add_skill 'as(skill_name, minispec_def)' with:
+- skill_name: the name you want to give the new high-level skill
+- description: the description of the skill
+- minispec_def: the string definition using MiniSpec syntax
+Then, invoke the new skill by using the full name, because you do not still know the corrispondent abbreviation. Insert parameters of if needed (you can see it by its definition, by look at '$' characters).
+
+The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
+The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
+The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
+The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'current position' is where you are in the environment.
+The 'minispec syntax' is the syntax of the language that is required to be used.
+The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+
+Each entry of the graph contains the following types:
+- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
+- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
+- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
+
+Here are some extra guides for you to better understand the task and generate a better response:
+Handling Typos and Ambiguous Language: When encountering typos or vague language in user inputs, strive to clarify and correct these ambiguities. If a typo is evident, adjust the input to reflect the most likely intended meaning. For vague or unclear expressions, seek additional information from the user by returning a question to the user.
+Analytical Scene and Task Assessment: Evaluate the scene and task critically. If a specific condition or requirement is clearly deduced from the scene description, generate the corresponding action directly.
+Relevance to Current Scene: When considering tasks, assess their relevance to the current scene. If a task does not pertain to the existing scene, disregard any details from the current scene in formulating your response.
+Extraction of Key Information: Extract 'object_name' arguments or answers to questions primarily from the 'scene description'. If the necessary information is not present in the current scene, especially when the user asks the robot to move first or check somewhere else, use the probe 'p,' followed by the 'question', to determine the 'object_name' or answer subsequently.
+Handling Replan: When previous response and execution status are provided, it means part of the task has been executed. In this case, the system should replan the remaining task based on the current scene and the previous response.
+Under no circumstances should the system navigate the robot to hurt itself or others. If the task involves potential harm, the system should refuse to execute the task and provide a suitable explanation to the user.
+Skills usage: You can use only pre-defined skills or skills defined at runtime, but not non-existing ones.
+Recall the graph of the scene may be incomplete. You may need to add regions or map existing regions to complete your task.
+Reason over connections, coordinates, and semantic relationships between objects and regions in the scene. For example, if asked to find a car, look near the roads.
+Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
+At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
+Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Coordinates: the system used is X-Axis (Forward–Backward) for first parameter and  Y-Axis (Left–Right) for second one
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
+
+Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+#Example 1
+Graph: {
+    "objects": [],
+    "regions": [{"name": "region_0", "coords": [0, 0]},],
+    "object_connections": [],
+    "region_connections": [],
+    "robot_location": region_0,
+}
+Here is the 'current position': [0   0] - in region_0
+'boundaries': {"top_left": , "top_right": , 
+                "bottom_right": , "bottom_left": }
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [500, -500]
+- top-right: [500, 500]
+- bottom-right: [-500, 500]
+- bottom-left: [-500, -500]
+Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+
+Iteration 1:
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: The graph is empty and no apples are currently known. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 2: New region region_1 at [0, 150]
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: After moving to [0, 150] I have triggered the creation of the new region to region_1, but no apples were found. I will scan the current area and then I will decide which direction to explore through explore_direction, because I have no information in the graph in which region to go to.
+Response: ?s(["apple"])==True{l("apple found");->True};ed();rp();
+
+Iteration 3: New region region_2 at [150, 150]; new objects: banana_1, orange_1 in region_2
+Scene: [banana_1 x:0.46 y:0.41 width:0.15 height:0.25, orange_1 x:0.67 y:0.39 width:0.17 height:0.21]
+Task: I need an apple. Is there one in the scene?
+Reason: While no apples are present yet, I now see other fruits (banana and orange) in region_2. Apples often co-occur with other fruits, so I will exploit this information by using explore_direction skill after having scanned the area to exploit visual information to choose direction.
+Response: ?s(["apple"])==True{l("apple found");Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");->True}ed();rp();
+
+Iteration 4: 
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: Thanks of having explored close to fruits, I may be close to apple, so I need to scan again to check if it is around the drone. Then replan if I will not find any apple to explore new regions.
+Response: ?s(["apple"])==True{l("apple found");->True}ed();rp();
+
+Iteration 5: New user task
+Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
+Task: Come back to region_0, because I need you here
+Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
+Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
+
+Iteration 6: New user task
+Scene: []
+Task: Where can I find a banana?
+Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
+Response: l("I found a banana region_2 that is at [150, 150]");
+
+Iteration 7: New user task
+Scene: []
+Task: Go in position 1000, 100
+Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+Iteration 8: New user task
+Scene: []
+Task: Go in position 300, 200
+Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Response: gx(300, 200);
+
+Here is the 'scene description':
+[chair_1 x:0.59 y:0.40 width:0.18 height:0.37, person_2 x:0.71 y:0.32 width:0.13 height:0.30, tv_3 x:0.18 y:0.17 width:0.36 height:0.34, chair_4 x:0.24 y:0.62 width:0.18 height:0.31, tv_5 x:0.49 y:0.12 width:0.25 height:0.24, tv_6 x:0.96 y:0.21 width:0.09 height:0.15, laptop_7 x:0.86 y:0.25 width:0.11 height:0.08, keyboard_8 x:0.15 y:0.40 width:0.20 height:0.04, laptop_9 x:0.92 y:0.30 width:0.11 height:0.11, handbag_10 x:0.49 y:0.74 width:0.18 height:0.36, chair_11 x:0.38 y:0.27 width:0.06 height:0.15]
+
+Here is the 'task description':
+[A] find an apple
+
+Here is the 'execution history' (has value if replanning):
+[]
+
+Here is the 'current view of the environment':
+{
+  "objects": [
+    {
+      "name": "chair"
+    },
+    {
+      "name": "person"
+    },
+    {
+      "name": "tv"
+    },
+    {
+      "name": "handbag"
+    },
+    {
+      "name": "backpack"
+    },
+    {
+      "name": "keyboard"
+    },
+    {
+      "name": "mouse"
+    },
+    {
+      "name": "dining table"
+    },
+    {
+      "name": "suitcase"
+    },
+    {
+      "name": "car"
+    },
+    {
+      "name": "laptop"
+    },
+    {
+      "name": "cup"
+    },
+    {
+      "name": "book"
+    }
+  ],
+  "regions": [
+    {
+      "name": "region_0",
+      "coords": "[0.0, 0.0]"
+    }
+  ],
+  "object_connections": [],
+  "region_connections": [
+    [
+      "chair",
+      "region_0"
+    ],
+    [
+      "person",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "tv"
+    ],
+    [
+      "handbag",
+      "region_0"
+    ],
+    [
+      "backpack",
+      "region_0"
+    ],
+    [
+      "keyboard",
+      "region_0"
+    ],
+    [
+      "mouse",
+      "region_0"
+    ],
+    [
+      "dining table",
+      "region_0"
+    ],
+    [
+      "region_0",
+      "suitcase"
+    ],
+    [
+      "car",
+      "region_0"
+    ],
+    [
+      "laptop",
+      "region_0"
+    ],
+    [
+      "cup",
+      "region_0"
+    ],
+    [
+      "book",
+      "region_0"
+    ]
+  ],
+  "current_location": "region_0"
+}
+
+Here is the 'current position':
+[ 24.46188596 -16.89666764] - in region_0
+
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [50, 50]
+- top-right: [50, 50]
+- bottom-right: [-50, 50]
+- bottom-left: [-50, 50]
+Valid positions lie within x ∈ [x_bottom, x_top] and y ∈ [y_left, y_right].
+
+Here is the 'minispec syntax':
+<program> ::= { <block-statement> [';'] | <statement> ';' }
+<statement> ::= <variable-assign> | <function-call> | <return>
+<block-statement> ::= <loop> | <conditional>
+<loop> ::= <int> '{' <program> '}'
+<function-call> ::= <function-name> ['(' <argument> ')']
+<variable-assign> ::= <variable> '=' <function-call>
+<conditional> ::= '?' <condition> '{' <program> '}'
+<condition> ::= <operand> <comparator> <operand> { '&' <condition> | '|' <condition> }
+<comparator> ::= '>' | '<' | '==' | '!='
+<function-name> ::= <alpha> { <alpha> }
+<argument> ::= <value> { ',' <value> }
+<return> ::= '->' <value>
+<operand> ::= <value> | <function-call>
+<value> ::= <literal-value> | <variable>
+<variable> ::= '_' <int>
+<literal-value> ::= <int> | <float> | <string> | <bool>
+
+Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
+Respond in JSON format with the fields 'plan' and 'reason'.
+---
+{
+  "id": "chatcmpl-BwSexSUjR2XpkPFX2jHbq2X05Eq6y",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"plan\":\"?s([\\\"apple\\\"])==True{l(\\\"apple found\\\");->True}ed();rp();\",\"reason\":\"We first scan the current view for an apple; if it’s found we log success and terminate, otherwise we explore a new region and replan the search.\"}",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": [],
+        "audio": null,
+        "function_call": null,
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1753272891,
+  "model": "o4-mini-2025-04-16",
+  "object": "chat.completion",
+  "service_tier": "default",
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 400,
+    "prompt_tokens": 4503,
+    "total_tokens": 4903,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "audio_tokens": 0,
+      "reasoning_tokens": 320,
+      "rejected_prediction_tokens": 0
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": 0,
+      "cached_tokens": 3328
+    }
+  }
+}
+---
