@@ -45,7 +45,7 @@ class GraphManager:
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres; keep units consistent.
         """
-        self.drone_pose = np.asarray(pose)[:2] * 10
+        self.drone_pose = np.asarray(pose)[:2]
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
         if result[1]:
             self.current_region = result[0]
