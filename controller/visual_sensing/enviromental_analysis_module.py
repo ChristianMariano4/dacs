@@ -9,6 +9,8 @@ import numpy as np
 import base64
 from openai import OpenAI
 import os
+from controller.constants import X_BOUND, Y_BOUND
+from controller.llm_wrapper import LLMWrapper, RequestType
 from controller.shared_frame import SharedFrame
 from controller.utils import encode_image
 
@@ -32,6 +34,15 @@ class EnvironmentalAnalysisModule:
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
         with open("controller/assets/tello/new/prompt_choose_direction.txt", "r") as f:
             self.direction_prompt = f.read()
+
+        self.boundaries = {
+             "top-left": (-X_BOUND, Y_BOUND),
+             "top-right": (X_BOUND, Y_BOUND),
+             "bottom-right": (X_BOUND, -Y_BOUND),
+             "bottom-left": (-X_BOUND, -Y_BOUND),
+        }
+
+        self.llm_wrapper = LLMWrapper()
     
     def get_scene_description(self, frame: SharedFrame, conf=0.3):
         image = frame.get_image()
@@ -57,7 +68,7 @@ class EnvironmentalAnalysisModule:
         print(scene_description)
         return scene_description
         
-    def choose_direction(self, current_task, base_path, hint: Optional[str]):
+    def choose_direction(self, current_task, base_path, current_position, hint: Optional[str]):
         try:
             # Read and encode all 8 directional images
             north_image = encode_image(Image.open(os.path.join(base_path, 'forward.jpg')))
@@ -76,37 +87,15 @@ class EnvironmentalAnalysisModule:
                 north_east_image, north_west_image, south_east_image, south_west_image
             ])
             print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
-            prompt = self.direction_prompt.format(task=current_task, hint=hint)
+            prompt = self.direction_prompt.format(task=current_task, hint=hint, boundaries=self.boundaries, current_position=current_position)
 
-        # Make the API call with all 8 images
-            response = self.client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_image, "name": "north.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + east_image, "name": "east.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_image, "name": "south.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + west_image, "name": "west.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_east_image, "name": "north-east.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + north_west_image, "name": "north-west.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_east_image, "name": "south-east.jpg"}},
-                            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + south_west_image, "name": "south-west.jpg"}},
-                        ]
-                    }
-                ],
-                response_format={"type": "json_object"} 
-            )
-
-            # Parse response
-            response_content = response.choices[0].message.content
+            # Make the API call with all 8 images
+            images = (north_image, north_east_image, east_image, south_east_image, south_image, south_west_image, north_west_image, west_image)
+            response_content = self.llm_wrapper.request(prompt, images=images, request_type=RequestType.EXPLORE_DIRECTION)
             print(f"Raw API response: {response_content}")
 
             if not response_content:
                 print("ERROR: Received empty response from OpenAI API")
-                print(f"Full response object: {response}")
                 # Return default direction as fallback
                 return "north"
                 
