@@ -108,7 +108,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("choose_direction", self.skill_choose_direction, "Choose the direction to go to based on video streaming, graph, current task and an hint (if needed) given as argument", args=[SkillArg("gesture", Optional[str])]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task", args=[SkillArg("question", str)]))
         
@@ -207,12 +207,12 @@ class LLMController():
         self.append_message((img_path,))
         return None, False
     
-    def skill_choose_direction(self, hint: Optional[str]) -> Tuple[None, bool]:
+    def skill_explore_direction(self, hint: Optional[str]) -> Tuple[None, bool]:
         """
         Finds all jpg images in cache_folder, sorts them (if possible), 
         and returns a list of file paths for LLM direction selection.
         """
-        (dir, distance, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, hint)
+        (dir, distance, region_name) = self.env_analysis_module.choose_direction(self.current_task.get_task_description(), self.cache_folder, self.get_drone_pose(), hint)
         self._name_region(region_name)
         valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
         if dir in valid_directions:
@@ -303,9 +303,12 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_plan = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
+            self.current_plan, reason = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
+            if not self.current_plan or not reason: # resend the request
+                continue
+
             self.current_task.set_current_plan(self.current_plan)
-            print_t(f"The plan is {self.current_task.get_current_plan()}.")
+            print_t(f"The plan is {self.current_task.get_current_plan()}. With reason: {reason}")
             input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             print_t("Message appended")
