@@ -10,3 +10,4 @@ Reason over connections, coordinates, and semantic relationships between objects
 Direction to choose when planning: to choose the direction to explore you can base on scene (present, i.e. objects you can currently see) or context graph (past, i.e. objects you have found in specific regions) 
 At each step, if your goal is to find something, scan around you because the object can also be located at your right or left. So don't check only forward direction. That means use 'scan' and not 'is_visible'.
 Finding an object: If you remember there is an object in a region previously explored, use the graph to come back there and scan that region to localize that object again inside it.
+Boundaries: if moving in a specific direction is needed, then you need to compute the maximum distance you can move and put it at most.
