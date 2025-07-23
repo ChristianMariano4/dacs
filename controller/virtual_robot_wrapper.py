@@ -56,25 +56,29 @@ class VirtualRobotWrapper(RobotWrapper):
     def start_trajectory(self):
         pass
 
-    def move_north(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_north(self, distance: float = 10) -> Tuple[bool, bool]:
+        distance = int(distance)
         print(f"-> Moving forward {distance} cm")
         self.movement_x_accumulator += distance
         time.sleep(1)
         return True, False
 
-    def move_south(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_south(self, distance: float = 10) -> Tuple[bool, bool]:
+        distance = int(distance)
         print(f"-> Moving backward {distance} cm")
         self.movement_x_accumulator -= distance
         time.sleep(1)
         return True, False
 
-    def move_west(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_west(self, distance: float = 10) -> Tuple[bool, bool]:
+        distance = int(distance)
         print(f"-> Moving left {distance} cm")
         self.movement_y_accumulator += distance
         time.sleep(1)
         return True, False
 
-    def move_east(self, distance: int = 10) -> Tuple[bool, bool]:
+    def move_east(self, distance: float = 10) -> Tuple[bool, bool]:
+        distance = int(distance)
         print(f"-> Moving right {distance} cm")
         self.movement_y_accumulator -= distance
         time.sleep(1)
@@ -89,6 +93,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving down {distance} cm")
         time.sleep(1)
         return True, False
+    
     def go_xy_speed(self, x: int, y: int, speed: int = 20) -> Tuple[bool, bool]:
         time.sleep(1)
         print(f"[Drone] Move by an offset of {x} - {y} - current_height with speed {speed}")
