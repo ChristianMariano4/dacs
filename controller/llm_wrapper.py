@@ -4,7 +4,7 @@ import openai
 from openai import Stream, ChatCompletion
 
 GPT3 = "gpt-3.5-turbo-16k"
-GPT4 = "gpt-4o"
+GPT4 = "o4-mini"
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,7 +16,7 @@ class RequestType(Enum):
     SINGLE_IMAGE = "single_image"
 
 class LLMWrapper:
-    def __init__(self, temperature=0.0):
+    def __init__(self, temperature=1):
         self.temperature = temperature
         self.llama_client = openai.OpenAI(
             # base_url="http://10.66.41.78:8000/v1",
@@ -60,14 +60,14 @@ class LLMWrapper:
                             "role": "user",
                             "content": [
                                 {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[0], "name": "north.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[1], "name": "north-east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[2], "name": "east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[3], "name": "south-east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[4], "name": "south.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[5], "name": "south-west.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[6], "name": "west.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image[7], "name": "north-west.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[0], "name": "north.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[1], "name": "north-east.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[2], "name": "east.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[3], "name": "south-east.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[4], "name": "south.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[5], "name": "south-west.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[6], "name": "west.jpg"}},
+                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[7], "name": "north-west.jpg"}},
                             ]
                         }
                     ],
