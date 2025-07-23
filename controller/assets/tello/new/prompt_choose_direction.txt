@@ -3,10 +3,15 @@ Take also in consideration an hint (if present) of what to focus on in the choic
 Ignore the hint if is not useful or feasible with the given images.
 Take also in consideration the boundaries, answering only with a direction and a distance that are feasible with them.
 
-Here are the 'boundaries':
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
 {boundaries}
+Valid positions lie within x ∈ [{x_bottom}, {x_top}] and y ∈ [{y_left}, {y_right}].
 
 Here is the 'current position': {current_position}
+
+For example if the chosen direction is
 
 You are given 8 images representing what the drone sees in each direction.
 

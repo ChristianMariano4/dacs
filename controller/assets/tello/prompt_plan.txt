@@ -26,7 +26,7 @@ Then, invoke the new skill by using the full name, because you do not still know
 The 'scene description' is an object list of the current view, containing their names with ID, location, and size (location and size are floats between 0~1). This may not be useful if the task is about the environment outside the view.
 The 'task description' is a natural language sentence, describing the user's task. Please carefully reason about the 'task description', you should interpret it and generate a detailed multi-step plan to achieve it as much as you can.
 The 'execution history' is the actions have been taken from previous responses. When they are provided, that means the robot is doing re-planning, and the user wants to continue the task based on the task and history. You should reason about the 'execution history' and the new 'scene description', 'current view of the environment' and 'current position' and generate a new response accordingly.
-The 'current view of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
+The 'graph of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
 The 'current position' is where you are in the environment.
 The 'minispec syntax' is the syntax of the language that is required to be used.
 The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
@@ -51,17 +51,20 @@ Here is the 'task description':
 Here is the 'execution history' (has value if replanning):
 {execution_history}
 
-Here is the 'current view of the environment':
+Here is the 'graph of the environment':
 {context_graph}
 
 Here is the 'current position':
 {current_position} - in {current_region}
 
-Here are the 'boundaries':
-- top-left: [{x_top_left}, {y_top_left}]
-- top-right: [{x_top_right}, {y_top_right}]
-- bottom-right: [{x_bottom_right}, {y_bottom_right}]
-- bottom-left: [{x_bottom_left}, {y_bottom_left}]
+Coordinate System:
+The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+'boundaries' are defined by these four corners:
+- top-left: [{x_top}, {y_left}]
+- top-right: [{x_top}, {y_right}]
+- bottom-right: [{x_bottom}, {y_right}]
+- bottom-left: [{x_bottom}, {y_left}]
+Valid positions lie within x ∈ [{x_bottom}, {x_top}] and y ∈ [{y_left}, {y_right}].
 
 Here is the 'minispec syntax':
 {minispec_syntax}
