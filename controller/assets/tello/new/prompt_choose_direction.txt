@@ -4,10 +4,10 @@ Ignore the hint if is not useful or feasible with the given images.
 Take also in consideration the boundaries, answering only with a direction and a distance that are feasible with them.
 
 Coordinate System:
-The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
+The first parameter is the X-axis (north-south), and the second is the Y-axis (west-right), with positive values indicating forward and right.
 'boundaries' are defined by these four corners:
 {boundaries}
-Valid positions lie within x ∈ [{x_bottom}, {x_top}] and y ∈ [{y_left}, {y_right}].
+Valid positions lie within x ∈ [{x_south}, {x_north}] and y ∈ [{y_west}, {y_east}].
 
 Here is the 'current position': {current_position}
 

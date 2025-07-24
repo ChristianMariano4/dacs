@@ -36,10 +36,10 @@ class EnvironmentalAnalysisModule:
             self.direction_prompt = f.read()
 
         self.boundaries = { 
-             "top-left": (X_BOUND, -Y_BOUND),
-             "top-right": (X_BOUND, Y_BOUND),
-             "bottom-right": (-X_BOUND, Y_BOUND),
-             "bottom-left": (-X_BOUND, -Y_BOUND),
+             "north-west": (X_BOUND, -Y_BOUND),
+             "north-east": (X_BOUND, Y_BOUND),
+             "south-east": (-X_BOUND, Y_BOUND),
+             "south-west": (-X_BOUND, -Y_BOUND),
         }
 
         self.llm_wrapper = LLMWrapper()
@@ -90,10 +90,10 @@ class EnvironmentalAnalysisModule:
             prompt = self.direction_prompt.format(task=current_task, 
                                                   hint=hint, 
                                                   boundaries=self.boundaries,
-                                                  x_top=X_BOUND,
-                                                  x_bottom=X_BOUND,
-                                                  y_right=Y_BOUND,
-                                                  y_left=-Y_BOUND,
+                                                  x_north=X_BOUND,
+                                                  x_south=-X_BOUND,
+                                                  y_east=Y_BOUND,
+                                                  y_west=-Y_BOUND,
                                                   current_position=current_position,
                                                   )
 
