@@ -5,6 +5,7 @@ from openai import Stream, ChatCompletion
 
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4o"
+GPT_O4_MINI = "o4-mini"
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
