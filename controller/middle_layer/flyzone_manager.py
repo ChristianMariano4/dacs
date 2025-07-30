@@ -3,50 +3,26 @@ import os
 from shapely.geometry import Polygon, Point
 import matplotlib.pyplot as plt
 
+
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from controller.constants import ROBOT_NAME
-from controller.llm_wrapper import LLMWrapper
+from controller.llm_wrapper import GPT_O4_MINI, LLMWrapper
+from controller.middle_layer.middle_layer import MiddleLayer
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class FlyzoneManager:
-    def __init__(self):
+    def __init__(self, middle_layer: MiddleLayer):
         ## Square flyzone
-        # self.flyzone_polygons = [Polygon([(0, 0), (0, 100), (100, 100), (100, 0)])]
-
-        ## U-shaped flyzone
-        self.flyzone_polygons = [
-            # Left vertical leg of the U
-            Polygon([
-                (0, 0),
-                (0, 100),
-                (30, 100),
-                (30, 0)
-            ]),
-            
-            # Right vertical leg of the U
-            Polygon([
-                (70, 0),
-                (70, 100),
-                (100, 100),
-                (100, 0)
-            ]),
-            
-            # Top horizontal bar of the U
-            Polygon([
-                (30, 70),
-                (30, 100),
-                (70, 100),
-                (70, 70)
-            ])
-        ]
+        self.middle_layer = middle_layer
+        
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/tello/flyzone/prompt_flyzone.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/flyzone/prompt_flyzone.txt"), "r") as f:
             self.prompt_flyzone = f.read()
 
-
     def plot_current_flyzone(self):
-        for poly in self.flyzone_polygons:
+        for poly in self.middle_layer.getFlyzone():
             x, y = poly.exterior.xy
             plt.fill(x, y, alpha=0.5)
         plt.gca().set_aspect('equal')
@@ -55,7 +31,7 @@ class FlyzoneManager:
 
     def parse_current_flyzone(self):
         with open("controller/assets/tello/flyzone/flyzone.txt", "w") as f:
-            for idx, poly in enumerate(self.flyzone_polygons):
+            for idx, poly in enumerate(self.middle_layer.getFlyzone()):
                 coords = list(poly.exterior.coords)
                 f.write(f"Flyzone Polygon {idx+1}:\n")
                 for point in coords:
@@ -64,22 +40,15 @@ class FlyzoneManager:
 
     def format_flyzone_for_prompt(self) -> str:
         descriptions = []
-        for idx, poly in enumerate(self.flyzone_polygons):
+        for idx, poly in enumerate(self.middle_layer.getFlyzone()):
             coords = list(poly.exterior.coords)
             points_str = ", ".join([f"({round(x)}, {round(y)})" for x, y in coords])
             descriptions.append(f"Polygon {idx+1}: defined by points {points_str}.")
         return "The allowed flyzone is composed of the following polygonal regions:\n" + "\n".join(descriptions)
     
-    def request_new_flyzone(self, instruction: str):
-        # Centered at (0, 0), radius = 25 cm
-        circle = Point(0, 0).buffer(25, resolution=32)  # resolution controls smoothness
-        # resolution=32 creates 128 boundary points (4 × resolution) — higher resolution means smoother approximation.
-
-        # Convert to list of (x, y) tuples
-        self.flyzone_polygons = [Polygon(list(circle.exterior.coords))]
-
+    def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT_O4_MINI):
         prompt = self.prompt_flyzone.format(instruction=instruction)
-        response_content = self.llm_wrapper.request(prompt=prompt)
+        response_content = self.llm_wrapper.request(prompt=prompt, model_name=llm_model_name)
         if response_content.startswith("```json"):
             response_content = response_content.replace("```json", "").replace("```", "").strip()
 
@@ -88,7 +57,7 @@ class FlyzoneManager:
         if not response_content:
             print("ERROR: Received empty response from OpenAI API")
             # Return default direction as fallback
-            return self.flyzone_polygons
+            return
             
         # Parse JSON response
         try:
@@ -96,21 +65,18 @@ class FlyzoneManager:
         except json.JSONDecodeError as e:
             print(f"JSON parsing error: {e}")
             print(f"Response content: {response_content}")
-            return self.flyzone_polygons
-        
-
+            return
 
         # eval the returned string of polygons into a safe environment
-        polygons_list = [Polygon(coords) for coords in parsed['polygon_list']]
+        points_list = [Polygon(coords) for coords in parsed['points_list']]
         print("Request done")
-        self.flyzone_polygons = polygons_list
-
-    
+        self.middle_layer.setFlyzone(points_list)    
 
 
 if __name__ == '__main__':
-    flyzone_manager = FlyzoneManager()
-    flyzone_manager.request_new_flyzone(instruction="U-shaped flyzone")
+    flyzone_manager = FlyzoneManager(middle_layer=MiddleLayer())
+    # flyzone_manager.request_new_flyzone(instruction="2 squares of length 500 cm one next the other linked by a corridor of 100 cm")
+    flyzone_manager.request_new_flyzone(instruction="2 circles of radius 500 cm one next the other linked by a corridor of 100 cm")
     flyzone_manager.plot_current_flyzone()
     flyzone_manager.parse_current_flyzone()
     print(flyzone_manager.format_flyzone_for_prompt())

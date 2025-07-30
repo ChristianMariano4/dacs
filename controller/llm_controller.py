@@ -6,6 +6,8 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
+from controller.middle_layer.flyzone_manager import FlyzoneManager
+from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
 
 import cv2
@@ -43,13 +45,15 @@ class IterationDecision(Enum):
 
 class LLMController():
     def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
+        # shared middle layer that stores user settings
+        self.middle_layer = MiddleLayer()
+
         self.shared_frame = SharedFrame()
         if use_http:
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
         self.graph_manager = GraphManager(self)
-        # self.spine_agent = SPINE(self.graph_manager.graph_handler)
         self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_manager)
         self.latest_frame = None
         self.controller_active = True
@@ -64,6 +68,9 @@ class LLMController():
 
         if not os.path.exists(self.cache_folder):
             os.makedirs(self.cache_folder)
+
+        # Flyzone section
+        self.flyzone_manager = FlyzoneManager(middle_layer=self.middle_layer)
         
         match robot_type:
             case RobotType.TELLO:
