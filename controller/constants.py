@@ -4,3 +4,6 @@ Y_BOUND: int = 50
 
 # Used paths
 HIGH_LEVEL_SKILL_FILE = "controller/assets/tello/high_level_skills.json"
+
+# Robot specific name
+ROBOT_NAME = 'tello'
