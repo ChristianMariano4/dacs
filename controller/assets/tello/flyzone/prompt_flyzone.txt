@@ -1,0 +1,4 @@
+Given this instruction: '{instruction}', generate a Python list of Shapely-compatible polygons (as lists of (x, y) tuples), 
+such that their union forms that shape. Assume coordinates in cm and the drone starts at (0,0).
+Default flyzone is the following square: [ [[0, 0], [0, 100], [100, 100], [100, 0]] ].
+Respond in JSON format with the only field 'polygon_list'.
