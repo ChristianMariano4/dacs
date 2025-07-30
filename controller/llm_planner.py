@@ -4,7 +4,7 @@ from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
 from controller.assets.tello.examples import get_graph_examples
-from controller.constants import X_BOUND, Y_BOUND
+from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.task import Task
 
 from .skillset import HighLevelSkillItem, SkillSet
@@ -27,20 +27,22 @@ class LLMPlanner():
             type_folder_name = 'gear'
 
         # read prompt from txt
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/prompt_plan.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/plan/prompt_plan.txt"), "r") as f:
             self.prompt_plan = f.read()
+    
+        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/plan/plan_examples.txt"), "r") as f:
+            self.plan_examples = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/prompt_probe.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/prompt_probe.txt"), "r") as f:
             self.prompt_probe = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/prompt_probe_end_iteration.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/prompt_probe_end_iteration.txt"), "r") as f:
             self.prompt_probe_end_iteration = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/guides.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/guides.txt"), "r") as f:
             self.guides = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{type_folder_name}/new/plan_examples.txt"), "r") as f:
-            self.plan_examples = f.read()
+
 
         with open(os.path.join(CURRENT_DIR, f"./assets/minispec_syntax.txt"), "r") as f:
             self.minispec_syntax = f.read()

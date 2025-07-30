@@ -9,7 +9,7 @@ import numpy as np
 import base64
 from openai import OpenAI
 import os
-from controller.constants import X_BOUND, Y_BOUND
+from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.llm_wrapper import LLMWrapper, RequestType
 from controller.shared_frame import SharedFrame
 from controller.utils import encode_image
@@ -32,7 +32,7 @@ class EnvironmentalAnalysisModule:
     def __init__(self):
         # Set up your client
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
-        with open("controller/assets/tello/new/prompt_choose_direction.txt", "r") as f:
+        with open(f"controller/assets/{ROBOT_NAME}/direction/prompt_choose_direction.txt", "r") as f:
             self.direction_prompt = f.read()
 
         self.boundaries = { 
