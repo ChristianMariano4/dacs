@@ -7,16 +7,9 @@ Graph: {
     "robot_location": region_0,
 }
 Here is the 'current position': [0   0] - in region_0
-'boundaries': {"top_left": , "top_right": , 
-                "bottom_right": , "bottom_left": }
-Coordinate System:
-The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
-'boundaries' are defined by these four corners:
-- top-left: [500, -500]
-- top-right: [500, 500]
-- bottom-right: [-500, 500]
-- bottom-left: [-500, -500]
-Valid positions lie within x ∈ [-500, 500] and y ∈ [-500, 500].
+'flyzone': [
+  [[0, 0], [0, 1000], [300, 1000], [300, 300], [1000, 300], [1000, 0], [0, 0]]
+]
 
 Iteration 1:
 Scene: []
@@ -60,12 +53,14 @@ Response: l("I found a banana region_2 that is at [150, 150]");
 
 Iteration 7: New user task
 Scene: []
-Task: Go in position 1000, 100
-Reason: By looking at the boundaries I know that the request will put me out of them, because the x coordinate is out of the given range, although y coordinate is inside, so I log that the task is not feasible because of it.
+Task: Go in position 600, 500
+Reason: By looking at the flyzone, I can tell that the request would move me outside of it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested (600, 500) point lies outside its boundaries.
 Response: l("It is not possible to fulfill the task in the specified boundaries");
+
+The flyzone is defined by a set of points using the Python library Shapely.
 
 Iteration 8: New user task
 Scene: []
 Task: Go in position 300, 200
-Reason: By looking at the boundaries I can understand that the point (300, 200) is inside the boundaries, so I can go there.
+Reason: By looking at the flyzone, I can tell that the request keeps me inside it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested point (300, 200) lies within its boundaries.
 Response: gx(300, 200);
