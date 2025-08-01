@@ -11,6 +11,7 @@ from openai import OpenAI
 import os
 from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.llm_wrapper import LLMWrapper, RequestType
+from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.utils import encode_image
 
@@ -29,18 +30,15 @@ type_folder_name = 'tello'
 Can be used to bot get a description of the current scene and to get a more high-level description of the context where the drone is
 '''
 class EnvironmentalAnalysisModule:
-    def __init__(self):
+    def __init__(self, middle_layer: MiddleLayer=None):
         # Set up your client
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
         with open(f"controller/assets/{ROBOT_NAME}/direction/prompt_choose_direction.txt", "r") as f:
             self.direction_prompt = f.read()
 
-        self.boundaries = { 
-             "north-west": (X_BOUND, -Y_BOUND),
-             "north-east": (X_BOUND, Y_BOUND),
-             "south-east": (-X_BOUND, Y_BOUND),
-             "south-west": (-X_BOUND, -Y_BOUND),
-        }
+        self.middle_layer = middle_layer
+        if self.middle_layer != None:
+            self.flyzone = middle_layer.getFlyzone()
 
         self.llm_wrapper = LLMWrapper()
     
@@ -51,7 +49,7 @@ class EnvironmentalAnalysisModule:
         
         # Prepare the request
         response = self.client.chat.completions.create(
-            model=GPT3,
+            model=GPT4,
             messages=[
                 {
                     "role": "user",
@@ -89,11 +87,7 @@ class EnvironmentalAnalysisModule:
             print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
             prompt = self.direction_prompt.format(task=current_task, 
                                                   hint=hint, 
-                                                  boundaries=self.boundaries,
-                                                  x_north=X_BOUND,
-                                                  x_south=-X_BOUND,
-                                                  y_east=Y_BOUND,
-                                                  y_west=-Y_BOUND,
+                                                  flyzone=self.flyzone,
                                                   current_position=current_position,
                                                   )
 
