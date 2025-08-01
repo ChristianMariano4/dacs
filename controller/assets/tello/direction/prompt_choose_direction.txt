@@ -1,13 +1,10 @@
 The drone must choose which direction to move based on the goal: **"{task}"**.
 Take also in consideration an hint (if present) of what to focus on in the choice: **"{hint}"**.
 Ignore the hint if is not useful or feasible with the given images.
-Take also in consideration the boundaries, answering only with a direction and a distance that are feasible with them.
+Also take the 'flyzone' into account—you must remain inside it. Respond only with a direction and distance that are feasible given the drone's 'current position' and the 'flyzone' boundaries.
 
-Coordinate System:
-The first parameter is the X-axis (north-south), and the second is the Y-axis (west-right), with positive values indicating forward and right.
-'boundaries' are defined by these four corners:
-{boundaries}
-Valid positions lie within x ∈ [{x_south}, {x_north}] and y ∈ [{y_west}, {y_east}].
+Here is the the 'flyzone':
+{flyzone}
 
 Here is the 'current position': {current_position}
 
