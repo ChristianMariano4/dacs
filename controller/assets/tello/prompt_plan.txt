@@ -29,7 +29,7 @@ The 'execution history' is the actions have been taken from previous responses. 
 The 'graph of the environment' is an incomplete graph representation of an environment, with the visible objects. The graph may be missing objects and connections, so some tasks may require you to explore. Exploration means mapping existing regions to find objects, or exploring new areas to create a new region to find paths. New regions are automatically created when you go to new areas. You can only change their names. Consider this graph when choosing the direction to explore.
 The 'current position' is where you are in the environment.
 The 'minispec syntax' is the syntax of the language that is required to be used.
-The 'boundaries' are the imaginary boundaries beyond which the drone should not go, as they fall outside the target area, so take them into consideration when planning drone movement. Going out from them it is forbidden.
+The 'flyzone' is an imaginary area that the drone must remain within at all times. Take this into account when generating a plan, as the drone must stay inside the flyzone after every movement. The flyzone is defined by a set of points using the Python library Shapely. Use the drone's current position to generate a plan that ensures it does not exit the flyzone. Exiting the flyzone is strictly forbidden.
 
 Each entry of the graph contains the following types:
 - 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
@@ -57,14 +57,8 @@ Here is the 'graph of the environment':
 Here is the 'current position':
 {current_position} - in {current_region}
 
-Coordinate System:
-The first parameter is the X-axis (forward–backward), and the second is the Y-axis (left–right), with positive values indicating forward and right.
-'boundaries' are defined by these four corners:
-- top-left: [{x_top}, {y_left}]
-- top-right: [{x_top}, {y_right}]
-- bottom-right: [{x_bottom}, {y_right}]
-- bottom-left: [{x_bottom}, {y_left}]
-Valid positions lie within x ∈ [{x_bottom}, {x_top}] and y ∈ [{y_left}, {y_right}].
+Here is the 'flyzone':
+{flyzone}
 
 Here is the 'minispec syntax':
 {minispec_syntax}
