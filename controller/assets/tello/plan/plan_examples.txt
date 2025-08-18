@@ -7,7 +7,7 @@ Graph: {
     "robot_location": region_0,
 }
 Here is the 'current position': [0   0] - in region_0
-'flyzone': [
+'example flyzone': [
   [[0, 0], [0, 1000], [300, 1000], [300, 300], [1000, 300], [1000, 0], [0, 0]]
 ]
 
@@ -56,8 +56,6 @@ Scene: []
 Task: Go in position 600, 500
 Reason: By looking at the flyzone, I can tell that the request would move me outside of it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested (600, 500) point lies outside its boundaries.
 Response: l("It is not possible to fulfill the task in the specified boundaries");
-
-The flyzone is defined by a set of points using the Python library Shapely.
 
 Iteration 8: New user task
 Scene: []
