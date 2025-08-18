@@ -75,8 +75,10 @@ class FlyzoneManager:
 
 if __name__ == '__main__':
     flyzone_manager = FlyzoneManager(middle_layer=MiddleLayer())
+    # flyzone_manager.request_new_flyzone(instruction="a simple squares of length 850cm")
     # flyzone_manager.request_new_flyzone(instruction="2 squares of length 500 cm one next the other linked by a corridor of 100 cm")
     flyzone_manager.request_new_flyzone(instruction="2 circles of radius 500 cm one next the other linked by a corridor of 100 cm")
+    # flyzone_manager.request_new_flyzone(instruction="L-shaped with height and width 1000cm ")
     flyzone_manager.plot_current_flyzone()
     flyzone_manager.parse_current_flyzone()
     print(flyzone_manager.format_flyzone_for_prompt())
