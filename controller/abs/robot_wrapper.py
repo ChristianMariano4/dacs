@@ -4,7 +4,7 @@ import json
 import os
 from typing import Tuple
 
-from controller.context_map.mapping.graph_manager import GraphManager
+from controller.context_map.graph_manager import GraphManager
 
 class RobotType(Enum):
     VIRTUAL = "virtual"

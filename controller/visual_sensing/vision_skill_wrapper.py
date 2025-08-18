@@ -2,7 +2,7 @@ from typing import List, Union, Tuple, Optional
 import numpy as np
 import time, math
 import cv2
-from controller.context_map.mapping.graph_manager import GraphManager
+from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
 from controller.utils import encode_image
