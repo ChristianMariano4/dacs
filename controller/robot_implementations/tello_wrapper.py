@@ -8,9 +8,9 @@ from typing import Tuple
 from djitellopy import Tello
 
 from controller.constants import REGION_THRESHOLD
-from controller.context_map.mapping.graph_manager import GraphManager
+from controller.context_map.graph_manager import GraphManager
 
-from .abs.robot_wrapper import RobotWrapper
+from ..abs.robot_wrapper import RobotWrapper
 
 import logging
 Tello.LOGGER.setLevel(logging.WARNING)

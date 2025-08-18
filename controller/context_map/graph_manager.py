@@ -1,7 +1,7 @@
 import json
 import os
 from typing import Dict, List, Sequence
-from controller.context_map.mapping.graph_handler import GraphHandler
+from controller.context_map.graph_handler import GraphHandler
 from controller.context_map.spine_util import UpdatePromptFormer
 import numpy as np
 import uuid

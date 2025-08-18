@@ -7,7 +7,7 @@ import numpy as np
 from typing import Tuple
 
 import controller.utils as utils
-from .abs.robot_wrapper import RobotWrapper
+from ..abs.robot_wrapper import RobotWrapper
 
 
 
@@ -22,6 +22,190 @@ from cflib.crazyflie.commander import Commander
 
 from cflib.utils import uri_helper
 
+# object detection screen dimension. note: (0,0) is the top-left screen corner
+CENTER_SCREEN_X = 162.5
+CENTER_SCREEN_Y = 122.5
+
+# import logging
+# Tello.LOGGER.setLevel(logging.WARNING)
+
+
+MOVEMENT_MIN = 20
+MOVEMENT_MAX = 300
+
+SCENE_CHANGE_DISTANCE = 120
+SCENE_CHANGE_ANGLE = 90
+
+def adjust_exposure(img, alpha=1.0, beta=0):
+    """
+    Adjust the exposure of an image.
+    
+    :param img: Input image
+    :param alpha: Contrast control (1.0-3.0). Higher values increase exposure.
+    :param beta: Brightness control (0-100). Higher values add brightness.
+    :return: Exposure adjusted image
+    """
+    # Apply exposure adjustment using the formula: new_img = img * alpha + beta
+    new_img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
+    return new_img
+
+
+import socket
+import struct
+import time
+import numpy as np
+import cv2
+
+class AIDeckClient:
+    def __init__(self, ip="192.168.4.1", port=5000):
+        self.ip = ip
+        self.port = port
+        self.socket = None
+        self.connect()
+
+    def connect(self):
+        # Open a TCP connection to the AI-deck, which streams image data continuously.
+        print(f"Connecting to {self.ip}:{self.port}...")
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        client_socket.connect((self.ip, self.port))
+        print("Connection established.")
+
+    # Ensure exactly size bytes are received from the socket
+    def rx_bytes(self, size):
+        data = bytearray()
+        while len(data) < size:
+            data.extend(self.socket.recv(size - len(data)))
+        return data
+    
+    def receive_image_packet(self):
+        # Get image packet header
+        header = self.rx_bytes(4)
+        #print(packetInfoRaw)
+
+        length, routing, function = struct.unpack('<HBB', header)
+        #print("Length is {}".format(length))
+        #print("Route is 0x{:02X}->0x{:02X}".format(routing & 0xF, routing >> 4))
+        #print("Function is 0x{:02X}".format(function))
+
+        img_header = self.rx_bytes(length - 2)
+        #print(img_header)
+        #print("Length of data is {}".format(len(imgHeader)))
+        magic, width, height, depth, img_format, size = struct.unpack('<BHHBBI', img_header)
+
+        if magic != 0xBC:
+            return None, None, None
+        
+        #print("Magic is good")
+        #print("Resolution is {}x{} with depth of {} byte(s)".format(width, height, depth))
+        #print("Image format is {}".format(format))
+        #print("Image size is {} bytes".format(size))
+
+        # Start receiving the image, packet by packet
+        img_stream = bytearray()
+        while len(img_stream) < size:
+            packet_header = self.rx_bytes(4)
+            chunk_length, dst, src = struct.unpack('<HBB', packet_header)
+            #print("Chunk size is {} ({:02X}->{:02X})".format(length, src, dst))
+            chunk = self.rx_bytes(chunk_length - 2)
+            img_stream.extend(chunk)
+        
+        return img_stream, img_format, (width, height)
+    
+    def close(self):
+        if self.socket:
+            self.socket.close()
+            print("Connection closed.")
+
+class AIDeckViewer:
+    def __init__(self, client: AIDeckClient, output_queue1, output_queue2):
+        self.client = client
+        self.output_queue1 = output_queue1
+        self.output_queue2 = output_queue2
+        self.fps_avg_frame_count = 10
+    
+    def display_loop(self):
+        frame_count = 0
+        start = time.time()
+
+        try:
+            while True:
+                img_stream, img_format, _ = self.client.receive_image_packet()
+                if img_stream is None:
+                    continue
+
+                if img_format == 0: # Image is in Bayer format (raw sensor data)
+                    bayer_img = np.frombuffer(img_stream, dtype=np.uint8).reshape((244, 324))
+                    color_img = cv2.cvtColor(bayer_img, cv2.COLOR_BayernBG2RGB)
+                    cv2.imshow('Raw', bayer_img)
+                    cv2.imshow('Color', color_img)
+                    if False:
+                        cv2.imwrite(f"stream_out/raw/img_{count:06d}.png", bayer_img)
+                        cv2.imwrite(f"stream_out/debayer/img_{count:06d}.png", color_img)
+                else: # Image is jpeg
+                    # with open("img.jpeg", "wb") as f:
+                    #     f.write(img_stream)
+                    nparr = np.frombuffer(img_stream, np.uint8)
+                    color_img = cv2.imdecode(nparr,cv2.IMREAD_UNCHANGED)
+                    cv2.imshow('JPEG', color_img)
+                
+                cv2.waitKey(1)
+
+                self.output_queue1.put(color_img)
+                self.output_queue2.put(color_img)
+
+                frame_count += 1
+
+                # Compute average FPS every 10 frames
+                if frame_count % self.fps_avg_frame_count == 0:
+                    elapsed = time.time() - start
+                    fps = self.fps_avg_frame_count / elapsed
+                    start = time.time()
+                    
+                    fps_text = 'FPS = {:.1f}'.format(fps)
+                    #print(fps_text)
+    
+        finally:
+            print("Viewer stopped.")
+            self.client.close()
+            cv2.destroyAllWindows()
+
+def sharpen_image(img):
+    """
+    Apply a sharpening filter to an image.
+    
+    :param img: Input image
+    :return: Sharpened image
+    """
+    # Define a sharpening kernel
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    
+    # Apply the sharpening filter
+    sharpened = cv2.filter2D(img, -1, kernel)
+    return sharpened
+
+class FrameReader:
+    def __init__(self, fr):
+        # Initialize the video capture
+        self.fr = fr
+
+    @property
+    def frame(self):
+        # Read a frame from the video capture
+        frame = self.fr.frame
+        frame = adjust_exposure(frame, alpha=1.3, beta=-30)
+        return sharpen_image(frame)
+        
+def cap_distance(distance):
+    if distance < MOVEMENT_MIN:
+        return MOVEMENT_MIN
+    elif distance > MOVEMENT_MAX:
+        return MOVEMENT_MAX
+    return distance
+
 class CrazyflieWrapper(RobotWrapper):
     def __init__(self, move_enable: bool = False):
         super().__init__(move_enable=move_enable)
@@ -30,6 +214,7 @@ class CrazyflieWrapper(RobotWrapper):
         self.connected = False
         self.link_uri = 'radio://0/80/2M/E7E7E7E7E7'
         self.z_target = 0.5  # Default target height in meters
+
 
     def connect(self):
         cflib.crtp.init_drivers()
@@ -51,9 +236,6 @@ class CrazyflieWrapper(RobotWrapper):
             # Reset e aspetta la stabilizzazione del Kalman
             self.reset_kalman_estimator()
             
-            # Verifica batteria
-            if not self.check_battery():
-                raise Exception("Battery level too low")
                 
             self.connected = True
             print("Connected to Crazyflie - Ready for flight")
@@ -89,6 +271,17 @@ class CrazyflieWrapper(RobotWrapper):
         # self.stream_on = False
         # if self.ai_deck_client.socket:
         #     self.ai_deck_client.close()
+        # if self.ai_deck_client.socket:
+        #     self.ai_deck_client.close()
+
+    def get_move_enable(self):
+        return True
+    
+    def get_is_flying(self):
+        return self.is_flying
+    
+    def set_is_flying(self, value):
+        self.is_flying = value
     
     def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
         utils.print_t(f"New trajectory creation ... associated with gesture {gesture}")
@@ -188,7 +381,6 @@ class CrazyflieWrapper(RobotWrapper):
         # time.sleep(duration)
         return True, False
 
-
     def reset_kalman_estimator(self):
         self.cf.param.set_value('kalman.resetEstimation', '1')
         time.sleep(0.5)  # Aumenta il tempo
@@ -280,4 +472,13 @@ class CrazyflieWrapper(RobotWrapper):
         pass
 
     def turn_cw(self, degree: int) -> bool:
+        pass
+
+    def keep_active(self):
+        pass
+
+    def get_frame_reader(self):
+        pass
+
+    def get_pose(self):
         pass

@@ -14,15 +14,15 @@ import cv2
 import numpy as np
 import torch
 
-from controller.context_map.mapping.graph_manager import GraphManager
+from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 
 
 from .shared_frame import SharedFrame, Frame
 from .yolo_client import YoloClient
 from .yolo_grpc_client import YoloGRPCClient
-from .tello_wrapper import TelloWrapper
-from .virtual_robot_wrapper import VirtualRobotWrapper
+from .robot_implementations.tello_wrapper import TelloWrapper
+from .robot_implementations.virtual_robot_wrapper import VirtualRobotWrapper
 from .abs.robot_wrapper import RobotWrapper
 from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
@@ -78,11 +78,11 @@ class LLMController():
                 self.drone: RobotWrapper = TelloWrapper(move_enable=True, graph_manager=self.graph_manager)
             case RobotType.GEAR:
                 print_t("[C] Start Gear robot car...")
-                from .gear_wrapper import GearWrapper
+                from .robot_implementations.gear_wrapper import GearWrapper
                 self.drone: RobotWrapper = GearWrapper()
             case RobotType.CRAZYFLIE:
                 print_t("[C] Start Crazyflie drone...")
-                from .crazyflie_wrapper import CrazyflieWrapper
+                from .robot_implementations.crazyflie_wrapper import CrazyflieWrapper
                 self.drone: CrazyflieWrapper = CrazyflieWrapper(move_enable=True)
             case _:
                 print_t("[C] Start virtual drone...")

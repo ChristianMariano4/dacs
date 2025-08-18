@@ -1,6 +1,6 @@
 import cv2, time
 from typing import Tuple
-from .abs.robot_wrapper import RobotWrapper
+from ..abs.robot_wrapper import RobotWrapper
 
 class FrameReader:
     def __init__(self, cap):

@@ -23,7 +23,7 @@ import argparse
 # import scipy.interpolate
 import scipy.optimize
 import os 
-import controller.uav_trajectory as uav_trajectory
+import controller.trajectory.uav_trajectory as uav_trajectory
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))

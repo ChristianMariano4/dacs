@@ -1,6 +1,6 @@
 import time, os
 from typing import Tuple
-from .abs.robot_wrapper import RobotWrapper
+from ..abs.robot_wrapper import RobotWrapper
 from podtp import Podtp
 import torch
 import torch.nn as nn
