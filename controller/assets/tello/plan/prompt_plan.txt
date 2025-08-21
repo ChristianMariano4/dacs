@@ -30,6 +30,7 @@ The 'graph of the environment' is an incomplete graph representation of an envir
 The 'current position' is where you are in the environment.
 The 'minispec syntax' is the syntax of the language that is required to be used.
 The 'flyzone' is an imaginary area that the drone must remain within at all times. Take this into account when generating a plan, as the drone must stay inside the flyzone after every movement. The flyzone is defined by a set of points using the Python library Shapely. Use the drone's current position to generate a plan that ensures it does not exit the flyzone. Exiting the flyzone is strictly forbidden.
+The 'plan_examples' is a collection of examples, organized into iterations, that you can use as hints to understand how to use the different tools. Remember not to use the information from these examples when generating the actual plan for the user’s task.
 
 Each entry of the graph contains the following types:
 - 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
@@ -39,7 +40,7 @@ Each entry of the graph contains the following types:
 Here are some extra guides for you to better understand the task and generate a better response:
 {guides}
 
-Here is a list of example 'response' for different 'scene description' and 'task description', and their explanations:
+Here is a list of example 'response' for different 'scene description', 'task description', 'graph' and 'flyzone', and their explanations:
 {plan_examples}
 
 Here is the 'scene description':

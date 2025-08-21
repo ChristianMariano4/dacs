@@ -45,19 +45,31 @@ Task: Come back to region_0, because I need you here
 Reason: The robot is currently in region_3 at [150, 0], and the goal is to return to region_0 at [0, 0]. So I can use go_xy_speed skill to go there.
 Response: gx(0, 0); l("Returned to region_0 at [0, 0]. Do you need anything else?");
 
-Iteration 6: New user task
+Iteration 6: New user task - move inside flyzone part 1
+Scene: []
+Task: Move from region_0 at [0, 0] to region_2 at [150, 150], ensuring the path stays inside the flyzone.
+Reason: By looking at the flyzone, I can compute that the straight path from [0, 0] to [150, 150] lies entirely within the L-shaped polygon. Since it does not cross the boundary, I can safely move directly there using the go_xy skill.
+Response: gx(150, 150); l("Moved to region_2 at [150, 150] inside the flyzone.");
+
+Iteration 7: New user task - move inside flyzone part 2
+Scene: []
+Task: Move from region_2 at [150, 150] to [600, 500].
+Reason: The direct line from [150, 150] to [600, 500] crosses outside the L-shaped flyzone. To stay inside, I need to reroute: first move right to [300, 150], then up to [300, 300], then continue right to [600, 300], which is inside the polygon and directly below the target point. Since [600, 500] is outside, I will stop at the closest valid point [600, 300].
+Response: gx(300, 150); gx(300, 300); gx(600, 300); l("Stopped at [600, 300] because the requested [600, 500] is outside the flyzone.");
+
+Iteration 8: New user task
 Scene: []
 Task: Where can I find a banana?
 Reason: By looking at the graph I know from previous exploration that a banana was found in region_2. Then the task will be endend, so I do not insert replan.
 Response: l("I found a banana region_2 that is at [150, 150]");
 
-Iteration 7: New user task
+Iteration 9: New user task
 Scene: []
 Task: Go in position 600, 500
 Reason: By looking at the flyzone, I can tell that the request would move me outside of it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested (600, 500) point lies outside its boundaries.
 Response: l("It is not possible to fulfill the task in the specified boundaries");
 
-Iteration 8: New user task
+Iteration 10: New user task
 Scene: []
 Task: Go in position 300, 200
 Reason: By looking at the flyzone, I can tell that the request keeps me inside it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested point (300, 200) lies within its boundaries.
