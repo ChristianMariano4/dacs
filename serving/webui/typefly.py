@@ -51,6 +51,9 @@ class TypeFly:
                     
                 with gr.TabItem("📊 Graph Visualization"):
                     self.setup_graph_tab()
+                
+                with gr.TabItem("⚙️ Settings"):
+                    self.setup_settings_tab()
             # TODO: Add checkbox to switch between llama3 and gpt4
             # gr.Checkbox(label='Use llama3', value=False).select(self.checkbox_llama3)
 
@@ -81,6 +84,33 @@ class TypeFly:
             refresh_btn.click(self.refresh_graph, outputs=[self.graph_component, self.graph_status])
             clear_btn.click(self.clear_graph_data, outputs=[self.graph_status])
             auto_refresh_btn.click(self.toggle_auto_refresh, outputs=[self.graph_status])
+
+    def setup_settings_tab(self):
+        """Setup the  tab"""
+        with gr.Column():
+            gr.Markdown("## 🌐 User Settings")
+            gr.Markdown("Personalize your experience by adjusting options to suit your preferences.")
+            
+            # Chat input for generating a flyzone
+            gr.Markdown("### ✈️ Generate Flyzone")
+            flyzone_prompt = gr.Textbox(
+                label="Enter prompt to generate a flyzone",
+                placeholder="Describe the area and shape of the flyzone...",
+                lines=2
+            )
+            generate_btn = gr.Button("Generate Flyzone")
+
+            # # Placeholder for generated flyzone output
+            # flyzone_output = gr.JSON(label="Generated Flyzone (polygons)")
+
+            # Connect button to a function (placeholder)
+            generate_btn.click(
+                fn=self.llm_controller.get_flyzone_manager().request_new_flyzone,
+                inputs=flyzone_prompt,
+                outputs=None,
+            )
+
+
 
     def get_graph_html(self):
         """Generate the HTML for the graph visualization"""
