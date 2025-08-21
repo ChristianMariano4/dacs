@@ -18,18 +18,18 @@ from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 
 
-from .shared_frame import SharedFrame, Frame
-from .yolo_client import YoloClient
-from .yolo_grpc_client import YoloGRPCClient
-from .robot_implementations.tello_wrapper import TelloWrapper
-from .robot_implementations.virtual_robot_wrapper import VirtualRobotWrapper
-from .abs.robot_wrapper import RobotWrapper
-from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
+from ..shared_frame import SharedFrame, Frame
+from ..yolo_client import YoloClient
+from ..yolo_grpc_client import YoloGRPCClient
+from ..robot_implementations.tello_wrapper import TelloWrapper
+from ..robot_implementations.virtual_robot_wrapper import VirtualRobotWrapper
+from ..abs.robot_wrapper import RobotWrapper
+from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
-from .skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
-from .utils import input_t, print_t
-from .minispec_interpreter import MiniSpecInterpreter, Statement
-from .abs.robot_wrapper import RobotType
+from ..skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
+from ..utils import input_t, print_t
+from ..minispec_interpreter import MiniSpecInterpreter, Statement
+from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -78,11 +78,11 @@ class LLMController():
                 self.drone: RobotWrapper = TelloWrapper(move_enable=True, graph_manager=self.graph_manager)
             case RobotType.GEAR:
                 print_t("[C] Start Gear robot car...")
-                from .robot_implementations.gear_wrapper import GearWrapper
+                from ..robot_implementations.gear_wrapper import GearWrapper
                 self.drone: RobotWrapper = GearWrapper()
             case RobotType.CRAZYFLIE:
                 print_t("[C] Start Crazyflie drone...")
-                from .robot_implementations.crazyflie_wrapper import CrazyflieWrapper
+                from ..robot_implementations.crazyflie_wrapper import CrazyflieWrapper
                 self.drone: CrazyflieWrapper = CrazyflieWrapper(move_enable=True)
             case _:
                 print_t("[C] Start virtual drone...")
@@ -140,7 +140,7 @@ class LLMController():
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
-        with open(os.path.join(CURRENT_DIR, f"assets/{ROBOT_NAME}/skills/high_level_skills.json"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/skills/high_level_skills.json"), "r") as f:
             json_data = json.load(f)
             for skill in json_data:
                 self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))

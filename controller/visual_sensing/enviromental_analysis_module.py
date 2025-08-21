@@ -10,7 +10,7 @@ import base64
 from openai import OpenAI
 import os
 from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
-from controller.llm_wrapper import LLMWrapper, RequestType
+from controller.llm.llm_wrapper import LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.utils import encode_image

@@ -2,7 +2,6 @@ import json
 import os
 from typing import Dict, List, Sequence
 from controller.context_map.graph_handler import GraphHandler
-from controller.context_map.spine_util import UpdatePromptFormer
 import numpy as np
 import uuid
 
@@ -15,7 +14,6 @@ class GraphManager:
     def __init__(self, llmController, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
         self.llmController = llmController
         self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
-        self.updater = UpdatePromptFormer()
         self.current_region = start_region
         self.drone_pose = None
 

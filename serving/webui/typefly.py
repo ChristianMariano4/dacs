@@ -11,9 +11,9 @@ import argparse
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 sys.path.append(PARENT_DIR)
-from controller.llm_controller import LLMController
+from controller.llm.llm_controller import LLMController
 from controller.utils import print_t
-from controller.llm_wrapper import GPT4, LLAMA3
+from controller.llm.llm_wrapper import GPT4, LLAMA3
 from controller.abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))

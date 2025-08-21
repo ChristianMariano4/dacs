@@ -5,11 +5,12 @@ from openai import Stream, ChatCompletion
 
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4o"
+GPT5 = "gpt-5"
 GPT_O4_MINI = "o4-mini"
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-chat_log_path = os.path.join(CURRENT_DIR, "assets/chat_log.txt")
+chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
 
 class RequestType(Enum):
     EXPLORE_DIRECTION = "explore_direction"
@@ -28,7 +29,7 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, prompt, image=None, images=None, model_name=GPT4, stream=False, request_type: RequestType = RequestType.SIMPLE) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, prompt, image=None, images=None, model_name=GPT5, stream=False, request_type: RequestType = RequestType.SIMPLE) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:

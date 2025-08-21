@@ -3,16 +3,15 @@ import os, ast
 from typing import Optional, Sequence
 
 from controller.abs.skill_item import SkillItem
-from controller.assets.tello.examples import get_graph_examples
 from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.task import Task
 
-from .skillset import HighLevelSkillItem, SkillSet
-from .llm_wrapper import LLMWrapper, GPT3, GPT4, RequestType
-from .visual_sensing.vision_skill_wrapper import VisionSkillWrapper
-from .utils import print_t
-from .minispec_interpreter import MiniSpecValueType, evaluate_value
-from .abs.robot_wrapper import RobotType
+from ..skillset import HighLevelSkillItem, SkillSet
+from .llm_wrapper import LLMWrapper, GPT3, GPT4, GPT5, RequestType
+from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
+from ..utils import print_t
+from ..minispec_interpreter import MiniSpecValueType, evaluate_value
+from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,34 +19,31 @@ class LLMPlanner():
     def __init__(self, robot_type: RobotType, current_task: Task):
         self.llm = LLMWrapper()
         self.current_task = current_task
-        self.model_name = GPT4
+        self.model_name = GPT5
 
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
 
         # read prompt from txt
-        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/plan/prompt_plan.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/prompt_plan.txt"), "r") as f:
             self.prompt_plan = f.read()
     
-        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/plan/plan_examples.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/plan_examples.txt"), "r") as f:
             self.plan_examples = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/prompt_probe.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/prompt_probe.txt"), "r") as f:
             self.prompt_probe = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/prompt_probe_end_iteration.txt"), "r") as f:
-            self.prompt_probe_end_iteration = f.read()
-
-        with open(os.path.join(CURRENT_DIR, f"./assets/{ROBOT_NAME}/guides.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/guides.txt"), "r") as f:
             self.guides = f.read()
 
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
+            self.flyzone = f.read()
 
-
-        with open(os.path.join(CURRENT_DIR, f"./assets/minispec_syntax.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"../assets/minispec_syntax.txt"), "r") as f:
             self.minispec_syntax = f.read()
 
-        self.context_graph_examples = get_graph_examples()
 
     def set_model(self, model_name):
         self.model_name = model_name
@@ -93,10 +89,7 @@ class LLMPlanner():
                                             current_position=current_position,
                                             current_region=current_region,
                                             minispec_syntax=self.minispec_syntax,
-                                            x_top=X_BOUND,
-                                            x_bottom=-X_BOUND,
-                                            y_left=-Y_BOUND,
-                                            y_right=Y_BOUND,
+                                            flyzone=self.flyzone,
                                             )
         
         #print(prompt)
