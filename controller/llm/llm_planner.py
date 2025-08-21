@@ -107,7 +107,9 @@ class LLMPlanner():
         parsed = json.loads(response_content)
         plan = parsed.get("plan", None)
         reason = parsed.get("reason", None)
-        return plan, reason
+        iteration_description = parsed.get("description", None)
+        iteration_description = "Description of the iteration: " + iteration_description
+        return plan, reason, iteration_description
     
     def probe(self, question: str) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()

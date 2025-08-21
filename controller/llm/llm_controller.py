@@ -297,10 +297,10 @@ class LLMController():
             YoloClient.plot_results_oi(image, self.vision.object_list)
         return image
     
-    def execute_minispec(self, minispec: str):
+    def execute_minispec(self, minispec: str, iteration_description: str):
         interpreter = MiniSpecInterpreter(self.message_queue)
         ret_val = interpreter.execute(minispec)
-        self.current_task.update_execution_history(interpreter.execution_history)
+        self.current_task.update_execution_history(interpreter.execution_history, iteration_description)
         # self.execution_history = interpreter.execution_history
         # ret_val = interpreter.ret_queue.get()
         return ret_val
@@ -313,7 +313,7 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_plan, reason = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
+            self.current_plan, reason, iteration_description = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
             if not self.current_plan or not reason: # resend the request
                 continue
 
@@ -324,7 +324,7 @@ class LLMController():
             print_t("Message appended")
             try:
                 self.execution_time = time.time()
-                ret_val = self.execute_minispec(self.current_task.get_current_plan())
+                ret_val = self.execute_minispec(self.current_task.get_current_plan(), iteration_description)
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             

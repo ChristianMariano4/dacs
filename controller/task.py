@@ -18,8 +18,10 @@ class Task():
     def get_task_description(self):
         return self.task_description
     
-    def update_execution_history(self, new_statement: Statement | str):
-        self.execution_history.append(new_statement)
+    def update_execution_history(self, *new_statements: Statement | str):
+        # convert all to str, then join with space (or another delimiter if you prefer)
+        combined = ". ".join(str(stmt) for stmt in new_statements)
+        self.execution_history.append(combined)
     
     def get_execution_history(self):
         return self.execution_history
