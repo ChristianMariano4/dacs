@@ -1,4 +1,4 @@
-#Example 1
+#Start of the Example 
 Graph: {
     "objects": [],
     "regions": [{"name": "region_0", "coords": [0, 0]},],
@@ -74,3 +74,19 @@ Scene: []
 Task: Go in position 300, 200
 Reason: By looking at the flyzone, I can tell that the request keeps me inside it. The flyzone, reconstructed using the Shapely Python library, is L-shaped, and the requested point (300, 200) lies within its boundaries.
 Response: gx(300, 200);
+
+
+Iteration 11: New user task - create a new high level skill
+Scene: []
+Task: I need an apple. Is there one in the scene?
+Reason: I have already scanned and explored multiple times in previous iterations (using scan + ed). This pattern is repeating whenever I look for fruits. To avoid redundancy, I will create a reusable skill fruit_hunt that scans for the requested fruit, and if not found, explores a new direction. This makes searching more efficient and avoids code duplication.
+Response: as("fruit_hunt", "Look for a fruit by scanning and exploring if not visible", "scan($1)==True{l($1 + ' found');->True};ed();rp();"); fruit_hunt([\"apple\"]);  
+
+Iteration 12: New user task - use a previously defined high level skill
+Scene: []
+Task: Where can I find an orange?
+Reason: Instead of repeating the logic for scanning and exploring, I can now use the fruit_hunt high level skill I created earlier. This will first check the current view and known graph, then move in a new direction if the fruit isn’t visible.
+Response: fruit_hunt([\"orange\"]);  
+If orange is already in the graph (region_2 at [150, 150]), the response will be: l("orange found in region_2 at [150, 150]");
+
+#End of the Example 
