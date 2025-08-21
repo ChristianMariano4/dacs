@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from controller.constants import ROBOT_NAME
-from controller.llm.llm_wrapper import GPT_O4_MINI, LLMWrapper
+from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper
 from controller.middle_layer.middle_layer import MiddleLayer
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +46,7 @@ class FlyzoneManager:
             descriptions.append(f"Polygon {idx+1}: defined by points {points_str}.")
         return "The allowed flyzone is composed of the following polygonal regions:\n" + "\n".join(descriptions)
     
-    def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT_O4_MINI):
+    def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
         prompt = self.prompt_flyzone.format(instruction=instruction)
         response_content = self.llm_wrapper.request(prompt=prompt, model_name=llm_model_name)
         if response_content.startswith("```json"):
@@ -70,7 +70,9 @@ class FlyzoneManager:
         # eval the returned string of polygons into a safe environment
         points_list = [Polygon(coords) for coords in parsed['points_list']]
         print("Request done")
-        self.middle_layer.setFlyzone(points_list)    
+        self.middle_layer.setFlyzone(points_list)
+        self.plot_current_flyzone()
+        self.parse_current_flyzone()    
 
 
 if __name__ == '__main__':
