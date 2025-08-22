@@ -379,13 +379,12 @@ class Statement:
             interp.parse([skill.execute(args)])
             interp.finished = True
             val = interp.eval()
-            if val.value == 'rp':
-                return MiniSpecReturnValue(f'High-level skill {skill.get_name()} failed', True)
+            if val.replan:
+                return MiniSpecReturnValue(val.value, True)
             
-            # If the skill returned with self.ret=True but the value is not 'rp',
-            # it's a normal return value, not a replan
-            if interp.ret and val.value != 'rp':
-                return MiniSpecReturnValue(val.value, False)  # Normal return, no replan
+            # If the skill exited early with a return (but not a replan), pass through value
+            if interp.ret:
+                return MiniSpecReturnValue(val.value, False)
             
             return val
 
@@ -428,7 +427,7 @@ class Statement:
                 return MiniSpecReturnValue(result.value, True)  # Error/replan signal
             else:
                 # Normal return value (True, False, etc.) - not a replan
-                return MiniSpecReturnValue(self.eval_expr(expr.lstrip('->')).value, False)
+                return MiniSpecReturnValue(result.value, False)
 
         # assegnazione (=) -----------------------------------------------------
         eq_idx = self._top_level_eq_index(expr)
