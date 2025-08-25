@@ -11,6 +11,7 @@ class Task():
         self.battery_percent = None
         self.objects_list = []
         self.graph_json = {}
+        self.user_feedback = ""
 
     # def set_task_description(self, task_description: str):
     #     self.task_description = task_description
@@ -65,3 +66,9 @@ class Task():
 
     def set_graph_json(self, value):
         self.graph_json = value
+
+    def set_user_feedback(self, user_feedback: str):
+        self.user_feedback = user_feedback
+
+    def get_user_feedback(self, user_feedback: str) -> str:
+        return self.user_feedback
