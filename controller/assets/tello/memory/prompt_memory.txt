@@ -15,11 +15,11 @@ Generate a **concise and informative summary** of this interaction, highlighting
 
 Suggested format (JSON or structured text):
 
-{
+{{
   "task_summary": "...",        // brief summary of the task
   "execution_summary": "...",   // brief summary of the robot's output
   "feedback_summary": "...",    // summary of user feedback
   "lessons_learned": "..."      // notes for future tasks
-}
+}}
 
 Keep the text clear, concise, and ready to be used as an embedding for a vector database.
