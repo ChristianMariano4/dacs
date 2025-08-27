@@ -168,3 +168,7 @@ test.py
 cache/
 chat_log.txt
 results/
+
+# Memory directory
+c3af123d-bb95-494b-9f9c-e8fd460fef99/
+chroma.sqlite3
