@@ -27,7 +27,7 @@ class SkillSet():
         return skill
     
     def update(self):
-        with open(os.path.join(CURRENT_DIR, f"assets/tello/high_level_skills.json"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"assets/tello/skills/high_level_skills.json"), "r") as f:
             json_data = json.load(f)
             self.add_skill(HighLevelSkillItem.load_from_dict(json_data[-1]))
 
@@ -143,9 +143,11 @@ class HighLevelSkillItem(SkillItem):
 
                 function_args = skill.get_argument()
             for i, arg in enumerate(args):
-                if arg.startswith('$') and arg not in arg_types:
-                    # Match the positional argument with its type from the function definition
-                    arg_types[arg] = function_args[i]
+                placeholders = re.findall(r'\$\d', arg)
+                for ph in placeholders:
+                    if ph not in arg_types:
+                        # Match the positional argument with its type from the function definition
+                        arg_types[arg] = function_args[i]
 
         # Convert the mapped arguments to a user-friendly list in order of $position
         arg_types = dict(sorted(arg_types.items()))
