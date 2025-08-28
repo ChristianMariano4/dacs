@@ -38,12 +38,10 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/guides.txt"), "r") as f:
             self.guides = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
-            self.flyzone = f.read()
-
         with open(os.path.join(CURRENT_DIR, f"../assets/minispec_syntax.txt"), "r") as f:
             self.minispec_syntax = f.read()
 
+        self.flyzone = ""
 
     def set_model(self, model_name):
         self.model_name = model_name
@@ -76,6 +74,10 @@ class LLMPlanner():
         # - top-right: [{x_top_right}, {y_top_right}]
         # - bottom-right: [{x_bottom_right}, {y_bottom_right}]
         # - bottom-left: [{x_bottom_left}, {y_bottom_left}]
+
+        # Retrieve updated flyzone
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
+            self.flyzone = f.read()
                 
         prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
                                             system_skill_description_low=self.low_level_skillset,
