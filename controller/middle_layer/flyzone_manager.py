@@ -22,6 +22,8 @@ class FlyzoneManager:
             self.prompt_flyzone = f.read()
 
     def plot_current_flyzone(self):
+        plt.clf()  # Clear the current figure before plotting a new flyzone
+
         for poly in self.middle_layer.getFlyzone():
             x, y = poly.exterior.xy
             plt.fill(x, y, alpha=0.5)
