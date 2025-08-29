@@ -86,28 +86,53 @@ class TypeFly:
             auto_refresh_btn.click(self.toggle_auto_refresh, outputs=[self.graph_status])
 
     def setup_settings_tab(self):
-        """Setup the  tab"""
+        """Setup the Settings tab with flyzone generation and feedback."""
         with gr.Column():
             gr.Markdown("## 🌐 User Settings")
             gr.Markdown("Personalize your experience by adjusting options to suit your preferences.")
             
-            # Chat input for generating a flyzone
+            # --- Flyzone generation section ---
             gr.Markdown("### ✈️ Generate Flyzone")
             flyzone_prompt = gr.Textbox(
                 label="Enter prompt to generate a flyzone",
                 placeholder="Describe the area and shape of the flyzone...",
                 lines=2
             )
-            generate_btn = gr.Button("Generate Flyzone")
+            generate_btn = gr.Button("🚀 Generate Flyzone")
 
-            # # Placeholder for generated flyzone output
-            # flyzone_output = gr.JSON(label="Generated Flyzone (polygons)")
+            # --- Feedback and result section ---
+            status_output = gr.Label(label="Request Status")
+            flyzone_image = gr.Image(
+                label="Generated Flyzone Preview",
+                type="filepath",
+                visible=True
+            )
 
-            # Connect button to a function (placeholder)
+            # Absolute path for flyzone image
+            flyzone_img_path = os.path.abspath("controller/assets/tello/flyzone/flyzone_plot.png")
+
+            # --- Handler function ---
+            def handle_flyzone_request(instruction: str):
+                yield "⏳ Generating flyzone, please wait...", None
+
+                try:
+                    # Call controller to request flyzone
+                    self.llm_controller.get_flyzone_manager().request_new_flyzone(instruction=instruction)
+
+                    # Show image if it exists
+                    if os.path.exists(flyzone_img_path):
+                        yield "✅ Flyzone generated successfully!", flyzone_img_path
+                    else:
+                        yield "⚠️ Flyzone generated, but no image found.", None
+
+                except Exception as e:
+                    yield f"❌ Failed to generate flyzone: {str(e)}", None
+
+            # --- Connect UI events ---
             generate_btn.click(
-                fn=self.llm_controller.get_flyzone_manager().request_new_flyzone,
+                fn=handle_flyzone_request,
                 inputs=flyzone_prompt,
-                outputs=None,
+                outputs=[status_output, flyzone_image]
             )
 
 
