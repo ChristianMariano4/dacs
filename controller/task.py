@@ -70,5 +70,5 @@ class Task():
     def set_user_feedback(self, user_feedback: str):
         self.user_feedback = user_feedback
 
-    def get_user_feedback(self, user_feedback: str) -> str:
+    def get_user_feedback(self) -> str:
         return self.user_feedback
