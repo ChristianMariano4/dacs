@@ -3,14 +3,17 @@ import queue
 import sys, os
 import asyncio
 import io, time
+from fastapi.responses import JSONResponse
 import gradio as gr
 from flask import Flask, Response, jsonify
+from flask_cors import CORS
 from threading import Thread
 import argparse
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 sys.path.append(PARENT_DIR)
+from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
 from controller.utils import print_t
 from controller.llm.llm_wrapper import GPT4, LLAMA3
@@ -29,6 +32,19 @@ class TypeFly:
         self.user_answer_queue = queue.Queue()
         self.user_question_answer = [] # list of last question-answer pair between LLM and user
         self.llm_controller = LLMController(robot_type, use_http, self.message_queue, self.user_answer_queue)
+
+        # Convert the JSON to a string
+        init_graph_path = "controller/assets/tello/memory/graph.txt"
+
+        # Initialize GraphManager with the sample data
+        self.graph_manager = GraphManager(
+            llm_controller=self.llm_controller, 
+            init_graph_json=init_graph_path,
+            start_region="kitchen_area",  # Start in kitchen
+            start_coords=(200.0, 200.0)
+        )
+        # self.graph_manager = GraphManager(llm_controller=self.llm_controller, init_graph_json=)
+        self.llm_controller.set_graph_manager(self.graph_manager)
         self.system_stop = False
         self.ui = gr.Blocks(title="TypeFly")
         self.asyncio_loop = asyncio.get_event_loop()
@@ -135,8 +151,6 @@ class TypeFly:
                 outputs=[status_output, flyzone_image]
             )
 
-
-
     def get_graph_html(self):
         """Generate the HTML for the graph visualization"""
         return """
@@ -151,13 +165,12 @@ class TypeFly:
     def refresh_graph(self):
         """Refresh the graph visualization"""
         try:
-            if os.path.exists(self.graph_log_path):
-                with open(self.graph_log_path, 'r') as f:
-                    lines = f.readlines()
-                    count = len(lines)
-                status = f"Graph refreshed! Found {count} graph states."
+            # Get current graph state from graph manager
+            current_graph = self.graph_manager.get_graph()
+            if current_graph:
+                status = "Graph refreshed! Displaying current graph state."
             else:
-                status = "No graph data found. Start robot operations to generate data."
+                status = "No graph data available. Start robot operations to generate data."
             
             return self.get_graph_html(), status
         except Exception as e:
@@ -337,6 +350,7 @@ class TypeFly:
                         padding: 20px;
                         margin-top: 20px;
                         box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
+                        overflow: auto; /* adds scrollbars if graph is bigger */
                     }
                     
                     .status {
@@ -411,18 +425,6 @@ class TypeFly:
                         transition: opacity 0.3s ease;
                         z-index: 1000;
                     }
-                    
-                    .speed-control {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        margin-left: 20px;
-                    }
-                    
-                    input[type="range"] {
-                        background: rgba(255, 255, 255, 0.2);
-                        border-radius: 10px;
-                    }
                 </style>
             </head>
             <body>
@@ -430,16 +432,9 @@ class TypeFly:
                     <h1>🤖 TypeFly Graph Visualization</h1>
                     
                     <div class="controls">
-                        <button id="loadBtn">📁 Load Graph Data</button>
-                        <button id="playBtn">▶️ Play Animation</button>
-                        <button id="pauseBtn" disabled>⏸️ Pause</button>
-                        <button id="resetBtn">🔄 Reset</button>
+                        <button id="loadBtn">📁 Load Current Graph</button>
+                        <button id="refreshBtn">🔄 Refresh</button>
                         <button id="autoRefreshBtn">🔁 Auto Refresh</button>
-                        <div class="speed-control">
-                            <label>Speed:</label>
-                            <input type="range" id="speedSlider" min="100" max="2000" value="1000">
-                            <span id="speedValue">1000ms</span>
-                        </div>
                     </div>
                     
                     <div class="status" id="status">Ready to load graph data...</div>
@@ -472,11 +467,7 @@ class TypeFly:
                             this.svg = d3.select("#graph");
                             this.width = 1000;
                             this.height = 600;
-                            this.graphData = [];
-                            this.currentIndex = 0;
-                            this.isPlaying = false;
-                            this.playInterval = null;
-                            this.speed = 1000;
+                            this.currentGraph = null;
                             this.autoRefresh = false;
                             this.autoRefreshInterval = null;
                             
@@ -501,18 +492,8 @@ class TypeFly:
                         
                         setupEventListeners() {
                             document.getElementById('loadBtn').addEventListener('click', () => this.loadData());
-                            document.getElementById('playBtn').addEventListener('click', () => this.play());
-                            document.getElementById('pauseBtn').addEventListener('click', () => this.pause());
-                            document.getElementById('resetBtn').addEventListener('click', () => this.reset());
+                            document.getElementById('refreshBtn').addEventListener('click', () => this.loadData());
                             document.getElementById('autoRefreshBtn').addEventListener('click', () => this.toggleAutoRefresh());
-                            document.getElementById('speedSlider').addEventListener('input', (e) => {
-                                this.speed = parseInt(e.target.value);
-                                document.getElementById('speedValue').textContent = this.speed + 'ms';
-                                if (this.isPlaying) {
-                                    this.pause();
-                                    this.play();
-                                }
-                            });
                         }
                         
                         async loadData() {
@@ -520,12 +501,10 @@ class TypeFly:
                                 const response = await fetch('/graph-data');
                                 const result = await response.json();
                                 
-                                if (result.success) {
-                                    this.graphData = result.data;
-                                    this.updateStatus(`Loaded ${this.graphData.length} graph states from TypeFly`);
-                                    if (this.graphData.length > 0) {
-                                        this.reset();
-                                    }
+                                if (result.success && result.data) {
+                                    this.currentGraph = result.data;
+                                    this.updateVisualization();
+                                    this.updateStatus('Current graph state loaded successfully');
                                 } else {
                                     this.updateStatus(result.message || 'No graph data available');
                                 }
@@ -537,10 +516,10 @@ class TypeFly:
                         toggleAutoRefresh() {
                             this.autoRefresh = !this.autoRefresh;
                             if (this.autoRefresh) {
-                                this.updateStatus('Auto-refresh enabled - will check for new data every 5 seconds');
+                                this.updateStatus('Auto-refresh enabled - checking for updates every 3 seconds');
                                 this.autoRefreshInterval = setInterval(() => {
                                     this.loadData();
-                                }, 5000);
+                                }, 3000);
                                 document.getElementById('autoRefreshBtn').textContent = '⏹️ Stop Auto Refresh';
                             } else {
                                 this.updateStatus('Auto-refresh disabled');
@@ -556,37 +535,52 @@ class TypeFly:
                             try {
                                 const graph = JSON.parse(graphStr);
                                 
-                                // Handle TypeFly graph format
                                 const nodes = [];
                                 const links = [];
                                 
                                 // Add objects as nodes
-                                if (graph.objects) {
+                                if (graph.objects && Array.isArray(graph.objects)) {
                                     graph.objects.forEach(obj => {
+                                        let coords = null;
+                                        if (obj.coords) {
+                                            try {
+                                                coords = typeof obj.coords === 'string' ? JSON.parse(obj.coords) : obj.coords;
+                                            } catch (e) {
+                                                console.warn('Invalid coords for object:', obj.name);
+                                            }
+                                        }
                                         nodes.push({
                                             id: obj.name,
                                             type: 'object',
-                                            coords: obj.coords ? JSON.parse(obj.coords) : null
+                                            coords: coords
                                         });
                                     });
                                 }
                                 
                                 // Add regions as nodes
-                                if (graph.regions) {
+                                if (graph.regions && Array.isArray(graph.regions)) {
                                     graph.regions.forEach(region => {
+                                        let coords = null;
+                                        if (region.coords) {
+                                            try {
+                                                coords = typeof region.coords === 'string' ? JSON.parse(region.coords) : region.coords;
+                                            } catch (e) {
+                                                console.warn('Invalid coords for region:', region.name);
+                                            }
+                                        }
                                         nodes.push({
                                             id: region.name,
                                             type: 'region',
-                                            coords: region.coords ? JSON.parse(region.coords) : null,
+                                            coords: coords,
                                             isCurrent: region.name === graph.current_location
                                         });
                                     });
                                 }
                                 
                                 // Add object connections
-                                if (graph.object_connections) {
+                                if (graph.object_connections && Array.isArray(graph.object_connections)) {
                                     graph.object_connections.forEach(conn => {
-                                        if (conn.length >= 2) {
+                                        if (Array.isArray(conn) && conn.length >= 2) {
                                             links.push({
                                                 source: conn[0],
                                                 target: conn[1],
@@ -597,9 +591,9 @@ class TypeFly:
                                 }
                                 
                                 // Add region connections
-                                if (graph.region_connections) {
+                                if (graph.region_connections && Array.isArray(graph.region_connections)) {
                                     graph.region_connections.forEach(conn => {
-                                        if (conn.length >= 2) {
+                                        if (Array.isArray(conn) && conn.length >= 2) {
                                             links.push({
                                                 source: conn[0],
                                                 target: conn[1],
@@ -611,7 +605,8 @@ class TypeFly:
                                 
                                 return { nodes, links };
                             } catch (e) {
-                                console.warn('Error parsing graph data:', e);
+                                console.error('Error parsing graph data:', e);
+                                console.error('Graph string was:', graphStr);
                                 return { nodes: [], links: [] };
                             }
                         }
@@ -636,40 +631,40 @@ class TypeFly:
                         }
                         
                         updateVisualization() {
-                            if (this.currentIndex >= this.graphData.length) {
-                                this.pause();
-                                this.updateStatus('Animation complete!');
+                            if (!this.currentGraph) {
+                                this.updateStatus('No graph data to display');
                                 return;
                             }
                             
-                            const currentData = this.parseGraphData(this.graphData[this.currentIndex].graph);
+                            const graphData = this.parseGraphData(this.currentGraph);
                             
-                            // Update links
+                            if (graphData.nodes.length === 0) {
+                                this.updateStatus('Graph has no nodes to display');
+                                return;
+                            }
+                            
+                            // Clear existing elements
+                            this.linkGroup.selectAll("*").remove();
+                            this.nodeGroup.selectAll("*").remove();
+                            this.labelGroup.selectAll("*").remove();
+                            
+                            // Add links
                             const links = this.linkGroup.selectAll("line")
-                                .data(currentData.links, d => `${d.source}-${d.target}`);
-                            
-                            links.exit().transition().duration(300).style("opacity", 0).remove();
-                            
-                            const linkEnter = links.enter()
+                                .data(graphData.links)
+                                .enter()
                                 .append("line")
                                 .attr("class", "link")
-                                .style("opacity", 0)
                                 .style("stroke", d => this.getLinkColor(d))
-                                .style("stroke-width", d => d.type === 'region_connection' ? 3 : 2);
+                                .style("stroke-width", d => d.type === 'region_connection' ? 3 : 2)
+                                .style("opacity", 0.8);
                             
-                            linkEnter.transition().duration(300).style("opacity", 1);
-                            
-                            // Update nodes
+                            // Add nodes
                             const nodes = this.nodeGroup.selectAll("circle")
-                                .data(currentData.nodes, d => d.id);
-                            
-                            nodes.exit().transition().duration(300).style("opacity", 0).remove();
-                            
-                            const nodeEnter = nodes.enter()
+                                .data(graphData.nodes)
+                                .enter()
                                 .append("circle")
                                 .attr("class", "node")
                                 .attr("r", d => d.type === 'region' ? 25 : 15)
-                                .style("opacity", 0)
                                 .style("fill", d => this.getNodeColor(d))
                                 .style("stroke", d => d.isCurrent ? '#fff' : 'none')
                                 .style("stroke-width", d => d.isCurrent ? 4 : 0)
@@ -678,7 +673,7 @@ class TypeFly:
                                     tooltip.innerHTML = `
                                         <strong>${d.id}</strong><br>
                                         Type: ${d.type}<br>
-                                        ${d.coords ? `Coords: [${d.coords[0]:.1f}, ${d.coords[1]:.1f}]` : ''}
+                                        ${d.coords ? `Coords: [${d.coords[0]?.toFixed(1) || 'N/A'}, ${d.coords[1]?.toFixed(1) || 'N/A'}]` : 'No coordinates'}
                                         ${d.isCurrent ? '<br><em>📍 Current Location</em>' : ''}
                                     `;
                                     tooltip.style.opacity = 1;
@@ -687,86 +682,41 @@ class TypeFly:
                                 })
                                 .on("mouseout", () => {
                                     document.getElementById('tooltip').style.opacity = 0;
-                                });
+                                })
                             
-                            nodeEnter.transition().duration(300).style("opacity", 1);
-                            
-                            // Update labels
+                            // Add labels
                             const labels = this.labelGroup.selectAll("text")
-                                .data(currentData.nodes, d => d.id);
-                            
-                            labels.exit().remove();
-                            
-                            const labelEnter = labels.enter()
+                                .data(graphData.nodes)
+                                .enter()
                                 .append("text")
                                 .attr("class", "node-label")
-                                .style("opacity", 0)
-                                .text(d => d.id.length > 10 ? d.id.substring(0, 10) + '...' : d.id);
-                            
-                            labelEnter.transition().duration(300).style("opacity", 1);
+                                .text(d => d.id.length > 12 ? d.id.substring(0, 12) + '...' : d.id);
                             
                             // Update simulation
-                            this.simulation.nodes(currentData.nodes);
-                            this.simulation.force("link").links(currentData.links);
+                            this.simulation.nodes(graphData.nodes);
+                            this.simulation.force("link").links(graphData.links);
                             
                             this.simulation.on("tick", () => {
-                                this.linkGroup.selectAll("line")
+                                links
                                     .attr("x1", d => d.source.x)
                                     .attr("y1", d => d.source.y)
                                     .attr("x2", d => d.target.x)
                                     .attr("y2", d => d.target.y);
                                 
-                                this.nodeGroup.selectAll("circle")
+                                nodes
                                     .attr("cx", d => d.x)
                                     .attr("cy", d => d.y);
                                 
-                                this.labelGroup.selectAll("text")
+                                labels
                                     .attr("x", d => d.x)
                                     .attr("y", d => d.y + 4);
                             });
                             
-                            this.simulation.alpha(0.3).restart();
+                            this.simulation.alpha(1).restart();
                             
-                            this.updateStatus(`Step ${this.currentIndex + 1} of ${this.graphData.length} - Objects: ${currentData.nodes.filter(n => n.type === 'object').length}, Regions: ${currentData.nodes.filter(n => n.type === 'region').length}`);
-                        }
-                        
-                        play() {
-                            if (this.graphData.length === 0) {
-                                this.updateStatus('No data to play. Robot operations will generate graph data automatically.');
-                                return;
-                            }
-                            
-                            this.isPlaying = true;
-                            document.getElementById('playBtn').disabled = true;
-                            document.getElementById('pauseBtn').disabled = false;
-                            
-                            this.playInterval = setInterval(() => {
-                                this.updateVisualization();
-                                this.currentIndex++;
-                                
-                                if (this.currentIndex >= this.graphData.length) {
-                                    this.pause();
-                                }
-                            }, this.speed);
-                        }
-                        
-                        pause() {
-                            this.isPlaying = false;
-                            document.getElementById('playBtn').disabled = false;
-                            document.getElementById('pauseBtn').disabled = true;
-                            
-                            if (this.playInterval) {
-                                clearInterval(this.playInterval);
-                                this.playInterval = null;
-                            }
-                        }
-                        
-                        reset() {
-                            this.pause();
-                            this.currentIndex = 0;
-                            this.svg.selectAll("*").remove();
-                            this.setupSimulation();
-                            this.updateStatus('Reset to beginning - ready to visualize TypeFly graph data');
+                            const objectCount = graphData.nodes.filter(n => n.type === 'object').length;
+                            const regionCount = graphData.nodes.filter(n => n.type === 'region').length;
+                            this.updateStatus(`Graph loaded - Objects: ${objectCount}, Regions: ${regionCount}, Links: ${graphData.links.length}`);
                         }
                         
                         updateStatus(message) {
@@ -783,16 +733,40 @@ class TypeFly:
         
         @app.route('/graph-data')
         def graph_data():
-            """Serve the graph data as JSON"""
+            """Serve the current graph data as JSON"""
             try:
-                if os.path.exists(self.graph_log_path):
-                    with open(self.graph_log_path, 'r') as f:
-                        data = [json.loads(line.strip()) for line in f if line.strip()]
-                    return jsonify({"success": True, "data": data})
-                else:
-                    return jsonify({"success": False, "data": [], "message": "No graph data found - start robot operations to generate data"})
+                # Get current graph state from graph manager
+                graph_json_str = self.graph_manager.get_graph()
+                
+                if not graph_json_str:
+                    return jsonify({
+                        "success": False, 
+                        "data": None, 
+                        "message": "No graph data available - start robot operations to generate data"
+                    })
+
+                # Parse the JSON string to validate it
+                try:
+                    graph_dict = json.loads(graph_json_str)
+                except json.JSONDecodeError as e:
+                    return jsonify({
+                        "success": False, 
+                        "data": None, 
+                        "message": f"Invalid graph JSON format: {str(e)}"
+                    })
+
+                return jsonify({
+                    "success": True, 
+                    "data": graph_json_str,  # Send as string for JavaScript to parse
+                    "message": "Current graph state retrieved successfully"
+                })
+
             except Exception as e:
-                return jsonify({"success": False, "data": [], "message": str(e)})
+                return jsonify({
+                    "success": False, 
+                    "data": None, 
+                    "message": f"Error retrieving graph: {str(e)}"
+                })
 
     def run(self):
         asyncio_thread = Thread(target=self.asyncio_loop.run_forever)
@@ -803,7 +777,8 @@ class TypeFly:
         llmc_thread.start()
 
         app = Flask(__name__)
-        
+        CORS(app)  # allow all origins
+
         @app.route('/drone-pov/')
         def video_feed():
             return Response(self.generate_mjpeg_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
