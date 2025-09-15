@@ -6,6 +6,7 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
+from controller.llm.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
@@ -53,8 +54,8 @@ class LLMController():
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
-        self.graph_manager = GraphManager(self)
-        self.vision = VisionSkillWrapper(self.shared_frame, graph_manager=self.graph_manager)
+        self.graph_manager = None
+        self.vision = VisionSkillWrapper(self.shared_frame)
         self.latest_frame = None
         self.controller_active = True
         self.controller_wait_takeoff = True
@@ -68,6 +69,8 @@ class LLMController():
 
         if not os.path.exists(self.cache_folder):
             os.makedirs(self.cache_folder)
+
+        self.long_memory_module = LongMemoryModule()
 
         # Flyzone section
         self.flyzone_manager = FlyzoneManager(middle_layer=self.middle_layer)
@@ -156,6 +159,9 @@ class LLMController():
         self.images_counter = 0
         self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
+    def set_graph_manager(self, graph_manager):
+        self.graph_manager = graph_manager
+        self.vision.set_graph_manager(graph_manager)
 
     def get_drone(self) -> RobotWrapper:
         return self.drone
@@ -341,6 +347,10 @@ class LLMController():
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
             else:
+                self.append_message(f"[Q] Write a feedback of the executed plan")
+                user_feedback = self.user_answer_queue.get(block=True)
+                print(user_feedback)
+                self.long_memory_module.save_interaction_summary(self.current_task)
                 break
         self.append_message(f'\n[Task ended]')
         self.append_message('end')
