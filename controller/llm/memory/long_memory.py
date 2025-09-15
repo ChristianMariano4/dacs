@@ -28,9 +28,6 @@ load_dotenv()
 
 type_folder_name = 'tello'
 
-'''
-Can be used to bot get a description of the current scene and to get a more high-level description of the context where the drone is
-'''
 class LongMemoryModule:
     '''
     LongMemoryModule has the goal of put in long memory (a document saved on disk)
@@ -41,23 +38,24 @@ class LongMemoryModule:
     by similarity with the current task.
     '''
     def __init__(self, middle_layer: MiddleLayer=None):
-        # Set up your client
-        self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
+        self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer
         self.llm_wrapper = LLMWrapper()
-
         with open(f"controller/assets/{ROBOT_NAME}/memory/prompt_memory.txt", "r") as f:
             self.memory_prompt = f.read()
 
         # vector db section
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-
         self.client_chromadb = chromadb.PersistentClient(path="/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/tello/memory")
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
-        self.task_id = 0
+        
+        self.current_task_id = 0
 
             
     def save_interaction_summary(self, task: Task, conf=0.3):
+        '''
+        Function used to save in memory a summary of the executed task, in order to keep some lessons learned.
+        '''
         
         prompt = self.memory_prompt.format(task_text=task.get_task_description(), 
                                         execution_output=task.get_execution_history(), 
@@ -66,8 +64,9 @@ class LongMemoryModule:
         
         # Send the request
         response_content = self.llm_wrapper.request(prompt, request_type=RequestType.SIMPLE)
-        response_parsed = json.loads(response_content)
 
+        # Parse the response
+        response_parsed = json.loads(response_content)
         task_summary = response_parsed.get("task_summary", "No task_summary provided")
         execution_summary = response_parsed.get("execution_summary", "No execution_summary provided")
         feedback_summary = response_parsed.get("feedback_summary", "No feedback_summary provided")
@@ -80,22 +79,23 @@ class LongMemoryModule:
         Lessons Learned: {lessons_learned}
         """
 
-        print(doc_text)
+        # print(doc_text)
 
+        # Add summary to the vector db
         embedding = self.model.encode(doc_text)
         self.interactions_collection.add(
             documents=[doc_text],
             embeddings=[embedding.tolist()],
-            ids=[f"task_{self.task_id}"]
+            ids=[f"task_{self.current_task_id}"]
         )
-        self.task_id += 1
+        self.current_task_id += 1
     
-    def retrieve_old_interactions(self, new_task: str):
-        '''Function to retrieve old useful feedbacks, based on new task'''
-        new_task_embedding = self.model.encode(new_task)
+    def retrieve_old_interactions(self, new_task: str, N : int = 5):
+        '''Function to retrieve N old useful feedbacks, based on new task'''
 
-        # Search for similar scenes
-        results = self.interactions_collection.query(query_embeddings=[new_task_embedding.tolist()], n_results=3)
+        # Search for top N similar scenarios
+        new_task_embedding = self.model.encode(new_task)
+        results = self.interactions_collection.query(query_embeddings=[new_task_embedding.tolist()], n_results=N)
 
         # Print results
         print("\n=== Retrieved Interactions ===")
@@ -103,7 +103,6 @@ class LongMemoryModule:
             print(f"Result {idx+1}:")
             print(f"  Distance: {distance:.4f}")
             print(f"  Document: {doc[:200]}{'...' if len(doc) > 200 else ''}")  # Truncate if too long
-            print()
 
 
 if __name__ == "__main__":
