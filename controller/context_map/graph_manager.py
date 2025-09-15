@@ -11,8 +11,8 @@ class GraphManager:
     Keeps an up-to-date scene graph that every other TypeFly
     component can share without ROS.
     """
-    def __init__(self, llmController, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
-        self.llmController = llmController
+    def __init__(self, llm_controller, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
+        self.llmController = llm_controller
         self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
         self.current_region = start_region
         self.drone_pose = None
