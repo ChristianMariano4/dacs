@@ -29,7 +29,7 @@ class SkillItem(ABC):
         pass
 
     @abstractmethod
-    def execute(self, arg_list: List[Union[int, float, str, List]]) -> Tuple[Union[int, float, bool, str], bool]:
+    def execute(self, arg_list: List[Union[int, float, str, List]]) -> Tuple[Union[int, float, bool, str], bool, bool]:
         pass
 
 

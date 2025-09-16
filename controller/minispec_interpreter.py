@@ -44,13 +44,13 @@ def evaluate_value(value: str) -> MiniSpecValueType:
 
 class MiniSpecReturnValue:
     """Wrapper per valore di ritorno + flag di replanning"""
-    def __init__(self, value: MiniSpecValueType, replan: bool, wait: Optional[bool] = False):
+    def __init__(self, value: MiniSpecValueType, replan: bool, wait_user_answer: Optional[bool] = False):
         self.value = value
         self.replan = replan
-        self.wait = wait
+        self.wait_user_answer = wait_user_answer
 
     @staticmethod
-    def from_tuple(t: Tuple[MiniSpecValueType, bool]):
+    def from_tuple(t: Tuple[MiniSpecValueType, bool, bool]):
         if len(t) == 3:
             return MiniSpecReturnValue(t[0], t[1], t[2])
         else:
@@ -58,7 +58,7 @@ class MiniSpecReturnValue:
 
     @staticmethod
     def default():
-        return MiniSpecReturnValue(None, False)
+        return MiniSpecReturnValue(None, False, False)
 
     def __repr__(self) -> str:               # pragma: no cover
         return f'value={self.value}, replan={self.replan}'
@@ -375,6 +375,8 @@ class Statement:
         skill = Statement.high_level_skillset.get_skill(name)
         if skill:
             print_debug(f'Executing high-level skill: {skill.get_name()} {args}')
+            print(args)
+            print(type(args))
             interp = MiniSpecProgram(env=self.env)
             interp.parse([skill.execute(args)])
             interp.finished = True
