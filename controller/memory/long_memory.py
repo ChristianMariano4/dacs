@@ -79,7 +79,7 @@ class LongMemoryModule:
         Lessons Learned: {lessons_learned}
         """
 
-        # print(doc_text)
+        print(f"Interaction summary saved:\n{doc_text}")
 
         # Add summary to the vector db
         embedding = self.model.encode(doc_text)
@@ -90,20 +90,27 @@ class LongMemoryModule:
         )
         self.current_task_id += 1
     
-    def retrieve_old_interactions(self, new_task: str, N : int = 5):
-        '''Function to retrieve N old useful feedbacks, based on new task'''
+    def retrieve_old_interactions(self, new_task: str, N : int = 5) -> list[str]:
+        '''Retrieve N old useful feedbacks, based on new task'''
 
         # Search for top N similar scenarios
         new_task_embedding = self.model.encode(new_task)
-        results = self.interactions_collection.query(query_embeddings=[new_task_embedding.tolist()], n_results=N)
+        results = self.interactions_collection.query(
+            query_embeddings=[new_task_embedding.tolist()], 
+            n_results=N
+        )
 
-        # Print results
-        print("\n=== Retrieved Interactions ===")
-        for idx, (doc, distance) in enumerate(zip(results["documents"][0], results["distances"][0])):
-            print(f"Result {idx+1}:")
-            print(f"  Distance: {distance:.4f}")
-            print(f"  Document: {doc[:200]}{'...' if len(doc) > 200 else ''}")  # Truncate if too long
-
+        # Collect results
+        retrieved_docs = []
+        if results:
+            print("\n=== Retrieved Interactions ===")
+            for idx, (doc, distance) in enumerate(zip(results["documents"][0], results["distances"][0])):
+                print(f"Result {idx+1}:")
+                print(f"  Distance: {distance:.4f}")
+                print(f"  Document: {doc[:200]}{'...' if len(doc) > 200 else ''}")  # Truncate if too long
+                retrieved_docs.append(doc)
+        
+        return retrieved_docs
 
 if __name__ == "__main__":
     # python -m controller.llm.memory.long_memory
