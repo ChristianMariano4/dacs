@@ -84,5 +84,4 @@ Task: Where can I find an orange?
 Reason: Instead of repeating the logic for scanning and exploring, I can now use the fruit_hunt high level skill I created earlier. This will first check the current view and known graph, then move in a new direction if the fruit isn’t visible.
 Response: fruit_hunt([\"orange\"]);  
 If orange is already in the graph (region_2 at [150, 150]), the response will be: l("orange found in region_2 at [150, 150]");
-
 #End of the Example 
