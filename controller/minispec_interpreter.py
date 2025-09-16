@@ -327,7 +327,17 @@ class Statement:
 
         if rest:
             args_str = rest[0].rstrip(')')
-            args = split_args(args_str)
+
+            # Check if the entire argument string is a single list
+            args_str = args_str.strip()
+            if args_str.startswith('[') and args_str.endswith(']'):
+                # Single list argument - don't split it
+                args = [args_str]
+
+            else:
+                # Multiple arguments - use split_args
+                args = split_args(args_str)
+                
             # args = [self.get_env_value(a) if a.strip().startswith('_')
             #         else a.strip().strip('\'"') for a in args]
             
