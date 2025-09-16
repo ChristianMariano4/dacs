@@ -44,6 +44,7 @@ class GraphManager:
         xy is in *world* centimetres; keep units consistent.
         """
         self.drone_pose = np.asarray(pose)[:2]
+        print(f"[DEBUG] Inside update_pose function. The pose of the drone is: {self.drone_pose}")
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
         if result[1]:
             self.current_region = result[0]

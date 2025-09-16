@@ -1,5 +1,7 @@
 import cv2, time
 from typing import Tuple
+
+from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper
 from ..abs.robot_wrapper import RobotWrapper
 
 class FrameReader:
@@ -20,6 +22,7 @@ class FrameReader:
 class VirtualRobotWrapper(RobotWrapper):
     def __init__(self):
         self.stream_on = False
+        self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
         pass
 
     def keep_active(self):

@@ -206,15 +206,43 @@ def cap_distance(distance):
         return MOVEMENT_MAX
     return distance
 
-class CrazyflieWrapper(RobotWrapper):
-    def __init__(self, move_enable: bool = False):
-        super().__init__(move_enable=move_enable)
+class CrazyflieWrapper():
+    def __init__(self, move_enable: bool = False, link_uri: str = 'radio://0/40/2M/BADF00D002'):
+        # super().__init__(move_enable=move_enable)
+        self.move_enable = False
         self.cf=Crazyflie(rw_cache='./cache')
         self.stream_on = False
         self.connected = False
-        self.link_uri = 'radio://0/80/2M/E7E7E7E7E7'
+        self.link_uri = link_uri
         self.z_target = 0.5  # Default target height in meters
+        self.pose = np.zeros(3)
+        self.connect()
 
+    def _log_stab_callback(self, timestamp, data, logconf):
+        x = data['stateEstimate.x']
+        y = data['stateEstimate.y']
+        z = data['stateEstimate.z']
+        self.pose[0] = x
+        self.pose[1] = y
+        self.pose[2] = z
+        print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}")
+
+    def _track_position(self):
+        '''Continuosly track drone position through lighthouse'''
+        #TODO: add yaw
+        # Configure logging
+        print("Here")
+        logconf = LogConfig(name='Position', period_in_ms=100)
+        logconf.add_variable('stateEstimate.x', 'float')
+        logconf.add_variable('stateEstimate.y', 'float')
+        logconf.add_variable('stateEstimate.z', 'float')
+
+        self.cf.log.add_config(logconf)
+        logconf.data_received_cb.add_callback(self._log_stab_callback)
+        logconf.start()
+    
+    def get_pose(self):
+        return self.pose
 
     def connect(self):
         cflib.crtp.init_drivers()
@@ -239,6 +267,8 @@ class CrazyflieWrapper(RobotWrapper):
                 
             self.connected = True
             print("Connected to Crazyflie - Ready for flight")
+            
+            self._track_position()
             
         except Exception as e:
             print(f"Connection failed: {e}")
@@ -481,4 +511,10 @@ class CrazyflieWrapper(RobotWrapper):
         pass
 
     def get_pose(self):
+        pass
+
+    def go_to_position(self, current_pos, target_pos, speed=50):
+        pass
+
+    def move_direction(self, direction, distance):
         pass

@@ -9,6 +9,7 @@ from djitellopy import Tello
 
 from controller.constants import REGION_THRESHOLD
 from controller.context_map.graph_manager import GraphManager
+from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper
 
 from ..abs.robot_wrapper import RobotWrapper
 
@@ -75,6 +76,7 @@ class TelloWrapper(RobotWrapper):
     def __init__(self, move_enable, graph_manager: GraphManager):
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
         self.drone = Tello()
+        self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
         self.active_count = 0
         self.stream_on = False
 
@@ -116,7 +118,7 @@ class TelloWrapper(RobotWrapper):
             )
             self._ka_thread.start()
     
-    def _odometry_loop(self):
+    def _odometry_loop_dead_reckoning(self):
         """Main odometry loop that integrates drone velocities to estimate position."""
        
         while not self._odo_stop.is_set():
@@ -190,16 +192,27 @@ class TelloWrapper(RobotWrapper):
                 continue
             time.sleep(0.001)
 
+    def _odometry_loop_crazyflie(self):
+        """Main odometry loop that uses Crazyflie lighthouse to retrieve precise drone position"""
+        while not self._odo_stop.is_set():
+            self.pose = self.crazyflie_drone.get_pose()
+            # Update graph manager if available (convert back to cm for visualization)
+            if self.graph_manager:
+                self.graph_manager.update_pose(self.pose)
+
+            time.sleep(0.001)
+
+
     def _start_odometry(self):               
         if self._odo_th is None:             # start exactly *once*
             self._odo_stop.clear()
-            self._odo_th = threading.Thread(target=self._odometry_loop,
+            self._odo_th = threading.Thread(target=self._odometry_loop_dead_reckoning,
                                             daemon=True)
             self._odo_th.start()
 
     def get_pose(self):
         """Current (x, y, z) in cm, unchanged by land/take-off cycles."""
-        return list(self.pose * 1000.0)
+        return list(self.pose * 100.0)
     
     def reset_origin(self):
         self.pose[:] = 0.0
@@ -213,7 +226,7 @@ class TelloWrapper(RobotWrapper):
     def connect(self):
         self.drone.connect()
         self._start_keepalive()
-        self._start_odometry()
+        # self._start_odometry() TODO: not use dead reckoning. Use Crazyflie lighthouse instead
 
     def disconnect(self):
         # stop keep-alive
