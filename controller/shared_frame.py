@@ -44,11 +44,24 @@ class Frame():
         self._image_buffer = image_buffer
         self._image = Image.fromarray(image_buffer)
 
-class SharedFrame():
+import torch
+import cv2
+import numpy as np
+from PIL import Image
+
+class SharedFrame:
     def __init__(self):
-        self.timestamp = 0
-        self.frame = Frame()
-        self.yolo_result = {}
+        # Load MiDaS model + transforms
+        self.midas = torch.hub.load("intel-isl/MiDaS", "DPT_Hybrid", trust_repo=True)
+        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.midas.to(self.device)
+        self.midas.eval()
+
+        # Transform must match model
+        self.transform = midas_transforms.dpt_transform  
+
         self.lock = threading.Lock()
 
     def get_image(self) -> Optional[Image.Image]:
@@ -63,7 +76,29 @@ class SharedFrame():
         with self.lock:
             return self.frame.depth
         
+
     def set(self, frame: Frame, yolo_result: dict):
+        # Convert to RGB
+        img_np = np.array(frame.image)
+        img_rgb = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB) if img_np.shape[2] == 3 else img_np
+
+        # Apply transform + move to device
+        input_batch = self.transform(img_rgb).to(self.device)
+
+        with torch.no_grad():
+            prediction = self.midas(input_batch)
+            prediction = torch.nn.functional.interpolate(
+                prediction.unsqueeze(1),
+                size=img_rgb.shape[:2],
+                mode="bicubic",
+                align_corners=False,
+            ).squeeze()
+
+        depth_map = prediction.cpu().numpy().astype(np.int16)
+
+        # Save both RGB and depth into Frame
+        frame.depth = depth_map
+
         with self.lock:
             self.frame = frame
             self.timestamp = time.time()
