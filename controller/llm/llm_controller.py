@@ -6,7 +6,7 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
-from controller.llm.memory.long_memory import LongMemoryModule
+from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
@@ -54,7 +54,7 @@ class LLMController():
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
-        self.graph_manager = None
+        self.graph_manager : GraphManager = None
         self.vision = VisionSkillWrapper(self.shared_frame)
         self.latest_frame = None
         self.controller_active = True
@@ -319,7 +319,13 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            self.current_plan, reason, iteration_description = self.planner.plan(task_description, execution_history=self.current_task.get_execution_history(), context_graph=self.graph_manager.get_graph(), current_position=self.graph_manager.get_drone_pose(), current_region=self.graph_manager.get_current_region())
+            self.current_plan, reason, iteration_description = self.planner.plan(task_description, 
+                                                                                 execution_history=self.current_task.get_execution_history(), 
+                                                                                 context_graph=self.graph_manager.get_graph(), 
+                                                                                 current_position=self.graph_manager.get_drone_pose(), 
+                                                                                 current_region=self.graph_manager.get_current_region(),
+                                                                                 old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description())
+                                                                                )
             if not self.current_plan or not reason: # resend the request
                 continue
 
@@ -336,7 +342,7 @@ class LLMController():
             
             # TODO: enable. disable replan for debugging
             # break
-            if ret_val is not None and ret_val.wait:
+            if ret_val is not None and ret_val.wait_user_answer:
                 user_question_answer = self.user_answer_queue.get(block=True)
                 print(user_question_answer)
                 user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
@@ -350,6 +356,7 @@ class LLMController():
                 self.append_message(f"[Q] Write a feedback of the executed plan")
                 user_feedback = self.user_answer_queue.get(block=True)
                 print(user_feedback)
+                self.current_task.set_user_feedback(user_feedback)
                 self.long_memory_module.save_interaction_summary(self.current_task)
                 break
         self.append_message(f'\n[Task ended]')
