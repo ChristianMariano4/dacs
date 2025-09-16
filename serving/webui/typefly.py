@@ -214,7 +214,7 @@ class TypeFly:
             temp = self.user_question_answer.copy()
             self.user_answer_queue.put(temp) # put in shared queue the pair to pass to llm_controller
             self.user_question_answer = []
-            yield "Answer sent"
+            yield "Answer sent. Wait a second and I will be here again"
 
             # Continue processing messages from the queue
             complete_response = 'Answer sent\n'
