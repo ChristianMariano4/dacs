@@ -161,7 +161,7 @@ class LLMController():
 
 
         # user preferences in middle layer
-        self.user_name = "" # name of the user, used to personalized his own experience (e.g. different feedbacks)
+        self.user_name = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
 
 
     def set_user_name(self, user_name):
