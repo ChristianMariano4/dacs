@@ -159,6 +159,17 @@ class LLMController():
         self.images_counter = 0
         self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
+
+        # user preferences in middle layer
+        self.user_name = "" # name of the user, used to personalized his own experience (e.g. different feedbacks)
+
+
+    def set_user_name(self, user_name):
+        self.user_name = user_name
+
+    def get_user_name(self) -> str:
+        return self.user_name 
+
     def set_graph_manager(self, graph_manager):
         self.graph_manager = graph_manager
         self.vision.set_graph_manager(graph_manager)
