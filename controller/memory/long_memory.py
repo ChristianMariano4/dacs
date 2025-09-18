@@ -12,7 +12,7 @@ from controller.llm.llm_wrapper import LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.task import Task
-from controller.utils import encode_image
+from controller.utils import encode_image, print_t
 
 from sentence_transformers import SentenceTransformer
 import chromadb
@@ -27,6 +27,8 @@ import os
 load_dotenv()
 
 type_folder_name = 'tello'
+TASK_ID_FILE = "task_id.json"
+MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/memory"
 
 class LongMemoryModule:
     '''
@@ -37,20 +39,42 @@ class LongMemoryModule:
     Then when a new task arrives, we retrieve from vectorial db the related feedbacks,
     by similarity with the current task.
     '''
-    def __init__(self, middle_layer: MiddleLayer=None):
+    def __init__(self, username, middle_layer: MiddleLayer=None):
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        self.middle_layer = middle_layer
+        self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
-        with open(f"controller/assets/{ROBOT_NAME}/memory/prompt_memory.txt", "r") as f:
+        with open(os.path.join(MEMORY_PATH, "prompt_memory.txt"), "r") as f:
             self.memory_prompt = f.read()
+        self.username = username # used to retrieve the correct vector db
 
-        # vector db section
+        # vector db section: retrieve the db of the specified user
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.client_chromadb = chromadb.PersistentClient(path="/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/tello/memory")
+        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
-        
-        self.current_task_id = 0
 
+    def change_username(self, username):
+        self.username = username
+        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
+        self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
+
+    def load_last_task_id(self):
+        if os.path.exists(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE)):
+            with open(TASK_ID_FILE, "r") as f:
+                data = json.load(f)
+                return data.get("last_task_id", 0)
+        elif not os.path.exists(os.path.join(MEMORY_PATH, self.username)):
+            raise RuntimeError(f"Not existing user directory for {self.username}")
+        return 0
+    
+    def save_last_task_id(self, task_id):
+        with open(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE), "w") as f:
+            json.dump({"last_task_id": task_id}, f)
+    
+    def get_next_task_id(self):
+        last_id = self.load_last_task_id()
+        next_id = last_id + 1
+        self.save_last_task_id(next_id)
+        return next_id
             
     def save_interaction_summary(self, task: Task, conf=0.3):
         '''
@@ -86,9 +110,8 @@ class LongMemoryModule:
         self.interactions_collection.add(
             documents=[doc_text],
             embeddings=[embedding.tolist()],
-            ids=[f"task_{self.current_task_id}"]
+            ids=[f"task_{self.get_next_task_id()}"]
         )
-        self.current_task_id += 1
     
     def retrieve_old_interactions(self, new_task: str, N : int = 5) -> list[str]:
         '''Retrieve N old useful feedbacks, based on new task'''

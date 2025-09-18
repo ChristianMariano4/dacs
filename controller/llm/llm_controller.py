@@ -70,7 +70,10 @@ class LLMController():
         if not os.path.exists(self.cache_folder):
             os.makedirs(self.cache_folder)
 
-        self.long_memory_module = LongMemoryModule()
+        # user preferences in middle layer
+        self.username = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
+
+        self.long_memory_module = LongMemoryModule(username=self.username)
 
         # Flyzone section
         self.flyzone_manager = FlyzoneManager(middle_layer=self.middle_layer)
@@ -160,14 +163,11 @@ class LLMController():
         self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
 
-        # user preferences in middle layer
-        self.username = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
-
-
-    def set_user_name(self, username):
+    def set_username(self, username):
         self.username = username
+        self.long_memory_module.change_username(self.username)
 
-    def get_user_name(self) -> str:
+    def get_username(self) -> str:
         return self.username 
 
     def set_graph_manager(self, graph_manager):
