@@ -76,9 +76,9 @@ class GraphManager:
         # Append graph snapshot to file
         # ---------------------------------------------
         # print("Object added")
-        log_dir = "graph_logs"
+        log_dir = "controller/assets/tello/memory"
         os.makedirs(log_dir, exist_ok=True)
-        with open(os.path.join(log_dir, "graph_history.jsonl"), "a") as f:
+        with open(os.path.join(log_dir, "graph.txt"), "a") as f:
             json.dump({
                 "graph": self.graph_handler.to_json_str(),
             }, f)
