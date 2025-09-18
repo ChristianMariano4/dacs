@@ -108,12 +108,12 @@ class TypeFly:
             gr.Markdown("Personalize your experience by adjusting options to suit your preferences.")
 
             # --- User name section ---
-            user_name = gr.Textbox(
+            username = gr.Textbox(
                 label="Enter your name",
                 placeholder="Type your name here...",
                 lines=1
             )
-            self.llm_controller.set_user_name(user_name)
+            self.llm_controller.set_user_name(username)
             
             # --- Flyzone generation section ---
             gr.Markdown("### ✈️ Generate Flyzone")

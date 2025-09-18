@@ -161,14 +161,14 @@ class LLMController():
 
 
         # user preferences in middle layer
-        self.user_name = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
+        self.username = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
 
 
-    def set_user_name(self, user_name):
-        self.user_name = user_name
+    def set_user_name(self, username):
+        self.username = username
 
     def get_user_name(self) -> str:
-        return self.user_name 
+        return self.username 
 
     def set_graph_manager(self, graph_manager):
         self.graph_manager = graph_manager
