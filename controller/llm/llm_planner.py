@@ -118,15 +118,16 @@ class LLMPlanner():
         print_t(f"[P] Execution request: {question}")
         return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI)), False
     
-    def probe_end_iteration(self, model_name: Optional[str] = GPT5):
-        task_description = self.current_task.get_task_description()
-        execution_history = self.current_task.get_execution_history()
-        achievements_summary = self.current_task.get_last_achievements()
-        drone_position = self.current_task.get_drone_position()
-        battery_percent = self.current_task.get_battery_percent()
-        objects_list = self.current_task.get_objects_list() #TODO: probably this should be handle in a different way
-        graph_json = self.current_task.get_graph_json()
-        prompt = self.prompt_probe_end_iteration.format(task_description=task_description, execution_history=execution_history, achievements_summary=achievements_summary, drone_position=drone_position, battery_percent=battery_percent, objects_list=objects_list, graph_json=graph_json)
-        decision_json = self.llm.request(prompt=prompt, model_name=model_name)
-        decision = json.load(decision_json)
-        return decision
+    # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
+    # def probe_end_iteration(self, model_name: Optional[str] = GPT5):
+    #     task_description = self.current_task.get_task_description()
+    #     execution_history = self.current_task.get_execution_history()
+    #     achievements_summary = self.current_task.get_last_achievements()
+    #     drone_position = self.current_task.get_drone_position()
+    #     battery_percent = self.current_task.get_battery_percent()
+    #     objects_list = self.current_task.get_objects_list() #TODO: probably this should be handle in a different way
+    #     graph_json = self.current_task.get_graph_json()
+    #     prompt = self.prompt_probe_end_iteration.format(task_description=task_description, execution_history=execution_history, achievements_summary=achievements_summary, drone_position=drone_position, battery_percent=battery_percent, objects_list=objects_list, graph_json=graph_json)
+    #     decision_json = self.llm.request(prompt=prompt, model_name=model_name)
+    #     decision = json.load(decision_json)
+    #     return decision
