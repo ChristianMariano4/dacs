@@ -72,3 +72,31 @@ class Task():
 
     def get_user_feedback(self) -> str:
         return self.user_feedback
+
+    def to_dict(self):
+        return {
+            "task_description": self.task_description,
+            "execution_history": [
+                str(item) for item in self.execution_history  # convert objects to string
+            ],
+            "current_plan": self.current_plan,
+            "last_achievements": self.last_achievements,
+            "drone_position": self.drone_position,
+            "battery_percent": self.battery_percent,
+            "objects_list": self.objects_list,
+            "graph_json": self.graph_json,
+            "user_feedback": self.user_feedback,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        task = cls(data.get("task_description", ""))
+        task.execution_history = data.get("execution_history", [])
+        task.current_plan = data.get("current_plan", "")
+        task.last_achievements = data.get("last_achievements", "")
+        task.drone_position = data.get("drone_position", None)
+        task.battery_percent = data.get("battery_percent", None)
+        task.objects_list = data.get("objects_list", [])
+        task.graph_json = data.get("graph_json", {})
+        task.user_feedback = data.get("user_feedback", "")
+        return task
