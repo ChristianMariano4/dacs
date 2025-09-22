@@ -3,11 +3,13 @@ import os
 import openai
 from openai import Stream, ChatCompletion
 
+LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4o"
-GPT5 = "gpt-5"
 GPT_O4_MINI = "o4-mini"
-LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
+GPT5 = "gpt-5" # The best model for coding and agentic tasks across domains
+GPT5 = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
+GPT5 = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
