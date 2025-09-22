@@ -7,6 +7,7 @@ class MiddleLayer:
     def __init__(self):
         # default square flyzone
         self.flyzone = [Polygon([(0, 0), (0, 100), (100, 100), (100, 0)])] 
+        self.username = ""
 
         ## U-shaped flyzone
         # self.flyzone_polygons = [
@@ -41,8 +42,16 @@ class MiddleLayer:
         # self.flyzone_polygons = [Polygon(list(circle.exterior.coords))]
 
 
-    def setFlyzone(self, flyzone):
+    def set_flyzone(self, flyzone):
         self.flyzone = flyzone
 
-    def getFlyzone(self):
+    def get_flyzone(self):
         return self.flyzone
+    
+    def set_username(self, username):
+        self.username = username
+
+    def get_username(self):
+        return self.username
+    
+

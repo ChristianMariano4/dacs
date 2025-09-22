@@ -13,6 +13,7 @@ from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.task import Task
 from controller.utils import encode_image, print_t
+from pathlib import Path
 
 from sentence_transformers import SentenceTransformer
 import chromadb
@@ -39,7 +40,7 @@ class LongMemoryModule:
     Then when a new task arrives, we retrieve from vectorial db the related feedbacks,
     by similarity with the current task.
     '''
-    def __init__(self, username, middle_layer: MiddleLayer=None):
+    def __init__(self, username, middle_layer: MiddleLayer=None, shortcuts_file="controller/assets/tello/memory/shortcuts.json"):
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
@@ -47,10 +48,14 @@ class LongMemoryModule:
             self.memory_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
 
-        # vector db section: retrieve the db of the specified user
+        # Vector db section: retrieve the db of the specified user
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
+
+        # Shortcuts: tasks associated to keywords
+        self.user_shortcut_tasks = self._load_shortcuts() # each username is a key, whose value is another dict of shortcuts of that user
+        self.shortcuts_file = Path(shortcuts_file)
 
     def change_username(self, username):
         self.username = username
@@ -78,7 +83,7 @@ class LongMemoryModule:
             
     def save_interaction_summary(self, task: Task, conf=0.3):
         '''
-        Function used to save in memory a summary of the executed task, in order to keep some lessons learned.
+        Save in memory a summary of the executed task, in order to keep some lessons learned.
         '''
         
         prompt = self.memory_prompt.format(task_text=task.get_task_description(), 
@@ -134,6 +139,33 @@ class LongMemoryModule:
                 retrieved_docs.append(doc)
         
         return retrieved_docs
+    
+    def _load_shortcuts(self):
+        if self.shortcuts_file.exists():
+            with open(self.shortcuts_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+    
+    def _save_shortcuts(self):
+        with open(self.shortcuts_file, "w", encoding="utf-8") as f:
+            json.dump(self.user_shortcut_tasks, f, indent=4)
+
+    def save_shortcut_task(self, username: str, keywords: str, task: Task):
+        '''
+        Save in memory (a dictionary) shortcuts of the user.
+        '''
+        if username not in self.user_shortcut_tasks:
+            self.user_shortcut_tasks[username] = {}
+        self.user_shortcut_tasks[username][keywords] = task.to_dict()
+        self._save_shortcuts()
+
+    def get_shortcut_task(self, username: str, keywords: str) -> dict | None:
+        '''
+        Return the task correspondent to given keyword
+        '''
+        if username not in self.user_shortcut_tasks:
+            return None
+        return self.user_shortcut_tasks[username][keywords]
 
 if __name__ == "__main__":
     # python -m controller.llm.memory.long_memory

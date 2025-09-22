@@ -1,4 +1,5 @@
 from enum import Enum
+import re
 from PIL import Image
 import queue, time, os, json
 from typing import List, Optional, Tuple
@@ -322,12 +323,28 @@ class LLMController():
         # self.execution_history = interpreter.execution_history
         # ret_val = interpreter.ret_queue.get()
         return ret_val
+    
+    def _get_after_shortcut(text: str) -> str:
+        '''
+        Retrieve the words used after "shortcut" using regex.
+        '''
+        match = re.search(r"shortcut\s+(.*)", text, re.IGNORECASE)
+        return match.group(1).strip() if match else ""
 
     def execute_task_description(self, task_description: str):
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
-        self.current_task = Task(task_description)
+        if "shortcut" in task_description:
+            #TODO: use fast LLM to retrieve the sentence used as shortcut, instead of statically parsing it
+            keywords = self._get_after_shortcut(task_description)
+            self.current_task = self.long_memory_module.get_shortcut_task(username=self.username, keywords=keywords)
+            if not self.current_task:
+                self.append_message("Sorry. Given shortcut is not existing")
+                return
+        else:
+            self.current_task = Task(task_description)
+
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
@@ -337,7 +354,7 @@ class LLMController():
                 model_name = GPT5_MINI
             
             # Request plan to the model chosen above
-            self.current_plan, reason, iteration_description = self.planner.plan(task_description, 
+            self.current_plan, reason, iteration_description = self.planner.plan(self.current_task, 
                                                                 execution_history=self.current_task.get_execution_history(), 
                                                                 context_graph=self.graph_manager.get_graph(), 
                                                                 current_position=self.graph_manager.get_drone_pose(), 
@@ -370,11 +387,19 @@ class LLMController():
                 print_t(f"[C] > Replanning <: {ret_val.value}")
                 continue
             else:
+                # Ask user a feedback about the executed plan
                 self.append_message(f"[Q] Write a feedback of the executed plan")
                 user_feedback = self.user_answer_queue.get(block=True)
-                print(user_feedback)
+                # print(user_feedback) debug
                 self.current_task.set_user_feedback(user_feedback)
                 self.long_memory_module.save_interaction_summary(self.current_task)
+
+                # Ask user a shortcut to associate to a task and its own plan
+                self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
+                shortcut = self.user_answer_queue.get(block=True)
+                self.long_memory_module.save_shortcut_task(username=self.username,
+                                                      keyword=shortcut,
+                                                      task=self.current_task)
                 break
         self.append_message(f'\n[Task ended]')
         self.append_message('end')
