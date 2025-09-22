@@ -19,7 +19,6 @@ class LLMPlanner():
     def __init__(self, robot_type: RobotType, current_task: Task):
         self.llm = LLMWrapper()
         self.current_task = current_task
-        self.model_name = GPT5
 
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
@@ -43,15 +42,12 @@ class LLMPlanner():
 
         self.flyzone = ""
 
-    def set_model(self, model_name):
-        self.model_name = model_name
-
     def init(self, high_level_skillset: SkillSet, low_level_skillset: SkillSet, vision_skill: VisionSkillWrapper):
         self.high_level_skillset = high_level_skillset
         self.low_level_skillset = low_level_skillset
         self.vision_skill = vision_skill
 
-    def plan(self, task_description: str, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks : Optional[list[str]] = None):
+    def plan(self, task_description: str, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
         # by default, the task_description is an action
         if not task_description.startswith("["):
             task_description = "[A] " + task_description
@@ -98,7 +94,7 @@ class LLMPlanner():
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
-        response_content = self.llm.request(prompt, model_name=self.model_name, stream=False, request_type=RequestType.SIMPLE)
+        response_content = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.SIMPLE)
 
         # Clean up the content - remove markdown code blocks if present
         if response_content.startswith("```json"):
@@ -114,15 +110,15 @@ class LLMPlanner():
         iteration_description = "Description of the iteration: " + iteration_description
         return plan, reason, iteration_description
     
-    def probe(self, question: str) -> MiniSpecValueType:
+    def probe(self, question: str, model_name: Optional[str] = GPT5) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
         image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
-        return evaluate_value(self.llm.request(prompt, image, self.model_name)), False
+        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=model_name)), False
     
-    def probe_end_iteration(self):
+    def probe_end_iteration(self, model_name: Optional[str] = GPT5):
         task_description = self.current_task.get_task_description()
         execution_history = self.current_task.get_execution_history()
         achievements_summary = self.current_task.get_last_achievements()
@@ -131,6 +127,6 @@ class LLMPlanner():
         objects_list = self.current_task.get_objects_list() #TODO: probably this should be handle in a different way
         graph_json = self.current_task.get_graph_json()
         prompt = self.prompt_probe_end_iteration.format(task_description=task_description, execution_history=execution_history, achievements_summary=achievements_summary, drone_position=drone_position, battery_percent=battery_percent, objects_list=objects_list, graph_json=graph_json)
-        decision_json = self.llm.request(prompt, self.model_name)
+        decision_json = self.llm.request(prompt=prompt, model_name=model_name)
         decision = json.load(decision_json)
         return decision

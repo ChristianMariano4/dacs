@@ -8,8 +8,8 @@ GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4o"
 GPT_O4_MINI = "o4-mini"
 GPT5 = "gpt-5" # The best model for coding and agentic tasks across domains
-GPT5 = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
-GPT5 = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
+GPT5_MINI = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
+GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
