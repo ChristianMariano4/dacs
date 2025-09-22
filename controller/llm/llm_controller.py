@@ -6,6 +6,7 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
+from controller.llm.llm_wrapper import GPT5, GPT5_MINI
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
@@ -330,14 +331,21 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
+            if ret_val is None: # This is the first iteration of the plan
+                model_name = GPT5
+            else: # This is executed after a replanning
+                model_name = GPT5_MINI
+            
+            # Request plan to the model chosen above
             self.current_plan, reason, iteration_description = self.planner.plan(task_description, 
-                                                                                 execution_history=self.current_task.get_execution_history(), 
-                                                                                 context_graph=self.graph_manager.get_graph(), 
-                                                                                 current_position=self.graph_manager.get_drone_pose(), 
-                                                                                 current_region=self.graph_manager.get_current_region(),
-                                                                                 old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description())
-                                                                                )
-            if not self.current_plan or not reason: # resend the request
+                                                                execution_history=self.current_task.get_execution_history(), 
+                                                                context_graph=self.graph_manager.get_graph(), 
+                                                                current_position=self.graph_manager.get_drone_pose(), 
+                                                                current_region=self.graph_manager.get_current_region(),
+                                                                old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
+                                                                model_name=model_name
+                                                                )
+            if not self.current_plan or not reason: # Resend the request
                 continue
 
             self.current_task.set_current_plan(self.current_plan)
@@ -351,8 +359,6 @@ class LLMController():
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             
-            # TODO: enable. disable replan for debugging
-            # break
             if ret_val is not None and ret_val.wait_user_answer:
                 user_question_answer = self.user_answer_queue.get(block=True)
                 print(user_question_answer)
