@@ -7,7 +7,7 @@ from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.task import Task
 
 from ..skillset import HighLevelSkillItem, SkillSet
-from .llm_wrapper import LLMWrapper, GPT3, GPT4, GPT5, RequestType
+from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT3, GPT4, GPT5, RequestType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from ..utils import print_t
 from ..minispec_interpreter import MiniSpecValueType, evaluate_value
@@ -110,13 +110,13 @@ class LLMPlanner():
         iteration_description = "Description of the iteration: " + iteration_description
         return plan, reason, iteration_description
     
-    def probe(self, question: str, model_name: Optional[str] = GPT5) -> MiniSpecValueType:
+    def probe(self, question: str) -> MiniSpecValueType:
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
         image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
-        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=model_name)), False
+        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI)), False
     
     def probe_end_iteration(self, model_name: Optional[str] = GPT5):
         task_description = self.current_task.get_task_description()
