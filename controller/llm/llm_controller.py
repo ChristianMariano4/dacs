@@ -348,10 +348,9 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            if ret_val is None: # This is the first iteration of the plan
-                model_name = GPT5
-            else: # This is executed after a replanning
-                model_name = GPT5_MINI
+            model_name = GPT5
+            if ret_val is not None: # This iteration is executed after a replanning
+                model_name = GPT5_MINI # So we can use a faster model
             
             # Request plan to the model chosen above
             self.current_plan, reason, iteration_description = self.planner.plan(self.current_task, 
@@ -359,6 +358,7 @@ class LLMController():
                                                                 context_graph=self.graph_manager.get_graph(), 
                                                                 current_position=self.graph_manager.get_drone_pose(), 
                                                                 current_region=self.graph_manager.get_current_region(),
+                                                                error_message=None,
                                                                 old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
                                                                 model_name=model_name
                                                                 )
