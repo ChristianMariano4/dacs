@@ -16,6 +16,7 @@ class RequestType(Enum):
     EXPLORE_DIRECTION = "explore_direction"
     SIMPLE = "simple"
     SINGLE_IMAGE = "single_image"
+    LIGHT = "light"
 
 class LLMWrapper:
     def __init__(self, temperature=1):
