@@ -8,7 +8,7 @@ import base64
 from openai import OpenAI
 import os
 from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
-from controller.llm.llm_wrapper import LLMWrapper, RequestType
+from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.task import Task
@@ -86,8 +86,8 @@ class LongMemoryModule:
                                         feedback_text=task.get_user_feedback(),
                                         )
         
-        # Send the request
-        response_content = self.llm_wrapper.request(prompt, request_type=RequestType.SIMPLE)
+        # Send the request to gpt5-nano, because we just need to summarize information
+        response_content = self.llm_wrapper.request(prompt, request_type=RequestType.SIMPLE, model_name=GPT5_NANO)
 
         # Parse the response
         response_parsed = json.loads(response_content)
