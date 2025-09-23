@@ -64,7 +64,7 @@ class LongMemoryModule:
 
     def load_last_task_id(self):
         if os.path.exists(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE)):
-            with open(TASK_ID_FILE, "r") as f:
+            with open(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE), "r") as f:
                 data = json.load(f)
                 return data.get("last_task_id", 0)
         elif not os.path.exists(os.path.join(MEMORY_PATH, self.username)):

@@ -49,8 +49,8 @@ class LLMPlanner():
 
     def plan(self, task: Task, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
         # by default, the task_description is an action
-        if not task_description.startswith("["):
-            task_description = "[A] " + task_description
+        if not task.get_task_description().startswith("["):
+            task_description = "[A] " + task.get_task_description()
 
         if scene_description is None:
             scene_description = self.vision_skill.get_obj_list()

@@ -38,7 +38,7 @@ class EnvironmentalAnalysisModule:
 
         self.middle_layer = middle_layer
         if self.middle_layer != None:
-            self.flyzone = middle_layer.getFlyzone()
+            self.flyzone = middle_layer.get_flyzone()
 
         self.llm_wrapper = LLMWrapper()
     
@@ -69,10 +69,10 @@ class EnvironmentalAnalysisModule:
     def choose_direction(self, current_task, base_path, current_position, hint: Optional[str]):
         try:
             # Read and encode all 8 directional images
-            north_image = encode_image(Image.open(os.path.join(base_path, 'forward.jpg')))
-            east_image = encode_image(Image.open(os.path.join(base_path, 'right.jpg')))
-            south_image = encode_image(Image.open(os.path.join(base_path, 'backward.jpg')))
-            west_image = encode_image(Image.open(os.path.join(base_path, 'left.jpg')))
+            north_image = encode_image(Image.open(os.path.join(base_path, 'north.jpg')))
+            east_image = encode_image(Image.open(os.path.join(base_path, 'east.jpg')))
+            south_image = encode_image(Image.open(os.path.join(base_path, 'south.jpg')))
+            west_image = encode_image(Image.open(os.path.join(base_path, 'west.jpg')))
             
             # Diagonal direction images
             north_east_image = encode_image(Image.open(os.path.join(base_path, 'north-east.jpg')))

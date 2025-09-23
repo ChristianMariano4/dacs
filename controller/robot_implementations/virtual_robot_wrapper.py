@@ -22,8 +22,7 @@ class FrameReader:
 class VirtualRobotWrapper(RobotWrapper):
     def __init__(self):
         self.stream_on = False
-        self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
-        pass
+        # self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
 
     def keep_active(self):
         pass
