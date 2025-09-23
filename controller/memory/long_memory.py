@@ -54,8 +54,8 @@ class LongMemoryModule:
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
 
         # Shortcuts: tasks associated to keywords
-        self.user_shortcut_tasks = self._load_shortcuts() # each username is a key, whose value is another dict of shortcuts of that user
         self.shortcuts_file = Path(shortcuts_file)
+        self.user_shortcut_tasks = self._load_shortcuts() # each username is a key, whose value is another dict of shortcuts of that user
 
     def change_username(self, username):
         self.username = username

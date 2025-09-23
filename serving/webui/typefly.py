@@ -111,9 +111,10 @@ class TypeFly:
             username = gr.Textbox(
                 label="Enter your name",
                 placeholder="Type your name here...",
-                lines=1
+                lines=1,
+                value="Christian",
             )
-            self.llm_controller.set_user_name(username)
+            self.llm_controller.set_username(username.value)
             
             # --- Flyzone generation section ---
             gr.Markdown("### ✈️ Generate Flyzone")
@@ -775,6 +776,64 @@ class TypeFly:
                     "data": None, 
                     "message": f"Error retrieving graph: {str(e)}"
                 })
+            
+        # Add to your existing Flask app
+        @app.route('/voice-agent')
+        def voice_agent_page():
+            return '''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script type="module">
+                    import { RealtimeAgent, RealtimeSession } from '@openai/agents-realtime';
+                    
+                    const agent = new RealtimeAgent({
+                        name: 'TypeFly Assistant',
+                        instructions: 'You are a drone control assistant. When users give commands, forward them to the Python backend.'
+                    });
+                    
+                    const session = new RealtimeSession(agent);
+                    
+                    // Custom function to send commands to your Python backend
+                    agent.addFunction({
+                        name: 'execute_drone_command',
+                        description: 'Execute a drone command via the Python backend',
+                        parameters: {
+                            type: 'object',
+                            properties: {
+                                command: { type: 'string', description: 'The drone command to execute' }
+                            }
+                        },
+                        handler: async ({ command }) => {
+                            const response = await fetch('/api/execute-command', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ command })
+                            });
+                            return await response.json();
+                        }
+                    });
+                    
+                    await session.connect({ apiKey: 'your-ephemeral-key' });
+                </script>
+            </head>
+            <body>
+                <div id="voice-interface">Voice interface will be initialized here</div>
+            </body>
+            </html>
+            '''
+
+        # # Add API endpoint to bridge voice commands to your existing system
+        # @app.route('/api/execute-command', methods=['POST'])
+        # def execute_voice_command():
+        #     data = request.json
+        #     command = data.get('command', '')
+            
+        #     # Bridge to your existing message processing system
+        #     # You'd need to adapt this to work with your TypeFly.process_message method
+        #     result = process_drone_command(command)
+            
+        #     return jsonify({'status': 'success', 'result': result})
 
     def run(self):
         asyncio_thread = Thread(target=self.asyncio_loop.run_forever)
