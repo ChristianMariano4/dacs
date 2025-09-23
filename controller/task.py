@@ -14,7 +14,7 @@ class Task():
     # def set_task_description(self, task_description: str):
     #     self.task_description = task_description
     
-    def get_task_description(self):
+    def get_task_description(self) -> str:
         return self.task_description
     
     def update_execution_history(self, *new_statements: Statement | str):
