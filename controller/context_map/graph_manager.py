@@ -12,6 +12,7 @@ class GraphManager:
     component can share without ROS.
     """
     def __init__(self, llm_controller, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
+        #TODO: put start_region as the closer region to the drone
         self.llmController = llm_controller
         self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
         self.current_region = start_region
