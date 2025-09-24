@@ -76,12 +76,12 @@ Iteration 11: New user task - create a new high level skill
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: To achieve this, I will call scan(["apple"]). If unsuccessful, I will call ed() to explore a new region. Since this pattern of scan → explore is a coherent unit of behavior, I can encapsulate it into a reusable skill fruit_hunt. This makes searching more efficient and avoids code duplication.
-Response: as("fruit_hunt", "Look for a fruit by scanning and exploring if not visible", "?s($1)==True{l($1 + ' found');->True};ed();rp();"); fruit_hunt([\"apple\"]);  
+Response: as("fruit_hunt", "Look for a fruit by scanning and exploring if not visible", "?s($1)==True{l($1 + ' found');->True};ed();rp();"); fruit_hunt(["apple"]);  
 
 Iteration 12: New user task - use a previously defined high level skill
 Scene: []
 Task: Where can I find an orange?
 Reason: Instead of repeating the logic for scanning and exploring, I can now use the fruit_hunt high level skill I created earlier. This will first check the current view and known graph, then move in a new direction if the fruit isn’t visible.
-Response: fruit_hunt([\"orange\"]);  
+Response: fruit_hunt(["orange"]);  
 If orange is already in the graph (region_2 at [150, 150]), the response will be: l("orange found in region_2 at [150, 150]");
 #End of the Example 
