@@ -157,7 +157,7 @@ class LongMemoryModule:
         username = username.lower()
         if username not in self.user_shortcut_tasks:
             self.user_shortcut_tasks[username] = {}
-        self.user_shortcut_tasks[username][keywords] = task.to_dict()
+        self.user_shortcut_tasks[username][keywords.lower()] = task.to_dict()
         self._save_shortcuts()
 
     def get_shortcut_task(self, username: str, keywords: str) -> dict | None:
@@ -167,7 +167,7 @@ class LongMemoryModule:
         username = username.lower()
         if username not in self.user_shortcut_tasks:
             return None
-        return self.user_shortcut_tasks[username][keywords]
+        return self.user_shortcut_tasks[username][keywords.lower()]
 
 if __name__ == "__main__":
     # python -m controller.llm.memory.long_memory

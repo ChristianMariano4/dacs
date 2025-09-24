@@ -7,7 +7,7 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
-from controller.llm.llm_wrapper import GPT5, GPT5_MINI, GPT5_NANO
+from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
@@ -99,7 +99,7 @@ class LLMController():
                 print_t("[C] Start virtual drone...")
                 self.drone: RobotWrapper = VirtualRobotWrapper()
         
-        self.planner = LLMPlanner(robot_type, self.current_task)
+        self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame)
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
@@ -370,7 +370,7 @@ class LLMController():
                 model_name = GPT5
             else: # This is executed after a replanning
                 model_name = GPT5_MINI
-            model_name = GPT5
+            model_name = GPT5_MINI
             print(f"Sending request to model {model_name}")
             # Request plan to the model chosen above
             print(self.current_task)
@@ -414,8 +414,6 @@ class LLMController():
                 # print(user_feedback) debug
                 self.current_task.set_user_feedback(user_feedback[1])
                 self.long_memory_module.save_interaction_summary(self.current_task)
-                self.append_message("Ready again to execute your command.")
-                self.text_to_speech("Ready again to execute your command.")
 
                 # Ask user a shortcut to associate to a task and its own plan
                 self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
@@ -492,6 +490,7 @@ class LLMController():
         while self.controller_active:
             self.drone.keep_active()
             self.latest_frame = frame_reader.frame
+            self.planner.update_latest_frame(self.latest_frame)
             frame = Frame(frame_reader.frame,
                           frame_reader.depth if hasattr(frame_reader, 'depth') else None)
             

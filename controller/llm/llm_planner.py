@@ -1,6 +1,7 @@
 import json
 import os, ast
 from typing import Optional, Sequence
+from PIL import Image
 
 from controller.abs.skill_item import SkillItem
 from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
@@ -9,14 +10,14 @@ from controller.task import Task
 from ..skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT3, GPT4, GPT5, RequestType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
-from ..utils import print_t
+from ..utils import encode_image, print_t
 from ..minispec_interpreter import MiniSpecValueType, evaluate_value
 from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class LLMPlanner():
-    def __init__(self, robot_type: RobotType, current_task: Task):
+    def __init__(self, robot_type: RobotType, current_task: Task, latest_frame):
         self.llm = LLMWrapper()
         self.current_task = current_task
 
@@ -41,11 +42,16 @@ class LLMPlanner():
             self.minispec_syntax = f.read()
 
         self.flyzone = ""
+        self.latest_frame = latest_frame
+    
 
     def init(self, high_level_skillset: SkillSet, low_level_skillset: SkillSet, vision_skill: VisionSkillWrapper):
         self.high_level_skillset = high_level_skillset
         self.low_level_skillset = low_level_skillset
         self.vision_skill = vision_skill
+
+    def update_latest_frame(self, latest_frame):
+        self.latest_frame = latest_frame
 
     def plan(self, task: Task, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
         # by default, the task_description is an action
@@ -119,10 +125,13 @@ class LLMPlanner():
         if question is list:
             question: str = question[0]
         objects_list = self.vision_skill.get_obj_list()
-        image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
+        image = self.vision_skill # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
         # image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
-        print_t(f"[P] Execution request: {question}")
+        print_t(f"[P] Probing question: {question}")
+        self.image_path = "probe.jpg"
+        Image.fromarray(self.latest_frame).save(self.image_path)
+        image = encode_image(Image.open(self.image_path))
         return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
