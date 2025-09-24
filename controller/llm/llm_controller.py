@@ -335,7 +335,7 @@ class LLMController():
         # ret_val = interpreter.ret_queue.get()
         return ret_val
     
-    def _get_after_shortcut(text: str) -> str:
+    def _get_after_shortcut(self, text: str) -> str:
         '''
         Retrieve the words used after "shortcut" using regex.
         '''
@@ -347,9 +347,16 @@ class LLMController():
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
         if "shortcut" in task_description:
+            print(task_description)
             #TODO: use fast LLM to retrieve the sentence used as shortcut, instead of statically parsing it
             keywords = self._get_after_shortcut(task_description)
-            self.current_task = self.long_memory_module.get_shortcut_task(username=self.username, keywords=keywords)
+            current_task_dict = self.long_memory_module.get_shortcut_task(username=self.username, keywords=keywords)
+            self.current_task = Task(task_description=current_task_dict['task_description'], 
+                                     execution_history=current_task_dict['execution_history'],
+                                     current_plan=current_task_dict['current_plan'],
+                                     user_feedback=current_task_dict['user_feedback'],
+                                     is_new=False
+                                     )
             if not self.current_task:
                 self.append_message("Sorry. Given shortcut is not existing")
                 return
@@ -363,9 +370,10 @@ class LLMController():
                 model_name = GPT5
             else: # This is executed after a replanning
                 model_name = GPT5_MINI
-            model_name = GPT5_NANO
+            model_name = GPT5
             print(f"Sending request to model {model_name}")
             # Request plan to the model chosen above
+            print(self.current_task)
             self.current_plan, reason, iteration_description = self.planner.plan(self.current_task, 
                                                                 execution_history=self.current_task.get_execution_history(), 
                                                                 context_graph=self.graph_manager.get_graph(), 
@@ -404,7 +412,7 @@ class LLMController():
                 self.text_to_speech("Write a feedback of the executed plan")
                 user_feedback = self.user_answer_queue.get(block=True)
                 # print(user_feedback) debug
-                self.current_task.set_user_feedback(user_feedback)
+                self.current_task.set_user_feedback(user_feedback[1])
                 self.long_memory_module.save_interaction_summary(self.current_task)
                 self.append_message("Ready again to execute your command.")
                 self.text_to_speech("Ready again to execute your command.")
@@ -419,7 +427,7 @@ class LLMController():
                     print("No shortcut")
                     break
                 self.long_memory_module.save_shortcut_task(username=self.username,
-                                                    keyword=shortcut,
+                                                    keywords=answer,
                                                     task=self.current_task)
                 break
         print("[Task ended]")

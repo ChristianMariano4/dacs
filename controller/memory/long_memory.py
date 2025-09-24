@@ -154,6 +154,7 @@ class LongMemoryModule:
         '''
         Save in memory (a dictionary) shortcuts of the user.
         '''
+        username = username.lower()
         if username not in self.user_shortcut_tasks:
             self.user_shortcut_tasks[username] = {}
         self.user_shortcut_tasks[username][keywords] = task.to_dict()
@@ -163,6 +164,7 @@ class LongMemoryModule:
         '''
         Return the task correspondent to given keyword
         '''
+        username = username.lower()
         if username not in self.user_shortcut_tasks:
             return None
         return self.user_shortcut_tasks[username][keywords]

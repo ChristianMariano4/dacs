@@ -115,13 +115,15 @@ class LLMPlanner():
         iteration_description = "Description of the iteration: " + iteration_description
         return plan, reason, iteration_description
     
-    def probe(self, question: str) -> MiniSpecValueType:
+    def probe(self, question) -> MiniSpecValueType:
+        if question is list:
+            question: str = question[0]
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill.get_current_image() # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
-        image = None # for now image is not passed to LLM because it is not working
+        # image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
         print_t(f"[P] Execution request: {question}")
-        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI)), False
+        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
     # def probe_end_iteration(self, model_name: Optional[str] = GPT5):
