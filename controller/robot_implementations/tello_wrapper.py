@@ -22,6 +22,8 @@ MOVEMENT_MAX = 500
 SCENE_CHANGE_DISTANCE = 1000 #TODO: delete these
 SCENE_CHANGE_ANGLE = 1000
 
+CRAZYFLIE_ENABLED = False
+
 def adjust_exposure(img, alpha=1.0, beta=0):
     """
     Adjust the exposure of an image.
@@ -76,7 +78,8 @@ class TelloWrapper(RobotWrapper):
     def __init__(self, move_enable, graph_manager: GraphManager):
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
         self.drone = Tello()
-        self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
+        if CRAZYFLIE_ENABLED:
+            self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri='radio://0/40/2M/BADF00D002')
         self.active_count = 0
         self.stream_on = False
 

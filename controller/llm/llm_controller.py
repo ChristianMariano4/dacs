@@ -7,7 +7,7 @@ import asyncio
 import uuid
 
 from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
-from controller.llm.llm_wrapper import GPT5, GPT5_MINI
+from controller.llm.llm_wrapper import GPT5, GPT5_MINI, GPT5_NANO
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
@@ -16,6 +16,9 @@ from controller.task import Task
 import cv2
 import numpy as np
 import torch
+
+# From text to speech
+from gtts import gTTS
 
 from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
@@ -249,10 +252,17 @@ class LLMController():
             print(f"Next yaw {next_yaw}")
             self.drone.move_direction(next_yaw, distance)
         return 0, False
+    
+    def text_to_speech(self, text: str):
+        # Convert text to speech
+        tts = gTTS(text, lang="en")
+        # Save as mp3 and play
+        tts.save("speech.mp3")
+        os.system("mpg123 speech.mp3")
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
         self.append_message(f"[LOG] {text}")
-        print_t(f"[LOG] {text}")
+        self.text_to_speech(text)
         return None, False
     
     def skill_re_plan(self) -> Tuple[None, bool]:
@@ -298,6 +308,7 @@ class LLMController():
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
         '''Log to the user a question made by LLM and attach question-answer pair in plan history'''
         self.append_message(f"[Q] {question}")
+        self.text_to_speech(question)
         print_t(f"[Q] {question}")
         return None, True, True
         
@@ -352,7 +363,8 @@ class LLMController():
                 model_name = GPT5
             else: # This is executed after a replanning
                 model_name = GPT5_MINI
-            
+            model_name = GPT5_NANO
+            print(f"Sending request to model {model_name}")
             # Request plan to the model chosen above
             self.current_plan, reason, iteration_description = self.planner.plan(self.current_task, 
                                                                 execution_history=self.current_task.get_execution_history(), 
@@ -378,7 +390,7 @@ class LLMController():
             
             if ret_val is not None and ret_val.wait_user_answer:
                 user_question_answer = self.user_answer_queue.get(block=True)
-                print(user_question_answer)
+                print(f"Inside if statement {user_question_answer}")
                 user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
                 self.current_task.update_execution_history(user_question_answer_str)
                 print_t(f"[C] > Replanning after user answer<: {ret_val.value}, {user_question_answer_str}")
@@ -388,19 +400,29 @@ class LLMController():
                 continue
             else:
                 # Ask user a feedback about the executed plan
-                self.append_message(f"[Q] Write a feedback of the executed plan")
+                self.append_message("[Q] Write a feedback of the executed plan")
+                self.text_to_speech("Write a feedback of the executed plan")
                 user_feedback = self.user_answer_queue.get(block=True)
                 # print(user_feedback) debug
                 self.current_task.set_user_feedback(user_feedback)
                 self.long_memory_module.save_interaction_summary(self.current_task)
+                self.append_message("Ready again to execute your command.")
+                self.text_to_speech("Ready again to execute your command.")
 
                 # Ask user a shortcut to associate to a task and its own plan
                 self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
+                self.text_to_speech("Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
                 shortcut = self.user_answer_queue.get(block=True)
+                # print(shortcut[1])
+                answer: str = shortcut[1]
+                if answer.lower() == "no":
+                    print("No shortcut")
+                    break
                 self.long_memory_module.save_shortcut_task(username=self.username,
-                                                      keyword=shortcut,
-                                                      task=self.current_task)
+                                                    keyword=shortcut,
+                                                    task=self.current_task)
                 break
+        print("[Task ended]")
         self.append_message(f'\n[Task ended]')
         self.append_message('end')
         self.current_plan = None

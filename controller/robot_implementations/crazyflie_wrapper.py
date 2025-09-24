@@ -225,7 +225,7 @@ class CrazyflieWrapper():
         self.pose[0] = x
         self.pose[1] = y
         self.pose[2] = z
-        print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}")
+        # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}")
 
     def _track_position(self):
         '''Continuosly track drone position through lighthouse'''

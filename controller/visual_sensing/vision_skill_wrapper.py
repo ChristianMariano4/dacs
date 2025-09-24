@@ -250,7 +250,6 @@ class VisionSkillWrapper():
         for a in objects:
             obj = self.get_obj_info(a)
             if self.get_obj_info(a) is not None:
-                print(obj)
                 return True, False
         return False, False
 

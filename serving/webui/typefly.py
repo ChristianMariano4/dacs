@@ -11,6 +11,7 @@ from threading import Thread
 import argparse
 import websockets
 import sounddevice as sd
+import pyttsx3
 import numpy as np
 import base64
 from collections import deque
@@ -402,8 +403,6 @@ class TypeFly:
         self.graph_manager = GraphManager(
             llm_controller=self.llm_controller, 
             init_graph_json=init_graph_path,
-            start_region="kitchen_area",  # Start in kitchen
-            start_coords=(200.0, 200.0)
         )
         # self.graph_manager = GraphManager(llm_controller=self.llm_controller, init_graph_json=)
         self.llm_controller.set_graph_manager(self.graph_manager)
@@ -570,6 +569,8 @@ class TypeFly:
                         return "✅ Command Complete!", transcript
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
+                    if msg.startswith('[Q]'):
+                        self.user_question_answer.append(msg)
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:
@@ -842,19 +843,32 @@ class TypeFly:
             self.user_question_answer.append(message)
             temp = self.user_question_answer.copy()
             self.user_answer_queue.put(temp) # put in shared queue the pair to pass to llm_controller
+
+            # Check if this is a shortcut question or feedback question
+            question = self.user_question_answer[0]
+            is_shortcut_question = "shortcut" in question.lower()
+            is_feedback_question = "feedback" in question.lower()
+            
             self.user_question_answer = []
-            yield "Answer sent. Wait a second and I will be here again"
+
+            # Only show elaboration message for feedback, not for shortcut answers
+            if is_feedback_question:
+                yeld_msg = "Thank you for your feedback. I am elaborating it. I will be ready in few seconds."
+                self.llm_controller.text_to_speech(yeld_msg)
+                complete_response = yeld_msg + "\n"
+            else:
+                # For shortcut questions or other simple answers, don't show elaboration message
+                complete_response = ""
 
             # Continue processing messages from the queue
-            complete_response = 'Answer sent\n'
             while True:
-                print("hi")
                 msg = self.message_queue.get()
                 if isinstance(msg, tuple):
                     history.append((None, msg))
                 elif isinstance(msg, str):
                     if msg == 'end':
-                        return complete_response + "\nCommand Complete!"
+                        yield complete_response + "\nCommand Complete!"
+                        return
                     
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
@@ -876,8 +890,8 @@ class TypeFly:
                     history.append((None, msg))
                 elif isinstance(msg, str):
                     if msg == 'end':
-                        return "Command Complete!"
-                    
+                            yield complete_response + "\nCommand Complete!"
+                            return
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
                     if msg.startswith('[Q]'):
