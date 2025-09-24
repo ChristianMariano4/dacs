@@ -172,3 +172,12 @@ results/
 # Memory directory
 c3af123d-bb95-494b-9f9c-e8fd460fef99/
 chroma.sqlite3
+
+# Test directory
+test/*
+
+# Flyzone directory
+flyzone.txt
+flyzone_plot.png
+
+Makefile
