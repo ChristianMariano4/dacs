@@ -5,7 +5,8 @@ from openai import Stream, ChatCompletion
 
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 GPT3 = "gpt-3.5-turbo-16k"
-GPT4 = "gpt-4o"
+GPT4 = "gpt-4"
+GPT4_O = "gpt-4o"
 GPT_O4_MINI = "o4-mini"
 GPT5 = "gpt-5" # The best model for coding and agentic tasks across domains
 GPT5_MINI = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
@@ -51,7 +52,15 @@ class LLMWrapper:
                 assert image is not None, f"Image not given in a {RequestType.SINGLE_IMAGE} request"
                 response = client.chat.completions.create(
                     model=model_name,
-                    messages=[{"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}, prompt]}],
+                    messages=[
+                        {   
+                            "role": "user", 
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
+                            ]
+                        }
+                    ],
                     temperature=self.temperature,
                     stream=stream,
                 )

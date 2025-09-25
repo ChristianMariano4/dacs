@@ -230,6 +230,8 @@ class VisionSkillWrapper():
         return str(str_list).replace("'", '')
 
     def get_obj_info(self, object_name: str) -> ObjectInfo:
+        if type(object_name) is list:
+            object_name = object_name[0]
         for _ in range(10):
             self.update_obj_list()
             for obj in self.object_list:

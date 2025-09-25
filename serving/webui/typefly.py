@@ -569,8 +569,6 @@ class TypeFly:
                         return "✅ Command Complete!", transcript
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
-                    if msg.startswith('[Q]'):
-                        self.user_question_answer.append(msg)
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:
@@ -879,7 +877,7 @@ class TypeFly:
                         complete_response += msg.rstrip('\\\\')
                     else:
                         complete_response += msg + '\n'
-                yield complete_response
+                    yield complete_response
         else:
             task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message,))
             task_thread.start()
@@ -892,11 +890,11 @@ class TypeFly:
                     if msg == 'end':
                             yield complete_response + "\nCommand Complete!"
                             return
+                    
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
                     if msg.startswith('[Q]'):
                         self.user_question_answer.append(msg)
-
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:

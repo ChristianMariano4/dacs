@@ -414,6 +414,8 @@ class LLMController():
                 # print(user_feedback) debug
                 self.current_task.set_user_feedback(user_feedback[1])
                 self.long_memory_module.save_interaction_summary(self.current_task)
+                self.append_message("Ready again to execute your command.")
+                self.text_to_speech("Ready again to execute your command.")
 
                 # Ask user a shortcut to associate to a task and its own plan
                 self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
