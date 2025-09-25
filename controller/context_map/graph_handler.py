@@ -530,6 +530,7 @@ class GraphHandler:
             edges = [self.current_location]
 
         self.graph.add_node(node, **attrs)
+        # print(node)
 
         for edge in edges:
             # If either node or edge lacks coordinates, set default weight and skip distance calc

@@ -16,7 +16,7 @@ class GraphManager:
         self.llmController = llm_controller
         self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
         self.current_region = start_region
-        self.drone_pose = None
+        self.drone_pose = np.zeros(3)
 
         if not self.graph_handler.graph.has_node(start_region):
             # no neighbours yet – just a stand-alone region
@@ -54,22 +54,20 @@ class GraphManager:
 
     # --- Objects
     def add_object_detection(self, label: str, xy: Sequence[float] = None) -> None:
-        if self.graph_handler.is_node_in_current_region(label):
-            return
         # node_id = f"{label}_{uuid.uuid4().hex[:4]}"
         node_id = label.split("_")[0]
-        if self.graph_handler.is_node_in_current_region(label):
+        if self.graph_handler.is_node_in_current_region(label): #o bject already saved in this region
             return
         if xy is not None:
             attrs   = {"coords": list(map(float, xy)), "type": "object"}
-            self.updater.update(new_nodes=[{"name": node_id,
-                                "type": "object",
-                                "coords": f"[{xy[0]:.1f}, {xy[1]:.1f}]"}],
-                                new_connections=[[node_id, self.current_region]])
+            # self.updater.update(new_nodes=[{"name": node_id,
+            #                     "type": "object",
+            #                     "coords": f"[{xy[0]:.1f}, {xy[1]:.1f}]"}],
+            #                     new_connections=[[node_id, self.current_region]])
         else:
             attrs   = {"type": "object"}
-            self.updater.update(new_nodes=[{"name": node_id,
-                                    "type": "object"}])
+            # self.updater.update(new_nodes=[{"name": node_id,
+            #                         "type": "object"}])
         self.graph_handler.update_with_node_flexible(node=node_id, edges=[self.current_region], attrs=attrs)
         # prepare LLM-prompt diff
 
@@ -79,12 +77,11 @@ class GraphManager:
         # print("Object added")
         log_dir = "controller/assets/tello/memory"
         os.makedirs(log_dir, exist_ok=True)
-        with open(os.path.join(log_dir, "graph.txt"), "a") as f:
-            json.dump({
-                "graph": self.graph_handler.to_json_str(),
-            }, f)
+        with open(os.path.join(log_dir, "graph.txt"), "w") as f:
+            graph_dict = json.loads(self.graph_handler.to_json_str())  # parse string → dict
+            json.dump(graph_dict, f, indent=2)  # pretty JSON, no escapes
             f.write("\n")
-        
+                
     # --- Regions
     def add_region(self, region_xy: Sequence[float], region_name: str = None) -> str:
         """
@@ -97,10 +94,10 @@ class GraphManager:
         attrs  = {"coords": list(map(float, region_xy)), "type": "region"}
         self.graph_handler.update_with_node_flexible(node=region_name, edges=[self.current_region], attrs=attrs)
 
-        self.updater.update(new_nodes=[{"name": region_name,
-                                        "type": "region",
-                                        "coords": f"[{region_xy[0]:.1f}, {region_xy[1]:.1f}]"}],
-                                        new_connections=[[self.current_region, region_name]])
+        # self.updater.update(new_nodes=[{"name": region_name,
+        #                                 "type": "region",
+        #                                 "coords": f"[{region_xy[0]:.1f}, {region_xy[1]:.1f}]"}],
+        #                                 new_connections=[[self.current_region, region_name]])
         return region_name
     
     # --- Prompt

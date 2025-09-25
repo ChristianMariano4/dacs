@@ -108,7 +108,7 @@ class VisionSkillWrapper():
         self.IMG_H  = 720                # tello height (px)
 
     def set_graph_manager(self, graph_manager):
-        self.graph_manager = graph_manager
+        self.graph_manager: GraphManager = graph_manager
         
     def update_obj_list(self):
         if self.shared_frame.timestamp == self.last_update:
@@ -248,7 +248,7 @@ class VisionSkillWrapper():
         return self.scene_description
 
     def is_visible(self, objects: List[str]) -> Tuple[bool, bool]:
-        print(objects)
+        # print(objects)
         for a in objects:
             obj = self.get_obj_info(a)
             if self.get_obj_info(a) is not None:
