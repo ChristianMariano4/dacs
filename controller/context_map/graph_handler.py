@@ -138,7 +138,7 @@ def parse_graph(
 
     G = nx.Graph()
     for node in data["objects"]:
-        c = node["coords"]
+        # c = node["coords"]
         # print(f"node: {node}, coords: {c}")
         coords = parse_graph_coord(node["coords"], origin=origin, rotation=rotation)
         if flip_coords:
@@ -340,7 +340,8 @@ class GraphHandler:
             else:
                 # For objects, check for display_name as well
                 name = node_attrs.get("display_name", node)
-                graph_dict[f"{node_type}s"].append({"name": name})
+                coords = node_attrs.get("coords", node)
+                graph_dict[f"{node_type}s"].append({"name": name, "coords": coords})
 
             # Handle edges
             for neighbor in self.get_neighbors(node):

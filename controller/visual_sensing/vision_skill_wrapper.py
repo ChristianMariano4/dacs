@@ -130,7 +130,7 @@ class VisionSkillWrapper():
                     # print(f"Object {obj["name"]} detected at position {pos[:2]}")
                     self.graph_manager.add_object_detection(obj["name"], pos[:2])
             else:
-                print(f"Object {obj["name"]} detected without localization")
+                # print(f"Object {obj["name"]} detected without localization")
                 self.graph_manager.add_object_detection(obj["name"])
 
     def update_scene_description(self):
