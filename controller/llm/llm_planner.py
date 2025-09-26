@@ -129,7 +129,7 @@ class LLMPlanner():
         # image = None # for now image is not passed to LLM because it is not working
         prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
         print_t(f"[P] Probing question: {question}")
-        self.image_path = "probe.jpg"
+        self.image_path = "serving/webui/cache/probe.jpg"
         Image.fromarray(self.latest_frame).save(self.image_path)
         image = encode_image(Image.open(self.image_path))
         return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
