@@ -44,7 +44,7 @@ class GraphManager:
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres; keep units consistent.
         """
-        self.drone_pose = np.asarray(pose)[:2]
+        self.drone_pose = np.asarray(pose)[:3]
         print(f"[DEBUG] Inside update_pose function. The pose of the drone is: {self.drone_pose}")
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
         if result[1]:

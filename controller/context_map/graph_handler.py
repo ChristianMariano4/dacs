@@ -173,8 +173,10 @@ def parse_graph(
         # print(f"edge: {edge}, c1, c2: {c1}, {c2}")
         dist = np.linalg.norm(np.array(c1) - np.array(c2))
         G.add_edge(edge[0], edge[1], type="region", weight=dist)
+    
+    drone_position = data["current_position"]["coords"]
 
-    return G, str(data)
+    return G, str(data), drone_position
 
 # class that handle the graph. If given one as input (grapt_path), otherwise crate an empty one
 class GraphHandler:
@@ -183,15 +185,16 @@ class GraphHandler:
             self.graph = nx.Graph()
             self.as_json_str = "{}"
             self.current_location = "region_0"
+            self.drone_position = np.zeros(3)
         else:
             with open(graph_path) as f:
                 data = json.load(f)
-            self.graph, self.as_json_str = parse_graph(data)
+            self.graph, self.as_json_str, self.drone_position = parse_graph(data)
             self.current_location = init_node
 
     def ensure_region_for_pose(
         self,
-        pose_xy: Sequence[float],          # (x, y) in the SAME frame your graph uses
+        pose_xyz: Sequence[float],          # (x, y) in the SAME frame your graph uses
         threshold: float = 100.0,            # cm; tweak to taste TODO: add global threshold
         connect_to_nearest: bool = True,   # make an edge to the closest region
     ) -> Tuple[str, bool]:
@@ -207,6 +210,7 @@ class GraphHandler:
                weighted 'region' edge,
             4. update self.current_location.
         """
+        pose_xy = np.asarray(pose_xyz)[:3]
         pose_xy = np.asarray(pose_xy, dtype=float)
 
         # --- 1. Gather existing regions -------------------------
@@ -318,6 +322,7 @@ class GraphHandler:
             "regions": [],
             "object_connections": [],
             "region_connections": [],
+            "current_position": {}
         }
         
         for node in self.graph.nodes:
@@ -353,7 +358,7 @@ class GraphHandler:
             # Use display name for current location too
             current_loc_attrs = self.graph.nodes.get(self.current_location, {})
             current_loc_name = current_loc_attrs.get("display_name", self.current_location)
-            graph_dict["current_location"] = current_loc_name
+            graph_dict["current_position"] = {"coords": self.drone_position, "region": current_loc_name}
 
         graph_dict.update(extra_data)
 
