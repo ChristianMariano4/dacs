@@ -11,7 +11,7 @@ from queue import Queue
 from openai import ChatCompletion, Stream
 
 from .skillset import SkillSet
-from .utils import split_args, print_t
+from .utils.general_utils import split_args, print_t
 
 # ------------------------------------------------------------------------------
 # Utils

@@ -47,6 +47,11 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
+    def disconnect(self) -> None:
+        """Close connection to the robot and eventually stop threads."""
+        pass
+
+    @abstractmethod
     def keep_active(self) -> None:
         """Optionally send heartbeats to prevent robot timeout or sleep."""
         pass
@@ -100,13 +105,13 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def move_direction(self, direction: int, distance_cm: int) -> CommandResult:
+    def move_direction(self, direction_deg: int, distance_cm: int) -> CommandResult:
         """
         Move along a heading by `distance_cm` centimeters.
 
         Parameters
         ----------
-        direction : int
+        direction_deg : int
             Heading in degrees (convention: 0° = north, positive = clockwise).
             This is intended for internal use (not exposed to the LLM).
         distance_cm : int
@@ -129,9 +134,9 @@ class RobotWrapper(ABC):
         pass
 
     @abstractmethod
-    def go_to_position(self, target_x_cm: float, target_y_cm: float) -> CommandResult:
+    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """
-        Navigate the robot to the absolute planar position (target_x_cm, target_y_cm).
+        Navigate the robot to the absolute planar position (target_x_cm, target_y_cm, target_z_cm).
 
         Parameters
         ----------
@@ -139,7 +144,8 @@ class RobotWrapper(ABC):
             Target X coordinate (cm) in the world/map frame.
         target_y_cm : float
             Target Y coordinate (cm) in the world/map frame.
-
+        target_z_cm : float
+            Target Z coordinate (cm) in the world/map frame.
         Returns
         -------
         (ok, replan) : Tuple[bool, bool]

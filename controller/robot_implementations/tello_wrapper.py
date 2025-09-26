@@ -9,7 +9,9 @@ import numpy as np
 from djitellopy import Tello
 
 from controller.context_map.graph_manager import GraphManager
-from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper, FrameReader, cap_distance
+from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper, cap_distance
+from controller.utils.constants import REGION_THRESHOLD
+from controller.utils.general_utils import adjust_exposure, sharpen_image
 
 from ..abs.robot_wrapper import RobotWrapper
 
@@ -23,13 +25,30 @@ logger = logging.getLogger(__name__)
 # Constants / Types
 # -----------------------------------------------------------------------------
 CRAZYFLIE_LH_ENABLED = False #TODO: Add as argument by cli
-REGION_THRESHOLD: int = 100 # How distant in centimeters are the regions. After that distance, a new region is automatically created
 
 CommandResult = Tuple[bool, bool]  # (ok, replan)
 
 # Legacy scene-change heuristics (kept for compatibility)
 SCENE_CHANGE_DISTANCE = 1000  # cm  TODO: consider removing if unused
 SCENE_CHANGE_ANGLE = 1000     # deg  TODO: consider removing if unused
+
+# -----------------------------------------------------------------------------
+# Frame reader helper
+# -----------------------------------------------------------------------------
+class FrameReader:
+    """Tiny wrapper that post-processes frames (exposure + sharpen) on access."""
+    def __init__(self, fr):
+        # Initialize the video capture
+        self.fr = fr
+
+    @property
+    def frame(self):
+        # Read a frame from the video capture
+        frame = self.fr.frame
+        if frame is None:
+            return None
+        frame = adjust_exposure(frame, alpha=1.3, beta=-30)
+        return sharpen_image(frame)
 
 # -----------------------------------------------------------------------------
 # Tello implementation

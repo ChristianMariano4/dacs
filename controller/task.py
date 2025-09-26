@@ -1,11 +1,12 @@
+from typing import Optional
 from controller.minispec_interpreter import Statement
 
 
 class Task():
-    def __init__(self, task_description, is_new: bool = True):
+    def __init__(self, task_description: str, execution_history: Optional[list[Statement | str]] = [], current_plan: Optional[str] = "", user_feedback: Optional[str] = "", is_new: bool = True):
         self.task_description = task_description
-        self.execution_history: list[Statement | str] = []
-        self.current_plan = ""
+        self.execution_history: list[Statement | str] = execution_history
+        self.current_plan = current_plan
         self.last_achievements = ""
         self.drone_position = None
         self.user_feedback = ""

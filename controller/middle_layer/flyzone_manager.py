@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controller.constants import ROBOT_NAME
+from controller.utils.constants import ROBOT_NAME
 from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper
 from controller.middle_layer.middle_layer import MiddleLayer
 

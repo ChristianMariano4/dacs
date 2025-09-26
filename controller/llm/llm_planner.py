@@ -4,13 +4,13 @@ from typing import Optional, Sequence
 from PIL import Image
 
 from controller.abs.skill_item import SkillItem
-from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.task import Task
 
 from ..skillset import HighLevelSkillItem, SkillSet
 from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT3, GPT4, GPT5, RequestType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
-from ..utils import encode_image, print_t
+from ..utils.general_utils import encode_image, print_t
 from ..minispec_interpreter import MiniSpecValueType, evaluate_value
 from ..abs.robot_wrapper import RobotType
 

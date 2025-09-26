@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 import asyncio
 import uuid
 
-from controller.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
+from controller.utils.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
 from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
@@ -33,7 +33,7 @@ from ..abs.robot_wrapper import RobotWrapper
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from ..skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
-from ..utils import input_t, print_t
+from ..utils.general_utils import input_t, print_t
 from ..minispec_interpreter import MiniSpecInterpreter, Statement
 from ..abs.robot_wrapper import RobotType
 
@@ -96,8 +96,8 @@ class LLMController():
                 from ..robot_implementations.crazyflie_wrapper import CrazyflieWrapper
                 self.drone: CrazyflieWrapper = CrazyflieWrapper(move_enable=True)
             case _:
-                print_t("[C] Start virtual drone...")
-                self.drone: RobotWrapper = VirtualRobotWrapper()
+                print_t("[C] Start Virtual drone...")
+                self.drone: RobotWrapper = VirtualRobotWrapper(graph_manager=self.graph_manager, move_enable=True)
         
         self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame)
 
@@ -109,13 +109,11 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_right", self.drone.move_east, "Move right by a distance", args=[SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_up", self.drone.move_up, "Move up by a distance", args=[SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x y absolute position.", args=[SkillArg("x", int), SkillArg("y", int)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x,y,z absolute position.", args=[SkillArg("x", int), SkillArg("y", int), SkillArg("z", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right) by a given distance in cm", args=[SkillArg("direction", str), SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self._name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("create_new_trajectory", self.drone.create_new_trajectory, "Create and save a new trajectory, mapping it to a gesture", args=[SkillArg("gesture", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("start_trajectory", self.drone.start_trajectory, "Start a trajectory mapped by a gesture", args=[SkillArg("gesture", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get object's X-coordinate in (0,1)", args=[SkillArg("object_name", str)]))
@@ -186,7 +184,7 @@ class LLMController():
         return self.flyzone_manager
     
     def get_drone_pose(self):
-        self.drone.get_pose()
+        self.drone.get_position()
 
     def skill_time(self) -> Tuple[float, bool]:
         return time.time() - self.execution_time, False
@@ -213,13 +211,13 @@ class LLMController():
         # next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}
         match direction:
             case 0:
-                self.drone.move_north(distance=distance)
+                self.drone.move_north(distance_cm=distance)
             case 180:
-                self.drone.move_south(distance=distance)
+                self.drone.move_south(distance_cm=distance)
             case -90:
-                self.drone.move_west(distance=distance)
+                self.drone.move_west(distance_cm=distance)
             case 90:
-                self.drone.move_east(distance=distance)
+                self.drone.move_east(distance_cm=distance)
             case _:
                 self.drone.move_direction(direction, distance)
         return None, False

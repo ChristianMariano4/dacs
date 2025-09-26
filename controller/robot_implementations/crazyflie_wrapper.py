@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from typing import Tuple
 
-import controller.utils as utils
+import controller.utils.general_utils as general_utils
 from ..abs.robot_wrapper import RobotWrapper
 
 
@@ -314,16 +314,16 @@ class CrazyflieWrapper():
         self.is_flying = value
     
     def create_new_trajectory(self, gesture, duration_s=15)-> Tuple[bool, bool]:
-        utils.print_t(f"New trajectory creation ... associated with gesture {gesture}")
+        general_utils.print_t(f"New trajectory creation ... associated with gesture {gesture}")
         if self.get_move_enable() and self.get_is_flying():
             self.land(height=0.0, duration=4.5)
             self.set_is_flying(False)
         time.sleep(6.0)
         self._record_trajectory(duration_s)
-        utils.run_command('python3 controller/generate_trajectory.py my_timed_waypoints_yaw.csv traj.csv --pieces 5')
+        general_utils.run_command('python3 controller/generate_trajectory.py my_timed_waypoints_yaw.csv traj.csv --pieces 5')
         print('New trajectory recorded')
         print('uploading trajectory...')
-        header, dataTraj = utils.import_csv('traj.csv')
+        header, dataTraj = general_utils.import_csv('traj.csv')
         self.gesture_trajectory_mapping.update({gesture : dataTraj})
         print(f'DICTIONARY: {self.gesture_trajectory_mapping}')
         self.sound_effect(7)
@@ -357,7 +357,7 @@ class CrazyflieWrapper():
                         timed_waypoints[key].append(data[f'stateEstimate.{key}'])
                 timed_waypoints['t'].append(t)
                 if time.time() > end_time:
-                    utils.save_to_csv(timed_waypoints, 'my_timed_waypoints_yaw.csv')
+                    general_utils.save_to_csv(timed_waypoints, 'my_timed_waypoints_yaw.csv')
                     print("CSV saved.")
                     break
 
@@ -391,9 +391,9 @@ class CrazyflieWrapper():
 
     def _run_sequence(self, trajectory_id, duration):
         if not self.is_flying:
-            utils.print_t("_run_sequence function before taking off")
+            general_utils.print_t("_run_sequence function before taking off")
             self.takeoff(height=0.4, duration=2.0)
-            utils.print_t("_run_sequence function after taking off")
+            general_utils.print_t("_run_sequence function after taking off")
             time.sleep(2.0)
             self.is_flying = True
         self._start_trajectory(trajectory_id, time_scale=1.0, relative=True)

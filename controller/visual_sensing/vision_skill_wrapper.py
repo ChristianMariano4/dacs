@@ -5,7 +5,7 @@ import cv2
 from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
-from controller.utils import encode_image
+from controller.utils.general_utils import encode_image
 from ..shared_frame import SharedFrame
 
 

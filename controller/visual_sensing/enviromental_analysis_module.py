@@ -9,11 +9,11 @@ import numpy as np
 import base64
 from openai import OpenAI
 import os
-from controller.constants import ROBOT_NAME, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
-from controller.utils import encode_image
+from controller.utils.general_utils import encode_image
 
 GPT3 = "gpt-3.5-turbo-16k"
 GPT4 = "gpt-4"

@@ -11,7 +11,7 @@ import queue
 import asyncio, aiohttp
 import threading
 
-from .utils import print_t
+from .utils.general_utils import print_t
 from .shared_frame import SharedFrame, Frame
 
 DIR = os.path.dirname(os.path.abspath(__file__))

@@ -8,7 +8,7 @@ import grpc
 import asyncio
 
 from .yolo_client import SharedFrame, Frame
-from .utils import print_t
+from .utils.general_utils import print_t
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

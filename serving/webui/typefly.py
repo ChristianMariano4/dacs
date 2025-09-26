@@ -25,7 +25,7 @@ PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 sys.path.append(PARENT_DIR)
 from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
-from controller.utils import print_t
+from controller.utils.general_utils import print_t
 from controller.llm.llm_wrapper import GPT4, LLAMA3
 from controller.abs.robot_wrapper import RobotType
 

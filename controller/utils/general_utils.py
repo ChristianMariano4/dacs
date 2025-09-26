@@ -9,20 +9,6 @@ import csv
 import datetime
 import subprocess
 
-def print_t(*args, **kwargs):
-    # Get the current timestamp
-    current_time = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
-    
-    # Use built-in print to display the timestamp followed by the message
-    print(f"[{current_time}]", *args, **kwargs)
-
-def input_t(literal):
-    # Get the current timestamp
-    current_time = datetime.datetime.now().strftime('%H:%M:%S.%f')[:-3]
-    
-    # Use built-in print to display the timestamp followed by the message
-    return input(f"[{current_time}] {literal}")
-
 def split_args(s: str) -> list[str]:
     args, cur, depth = [], '', 0
     in_single = in_double = False
@@ -44,6 +30,39 @@ def split_args(s: str) -> list[str]:
     if cur.strip():
         args.append(cur.strip())
     return args
+
+# -----------------------------------------------------------------------------
+# Image helpers
+# -----------------------------------------------------------------------------
+
+def adjust_exposure(img, alpha=1.0, beta=0):
+    """
+    Adjust the exposure of an image.
+    
+    :param img: Input image
+    :param alpha: Contrast control (1.0-3.0). Higher values increase exposure.
+    :param beta: Brightness control (0-100). Higher values add brightness.
+    :return: Exposure adjusted image
+    """
+    # Apply exposure adjustment using the formula: new_img = img * alpha + beta
+    new_img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
+    return new_img
+
+def sharpen_image(img):
+    """
+    Apply a sharpening filter to an image.
+    
+    :param img: Input image
+    :return: Sharpened image
+    """
+    # Define a sharpening kernel
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    
+    # Apply the sharpening filter
+    sharpened = cv2.filter2D(img, -1, kernel)
+    return sharpened
 
 def encode_image(image, quality=70, max_size=(500, 500)):
     """Compress and convert an image (PIL or numpy) to base64 string."""
@@ -73,6 +92,19 @@ def encode_image(image, quality=70, max_size=(500, 500)):
     else:
         raise TypeError(f"Unsupported image type {type(image)}")
 
+
+# -----------------------------------------------------------------------------
+# Movement helpers
+# -----------------------------------------------------------------------------
+MOVEMENT_MIN = 20     # cm
+MOVEMENT_MAX = 500    # cm
+
+def cap_distance(distance):
+    if distance < MOVEMENT_MIN:
+        return MOVEMENT_MIN
+    elif distance > MOVEMENT_MAX:
+        return MOVEMENT_MAX
+    return distance
     
 # ───── CSV Utilities ─────
 
