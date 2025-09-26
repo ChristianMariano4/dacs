@@ -53,13 +53,13 @@ class LLMPlanner():
     def update_latest_frame(self, latest_frame):
         self.latest_frame = latest_frame
 
-    def plan(self, task: Task, context_graph: str, current_position: Sequence[float], current_region: str, scene_description: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
+    def plan(self, task: Task, context_graph: str, current_position: Sequence[float], current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
         # by default, the task_description is an action
         if not task.get_task_description().startswith("["):
             task_description = "[A] " + task.get_task_description()
 
-        if scene_description is None:
-            scene_description = self.vision_skill.get_obj_list()
+        if objects_list is None:
+            objects_list = self.vision_skill.get_obj_list()
 
         type_folder_name = 'tello'
         # self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
@@ -92,7 +92,7 @@ class LLMPlanner():
                                             plan_examples=self.plan_examples,
                                             old_interactions_feedbacks = old_interactions_feedbacks,
                                             error_message=error_message,
-                                            scene_description=scene_description,
+                                            objects_list=objects_list,
                                             task_description=task_description,
                                             execution_history=execution_history,
                                             context_graph=context_graph,
@@ -127,7 +127,7 @@ class LLMPlanner():
         objects_list = self.vision_skill.get_obj_list()
         image = self.vision_skill # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
         # image = None # for now image is not passed to LLM because it is not working
-        prompt = self.prompt_probe.format(scene_description=objects_list, question=question)
+        prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
         print_t(f"[P] Probing question: {question}")
         self.image_path = "probe.jpg"
         Image.fromarray(self.latest_frame).save(self.image_path)
