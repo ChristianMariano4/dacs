@@ -118,7 +118,7 @@ class LLMPlanner():
         plan = parsed.get("plan", None)
         reason = parsed.get("reason", None)
         iteration_description = parsed.get("description", None)
-        iteration_description = "Description of the iteration: " + iteration_description
+        # iteration_description = "Description of the iteration: " + iteration_description
         return plan, reason, iteration_description
     
     def probe(self, question) -> MiniSpecValueType:

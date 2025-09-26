@@ -382,7 +382,7 @@ class LLMController():
                                                                 old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
                                                                 model_name=model_name
                                                                 )
-            if not self.current_plan or not reason: # Resend the request
+            if not self.current_plan: # Resend the request
                 continue
 
             self.current_task.set_current_plan(self.current_plan)
