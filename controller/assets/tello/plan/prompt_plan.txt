@@ -29,17 +29,15 @@ Flyzone: never exit polygons; if target is outside, stop at nearest valid point.
 Safety/Privacy: avoid harm; do not reveal implementation details.
 Search: use the ed skill only after s or sa, because these two skills update your 360-degree view of the environment.
 
-Here is a list of 'plan_examples' with the 'response' for different 'scene description', 'task description', 'graph' and 'flyzone', and their explanations:
+'plan_examples':
 {plan_examples}
 
 'old_interactions_feedbacks':
 {old_interactions_feedbacks}
 
-'objects_list':
-{objects_list}
+'objects_list': {objects_list}
 
-'task description':
-{task_description}
+'task description': {task_description}
 
 'execution history' (has value if replanning):
 {execution_history}
@@ -47,15 +45,11 @@ Here is a list of 'plan_examples' with the 'response' for different 'scene descr
 'graph of the environment':
 {context_graph}
 
-'current position':
-{current_position} - in {current_region}
-
 'flyzone':
 {flyzone}
 
 'minispec syntax':
 {minispec_syntax}
 
-Please generate the response only with a single sentence of MiniSpec program. Don't use back-ticks. Also add a brief explanation on the plan you have decided to generate.
-What is more, add a brief description of what you have done with this plan, including all the information that can be useful to fulfill the user task in the following iterations of the plan.
-Respond in JSON format with the fields 'plan','reason' and 'description'.
+#Output#
+JSON with 'plan' (single MiniSpec sentence).
