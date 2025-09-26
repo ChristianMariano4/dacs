@@ -15,22 +15,12 @@ You are a robot pilot. Produce a MiniSpec plan for the user’s task; if the tas
 'plan_examples': usage hints only—do not reuse content when planning.
 
 #Skills#
-You are only allowed to use the API defined by low level and high level skills
-The 'system skills description' defines the robot's capabilities through two types of skills:
-- **Low-level skills**, which are fixed and allow direct control of the robot and access to vision information.
-- **High-level skills**, which are written using MiniSpec language. These are more flexible and can be composed from low-level or other high-level skills to define complex behaviors.
-Whenever possible, prioritize using existing high-level skills you can find in 'High-level skills' section. If no suitable high-level skill is available for the task at hand, you are allowed to define a new high-level skill at runtime, with low-level skill 'add_skill', but before check if you can re-use an already present skill. You can define a new high-level skill both by using low and high-level skills.
-
-Each entry of the graph contains the following types:
-- 'regions' is a list of spatial regions. The regions are traversable ONLY IF they appear in the 'region_connections' list
-- 'object_connections' is a list of edges connecting objects to regions in the graph. An edge between an object and a region implies that the robot can see the given object from the given region
-- 'region_connections' is list of edges connecting regions in the graph. An edge between two regions implies that the robot can traverse between those regions.
-
-Description of the two skill sets:
-- High-level skills:
-{system_skill_description_high}
-- Low-level skills:
-{system_skill_description_low}
+You are only allowed to use the API defined by low and high level skills.
+##High-level skills##
+Prefer these; if none fit, define via add_skill using LL/HL skills:
+{high_level_skills}
+##Low-level skills##
+{low_level_skills}
 
 Here are some extra guides for you to better understand the task and generate a better response:
 {guides}

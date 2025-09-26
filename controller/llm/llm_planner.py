@@ -86,8 +86,8 @@ class LLMPlanner():
         else: # task is executed through shortcut, so we pass all the information already available
             task_description = task.to_prompt()
                 
-        prompt = self.prompt_plan.format(system_skill_description_high=self.high_level_skillset,
-                                            system_skill_description_low=self.low_level_skillset,
+        prompt = self.prompt_plan.format(high_level_skills=self.high_level_skillset,
+                                            low_level_skills=self.low_level_skillset,
                                             guides=self.guides,
                                             plan_examples=self.plan_examples,
                                             old_interactions_feedbacks = old_interactions_feedbacks,
