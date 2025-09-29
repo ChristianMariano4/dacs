@@ -425,71 +425,147 @@ class TypeFly:
         ]
         with self.ui:
             gr.HTML(open(os.path.join(CURRENT_DIR, 'header.html'), 'r').read())
+            
             # Create tabs for different views
             with gr.Tabs():
                 with gr.TabItem("🤖 Robot Control"):
                     gr.HTML(open(os.path.join(CURRENT_DIR, 'drone-pov.html'), 'r').read())
                     
-                    # Add Voice Control section
-                    with gr.Row():
-                        with gr.Column(scale=1):
-                            gr.Markdown("### 🎤 Voice Control")
-                            with gr.Row():
-                                start_voice_btn = gr.Button("🎤 Start Voice Control", variant="primary")
-                                stop_voice_btn = gr.Button("⏹️ Stop Voice Control", variant="secondary")
-                            with gr.Row():
-                                start_recording_btn = gr.Button("🔴 Start Recording", variant="secondary")
-                                stop_recording_btn = gr.Button("⏸️ Stop Recording", variant="secondary")
-                            
-                            voice_status = gr.Textbox(
-                                label="Voice Status",
-                                value="Voice control ready - click 'Start Voice Control' to begin",
-                                interactive=False
+                    # Create custom chat interface with integrated audio controls
+                    with gr.Column():
+                        # Chat display area
+                        chatbot = gr.Chatbot(
+                            value=[],
+                            elem_id="chatbot",
+                            height=500,
+                            label="Chat"
+                        )
+                        
+                        # Unified input area (WhatsApp-style)
+                        with gr.Row():
+                            # Voice recording button (left)
+                            voice_btn = gr.Button(
+                                "🎤",
+                                variant="secondary",
+                                size="sm",
+                                scale=1,
+                                min_width=60
                             )
-
-                    # Voice (push-to-talk STT)
-                    with gr.Row():
-                        with gr.Column(scale=1):
-                            gr.Markdown("### 🎤 Push-to-Talk (Speech → Text → Same pipeline)")
-                            with gr.Row():
-                                # Push-to-Talk widgets
-                                ptt_start_btn = gr.Button("🔴 Start Recording", variant="secondary")
-                                ptt_stop_btn  = gr.Button("⏸️ Stop Recording",  variant="secondary")
-                                stt_send_btn  = gr.Button("📝 Transcribe last recording & Send", variant="primary")
-                                ptt_status    = gr.Textbox(label="Voice Status / Stream", value="Click Start, speak, Stop, then Transcribe & Send.", interactive=False, lines=8)
-                                transcript_box = gr.Textbox(label="Last Transcript", value="", interactive=False, lines=2)
-                                                    
-                    gr.ChatInterface(self.process_message, fill_height=False, examples=default_sentences).queue()
+                            
+                            # Text input (center - takes most space)
+                            msg_input = gr.Textbox(
+                                placeholder="Type a message or use voice...",
+                                show_label=False,
+                                scale=8,
+                                container=False
+                            )
+                            
+                            # Send button (right)
+                            send_btn = gr.Button(
+                                "📤",
+                                variant="primary",
+                                size="sm",
+                                scale=1,
+                                min_width=60
+                            )
+                        
+                        # Recording status indicator (hidden by default)
+                        recording_status = gr.Markdown(
+                            "",
+                            visible=False
+                        )
+                        
+                        # Examples
+                        gr.Examples(
+                            examples=default_sentences,
+                            inputs=msg_input
+                        )
                     
+                    # Store state for recording
+                    recording_state = gr.State(False)
+                    
+                    # Event handlers
+                    def toggle_recording(is_recording):
+                        """Toggle between start/stop recording"""
+                        if not is_recording:
+                            # Start recording
+                            status = self.start_recording()
+                            return (
+                                True, 
+                                "⏹️",  # Change button to stop icon
+                                gr.Markdown("🔴 Recording... Click again to stop", visible=True),
+                                gr.Textbox(interactive=False)  # Disable text input while recording
+                            )
+                        else:
+                            # Stop recording and transcribe
+                            result = self.stop_and_transcribe()
+                            
+                            # Check if transcription was successful
+                            if result.startswith("✅"):
+                                # Extract transcript from result
+                                transcript = result.split("'")[1] if "'" in result else ""
+                                return (
+                                    False,
+                                    "🎤",  # Change back to mic icon
+                                    gr.Markdown("", visible=False),
+                                    gr.Textbox(value=transcript, interactive=True)  # Put transcript in text box
+                                )
+                            else:
+                                # Error case
+                                return (
+                                    False,
+                                    "🎤",
+                                    gr.Markdown(result, visible=True),
+                                    gr.Textbox(interactive=True)
+                                )
+                    
+                    def send_message(message, history):
+                        """Send message and get response"""
+                        if not message.strip():
+                            return history, ""
+                        
+                        # Add user message to chat
+                        history = history + [[message, None]]
+                        
+                        # Process message and stream response
+                        response = ""
+                        for partial_response in self.process_message(message, history):
+                            if partial_response:
+                                # Extract just the response text (remove "Command Complete!" etc)
+                                clean_response = partial_response.split("\nCommand Complete!")[0]
+                                history[-1][1] = clean_response
+                                yield history, ""
+                        
+                        return history, ""
+                    
+                    def submit_on_enter(message, history):
+                        """Handle Enter key press"""
+                        return send_message(message, history)
+                    
+                    # Wire up events
+                    voice_btn.click(
+                        toggle_recording,
+                        inputs=[recording_state],
+                        outputs=[recording_state, voice_btn, recording_status, msg_input]
+                    )
+                    
+                    send_btn.click(
+                        send_message,
+                        inputs=[msg_input, chatbot],
+                        outputs=[chatbot, msg_input]
+                    )
+                    
+                    msg_input.submit(
+                        submit_on_enter,
+                        inputs=[msg_input, chatbot],
+                        outputs=[chatbot, msg_input]
+                    )
+                
                 with gr.TabItem("📊 Graph Visualization"):
                     self.setup_graph_tab()
                 
                 with gr.TabItem("⚙️ Settings"):
                     self.setup_settings_tab()
-            
-            # Voice control event handlers
-            start_voice_btn.click(
-                self.start_voice_control,
-                outputs=[voice_status]
-            )
-            stop_voice_btn.click(
-                self.stop_voice_control,
-                outputs=[voice_status]
-            )
-            start_recording_btn.click(
-                self.start_recording,
-                outputs=[voice_status]
-            )
-            stop_recording_btn.click(
-                self.stop_recording,
-                outputs=[voice_status]
-            )
-            stt_send_btn.click(self.transcribe_and_send, outputs=[voice_status, transcript_box])
-
-            # Bindings (use the PTT components)
-            ptt_start_btn.click(self.start_recording, outputs=[ptt_status])
-            ptt_stop_btn.click(self.stop_recording, outputs=[ptt_status])
-            stt_send_btn.click(self.transcribe_and_send, outputs=[ptt_status, transcript_box])
 
     def transcribe_and_send(self):
         """Transcribe last recording and run it through the same controller pipeline."""
@@ -611,18 +687,17 @@ class TypeFly:
             return f"❌ Error stopping voice control: {e}"
 
     def start_recording(self):
-        """Start recording audio (hard-reset mic stream each take)."""
+        """Start recording audio"""
         try:
-            # Stop/close any prior stream (some devices need this)
+            # Stop/close any prior stream
             try:
                 if hasattr(self.voice_agent, 'input_stream') and self.voice_agent.input_stream:
                     self.voice_agent.input_stream.stop()
                     self.voice_agent.input_stream.close()
-                    print("[DEBUG] Previous InputStream stopped & closed.")
             except Exception as e:
                 print(f"[DEBUG] Could not stop previous InputStream: {e}")
 
-            # Fresh stream each take
+            # Fresh stream
             self.voice_agent.input_stream = sd.InputStream(
                 callback=self.voice_agent.audio_handler.audio_input_callback,
                 channels=CHANNELS,
@@ -631,18 +706,51 @@ class TypeFly:
                 dtype=np.float32
             )
             self.voice_agent.input_stream.start()
-            print("[DEBUG] New InputStream started.")
 
             # Fresh buffer and flag
             self.voice_agent.audio_handler.recording_buffer.clear()
             self.voice_agent.audio_handler.recording = True
-            print("[DEBUG] Recording started — buffer cleared.")
-            return "🎤 Recording started - speak your command..."
+            print("[DEBUG] Recording started")
+            return "Recording started"
 
         except Exception as e:
-            return f"❌ Could not start recording: {e}"
+            return f"Error: {e}"
 
+    def stop_and_transcribe(self):
+        """Stop recording and return transcription"""
+        try:
+            # Stop recording
+            self.voice_agent.audio_handler.recording = False
+            try:
+                if getattr(self.voice_agent, "input_stream", None):
+                    self.voice_agent.input_stream.stop()
+                    self.voice_agent.input_stream.close()
+                    self.voice_agent.input_stream = None
+            except Exception as _:
+                pass
 
+            # Get WAV bytes
+            wav_bytes = self.voice_agent.audio_handler.get_wav_bytes()
+
+            if len(wav_bytes) <= 44:
+                return "⚠️ No audio captured. Try again and speak clearly."
+
+            # Transcribe
+            print("[DEBUG] Transcribing audio...")
+            transcript = self.transcriber.transcribe(wav_bytes)
+            
+            if not transcript.strip():
+                return "⚠️ Could not understand audio. Please try again."
+
+            # Clear buffer for next recording
+            self.voice_agent.audio_handler.recording_buffer.clear()
+            
+            return f"✅ Transcribed: '{transcript}'"
+
+        except Exception as e:
+            print(f"[DEBUG] Error: {e}")
+            return f"❌ Error: {e}"
+        
     def stop_recording(self):
         """Stop recording audio"""
         return self.voice_agent.audio_handler.stop_recording()
@@ -829,41 +937,40 @@ class TypeFly:
             self.llm_controller.planner.set_model(GPT4)
 
     def process_message(self, message, history):
+        """Process message and yield responses"""
         print_t(f"[S] Receiving task description: {message}")
+        
         if message == "exit":
             self.llm_controller.stop_controller()
             self.system_stop = True
             yield "Shutting down..."
-        elif len(message) == 0:
-            return "[WARNING] Empty command!]"
-        elif len(self.user_question_answer) == 1: # the message inserted by user is the answer of previous question made by LLM
+            return
+        
+        if len(message) == 0:
+            yield "[WARNING] Empty command!"
+            return
+        
+        # Handle user answers to LLM questions
+        if len(self.user_question_answer) == 1:
             print_t(f"[DEBUG] Treating as answer to: {self.user_question_answer[0]}")
             self.user_question_answer.append(message)
             temp = self.user_question_answer.copy()
-            self.user_answer_queue.put(temp) # put in shared queue the pair to pass to llm_controller
+            self.user_answer_queue.put(temp)
 
-            # Check if this is a shortcut question or feedback question
             question = self.user_question_answer[0]
-            is_shortcut_question = "shortcut" in question.lower()
             is_feedback_question = "feedback" in question.lower()
-            
             self.user_question_answer = []
 
-            # Only show elaboration message for feedback, not for shortcut answers
             if is_feedback_question:
-                yeld_msg = "Thank you for your feedback. I am elaborating it. I will be ready in few seconds."
-                self.llm_controller.text_to_speech(yeld_msg)
-                complete_response = yeld_msg + "\n"
+                yield_msg = "Thank you for your feedback. I am elaborating it."
+                self.llm_controller.text_to_speech(yield_msg)
+                complete_response = yield_msg + "\n"
             else:
-                # For shortcut questions or other simple answers, don't show elaboration message
                 complete_response = ""
 
-            # Continue processing messages from the queue
             while True:
                 msg = self.message_queue.get()
-                if isinstance(msg, tuple):
-                    history.append((None, msg))
-                elif isinstance(msg, str):
+                if isinstance(msg, str):
                     if msg == 'end':
                         yield complete_response + "\nCommand Complete!"
                         return
@@ -879,27 +986,29 @@ class TypeFly:
                         complete_response += msg + '\n'
                     yield complete_response
         else:
+            # New task execution
             task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message,))
             task_thread.start()
             complete_response = ''
+            
             while True:
                 msg = self.message_queue.get()
-                if isinstance(msg, tuple):
-                    history.append((None, msg))
-                elif isinstance(msg, str):
+                if isinstance(msg, str):
                     if msg == 'end':
-                            yield complete_response + "\nCommand Complete!"
-                            return
+                        yield complete_response + "\nCommand Complete!"
+                        return
                     
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
                     if msg.startswith('[Q]'):
                         self.user_question_answer.append(msg)
+                    
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:
                         complete_response += msg + '\n'
-                yield complete_response
+                    yield complete_response
+
 
     def generate_mjpeg_stream(self):
         while True:
