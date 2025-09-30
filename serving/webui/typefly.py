@@ -518,25 +518,7 @@ class TypeFly:
                                     gr.Markdown(result, visible=True),
                                     gr.Textbox(interactive=True)
                                 )
-                    
-                    def send_message(message, history):
-                        """Send message and get response"""
-                        if not message.strip():
-                            return history, ""
-                        
-                        # Add user message to chat
-                        history = history + [[message, None]]
-                        
-                        # Process message and stream response
-                        for partial_response in self.process_message(message, history):
-                            if partial_response:
-                                # Extract just the response text (remove "Command Complete!" etc)
-                                clean_response = partial_response.split("\nCommand Complete!")[0]
-                                history[-1][1] = clean_response
-                                yield history, ""
-                        
-                        # Final yield to ensure the cleared input box
-                        yield history, ""
+
                     
                 def send_message(message, history):
                     """Send message and get response - generator for streaming"""
@@ -555,6 +537,11 @@ class TypeFly:
                             clean_response = partial_response.split("\nCommand Complete!")[0]
                             # Update the last message's response
                             history[-1][1] = clean_response
+
+                            if clean_response.strip().startswith("[Q]"):
+                                yield history, ""   # show question
+                                return              # exit stream to accept next user input
+                            
                             yield history, ""
 
                 # Wire up events - CORRECTED VERSION
@@ -967,6 +954,7 @@ class TypeFly:
             self.llm_controller.planner.set_model(GPT4)
 
     def process_message(self, message, history):
+        print("Message to be processed is: " + message)
         """Process message and yield responses"""
         print_t(f"[S] Receiving task description: {message}")
         
@@ -985,11 +973,14 @@ class TypeFly:
             print_t(f"[DEBUG] Treating as answer to: {self.user_question_answer[0]}")
             self.user_question_answer.append(message)
             temp = self.user_question_answer.copy()
-            self.user_answer_queue.put(temp)
 
             question = self.user_question_answer[0]
             is_feedback_question = "feedback" in question.lower()
+            
             self.user_question_answer = []
+
+            # Now put the answer - background thread can continue
+            self.user_answer_queue.put(temp)
 
             if is_feedback_question:
                 yield_msg = "Thank you for your feedback. I am elaborating it."
@@ -998,41 +989,86 @@ class TypeFly:
             else:
                 complete_response = ""
 
+            deadline = time.time() + 60
             while True:
-                msg = self.message_queue.get()
+                try:
+                    msg = self.message_queue.get(timeout=0.5)
+                except _QEmpty:
+                    # keep UI alive; optionally show a spinner every few seconds
+                    if time.time() > deadline:
+                        yield complete_response + "\n⏳ Still working..."
+                        deadline = time.time() + 60
+                    continue
+                    
                 if isinstance(msg, str):
                     if msg == 'end':
+                        # Clear the question state before yielding final response
+                        self.user_question_answer = []
                         yield complete_response + "\nCommand Complete!"
                         return
                     
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
+                        
                     if msg.startswith('[Q]'):
-                        self.user_question_answer.append(msg)
+                        # New question arrived - store it for next user input
+                        question_text = msg[3:].strip()  # Remove [Q] prefix
+                        self.user_question_answer = [msg]
+                        # Add the question to the response
+                        if msg.endswith('\\\\'):
+                            complete_response += msg.rstrip('\\\\')
+                        else:
+                            complete_response += msg + '\n'
+                        yield complete_response
+                        return  # Exit and wait for user's answer
 
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:
                         complete_response += msg + '\n'
                     yield complete_response
+                    
         else:
             # New task execution
             task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message,))
             task_thread.start()
             complete_response = ''
             
+            deadline = time.time() + 60
             while True:
-                msg = self.message_queue.get()
+                try:
+                    msg = self.message_queue.get(timeout=0.5)
+                except _QEmpty:
+                    if time.time() > deadline:
+                        yield complete_response + "\n⏳ Still processing..."
+                        deadline = time.time() + 60
+                    continue
+
                 if isinstance(msg, str):
                     if msg == 'end':
+                        self.user_question_answer = []
                         yield complete_response + "\nCommand Complete!"
                         return
-                    
+
+                    # Append a newline *before* log/Q lines for readability
                     if msg.startswith('[LOG]') or msg.startswith('[Q]'):
                         complete_response += '\n'
+
                     if msg.startswith('[Q]'):
-                        self.user_question_answer.append(msg)
-                    
+                        # Store the question so the next user message is treated as the answer
+                        self.user_question_answer = [msg]
+
+                        # Show the question to the user
+                        if msg.endswith('\\\\'):
+                            complete_response += msg.rstrip('\\\\')
+                        else:
+                            complete_response += msg + '\n'
+                        yield complete_response
+
+                        # ⬅️ CRITICAL: free the UI so the user can answer
+                        return
+
+                    # Normal streaming line
                     if msg.endswith('\\\\'):
                         complete_response += msg.rstrip('\\\\')
                     else:
@@ -1054,18 +1090,399 @@ class TypeFly:
                    b'Content-Type: image/jpeg\r\n\r\n' + buf.read() + b'\r\n')
             time.sleep(1.0 / 30.0)
 
+
     def setup_graph_server(self, app):
         """Setup the graph visualization server endpoint"""
         @app.route('/graph')
         def graph_page():
-            # Return the enhanced graph visualization HTML (same as before)
-            return '''<!DOCTYPE html>...[Graph HTML remains the same]...'''
+            return '''<!DOCTYPE html>
+    <html>
+    <head>
+        <title>TypeFly Graph Visualization</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+        <style>
+            body {
+                margin: 0;
+                padding: 20px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                background: #f5f5f5;
+            }
+            #container {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                padding: 20px;
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            #graph {
+                width: 100%;
+                height: 650px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: #fafafa;
+            }
+            .node circle {
+                stroke: #fff;
+                stroke-width: 3px;
+                cursor: pointer;
+                transition: r 0.2s;
+            }
+            .node:hover circle {
+                r: 25;
+            }
+            .node text {
+                font-size: 11px;
+                pointer-events: none;
+                font-weight: 500;
+            }
+            .link {
+                stroke: #999;
+                stroke-opacity: 0.4;
+                stroke-width: 1.5px;
+            }
+            #controls {
+                margin-bottom: 20px;
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                background: #007bff;
+                color: white;
+                cursor: pointer;
+                font-size: 14px;
+                transition: background 0.2s;
+            }
+            button:hover {
+                background: #0056b3;
+            }
+            #status {
+                margin-left: auto;
+                color: #666;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            .legend {
+                margin-top: 15px;
+                display: flex;
+                gap: 20px;
+                font-size: 13px;
+                flex-wrap: wrap;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .legend-color {
+                width: 18px;
+                height: 18px;
+                border-radius: 50%;
+                border: 3px solid #fff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            }
+            .stats {
+                margin-top: 15px;
+                padding: 10px;
+                background: #f8f9fa;
+                border-radius: 4px;
+                font-size: 13px;
+                color: #666;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <h2>🌐 Object Detection Graph</h2>
+            <div id="controls">
+                <button onclick="loadGraph()">🔄 Refresh</button>
+                <button onclick="resetZoom()">🔍 Reset Zoom</button>
+                <button onclick="centerGraph()">📍 Center</button>
+                <span id="status">Loading graph data...</span>
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4CAF50"></div>
+                    <span>Regions</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2196F3"></div>
+                    <span>Objects</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #FF9800"></div>
+                    <span>Current Position</span>
+                </div>
+            </div>
+            <div class="stats" id="stats"></div>
+            <svg id="graph"></svg>
+        </div>
+
+        <script>
+            const width = Math.min(1360, document.getElementById('container').offsetWidth - 40);
+            const height = 650;
+
+            const svg = d3.select("#graph")
+                .attr("width", width)
+                .attr("height", height);
+
+            const g = svg.append("g");
+
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 4])
+                .on("zoom", (event) => {
+                    g.attr("transform", event.transform);
+                });
+
+            svg.call(zoom);
+
+            function resetZoom() {
+                svg.transition().duration(750).call(
+                    zoom.transform,
+                    d3.zoomIdentity
+                );
+            }
+
+            function centerGraph() {
+                const bounds = g.node().getBBox();
+                const fullWidth = bounds.width;
+                const fullHeight = bounds.height;
+                const midX = bounds.x + fullWidth / 2;
+                const midY = bounds.y + fullHeight / 2;
+
+                const scale = 0.9 / Math.max(fullWidth / width, fullHeight / height);
+                const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
+
+                svg.transition().duration(750).call(
+                    zoom.transform,
+                    d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+                );
+            }
+
+            function loadGraph() {
+                document.getElementById('status').textContent = 'Loading...';
+                
+                fetch('/graph-data')
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success && result.data) {
+                            const graphData = JSON.parse(result.data);
+                            renderGraph(graphData);
+                            
+                            const nodeCount = (graphData.objects?.length || 0) + (graphData.regions?.length || 0);
+                            const edgeCount = graphData.object_connections?.length || 0;
+                            document.getElementById('status').textContent = 
+                                `✅ Loaded: ${nodeCount} nodes, ${edgeCount} connections`;
+                            
+                            document.getElementById('stats').innerHTML = 
+                                `<strong>Objects:</strong> ${graphData.objects?.length || 0} | ` +
+                                `<strong>Regions:</strong> ${graphData.regions?.length || 0} | ` +
+                                `<strong>Current Region:</strong> ${graphData.current_position?.region || 'unknown'}`;
+                        } else {
+                            document.getElementById('status').textContent = 
+                                '⚠️ ' + (result.message || 'No data available');
+                            renderEmptyState();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        document.getElementById('status').textContent = '❌ Failed to load';
+                        renderEmptyState();
+                    });
+            }
+
+            function renderEmptyState() {
+                g.selectAll("*").remove();
+                g.append("text")
+                    .attr("x", width / 2)
+                    .attr("y", height / 2)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "#999")
+                    .style("font-size", "16px")
+                    .text("No graph data available. Start robot operations to generate data.");
+            }
+
+            function renderGraph(graphData) {
+                g.selectAll("*").remove();
+
+                const nodes = [];
+                const links = [];
+                const nodeMap = new Map();
+
+                // Add regions
+                if (graphData.regions) {
+                    graphData.regions.forEach(region => {
+                        const node = {
+                            id: region.name,
+                            label: region.name,
+                            type: 'region',
+                            coords: region.coords
+                        };
+                        nodes.push(node);
+                        nodeMap.set(region.name, node);
+                    });
+                }
+
+                // Add objects
+                if (graphData.objects) {
+                    graphData.objects.forEach(obj => {
+                        const node = {
+                            id: obj.name,
+                            label: obj.name,
+                            type: 'object',
+                            coords: obj.coords
+                        };
+                        nodes.push(node);
+                        nodeMap.set(obj.name, node);
+                    });
+                }
+
+                // Add current position as special node
+                if (graphData.current_position) {
+                    const posNode = {
+                        id: '__robot_position__',
+                        label: 'Robot',
+                        type: 'robot',
+                        coords: graphData.current_position.coords
+                    };
+                    nodes.push(posNode);
+                    nodeMap.set('__robot_position__', posNode);
+                    
+                    // Link robot to its current region
+                    if (graphData.current_position.region) {
+                        links.push({
+                            source: '__robot_position__',
+                            target: graphData.current_position.region
+                        });
+                    }
+                }
+
+                // Add object connections
+                if (graphData.object_connections) {
+                    graphData.object_connections.forEach(conn => {
+                        if (conn.length === 2) {
+                            const [source, target] = conn;
+                            if (nodeMap.has(source) && nodeMap.has(target)) {
+                                links.push({ source, target });
+                            }
+                        }
+                    });
+                }
+
+                // Add region connections
+                if (graphData.region_connections) {
+                    graphData.region_connections.forEach(conn => {
+                        if (conn.length === 2) {
+                            const [source, target] = conn;
+                            if (nodeMap.has(source) && nodeMap.has(target)) {
+                                links.push({ source, target });
+                            }
+                        }
+                    });
+                }
+
+                if (nodes.length === 0) {
+                    renderEmptyState();
+                    return;
+                }
+
+                // Create force simulation
+                const simulation = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+                    .force("charge", d3.forceManyBody().strength(-400))
+                    .force("center", d3.forceCenter(width / 2, height / 2))
+                    .force("collision", d3.forceCollide().radius(40));
+
+                // Create links
+                const link = g.append("g")
+                    .selectAll("line")
+                    .data(links)
+                    .join("line")
+                    .attr("class", "link");
+
+                // Create nodes
+                const node = g.append("g")
+                    .selectAll("g")
+                    .data(nodes)
+                    .join("g")
+                    .attr("class", "node")
+                    .call(d3.drag()
+                        .on("start", dragstarted)
+                        .on("drag", dragged)
+                        .on("end", dragended));
+
+                node.append("circle")
+                    .attr("r", d => d.type === 'robot' ? 25 : 18)
+                    .attr("fill", d => {
+                        if (d.type === 'region') return '#4CAF50';
+                        if (d.type === 'object') return '#2196F3';
+                        if (d.type === 'robot') return '#FF9800';
+                        return '#9E9E9E';
+                    })
+                    .attr("stroke-width", d => d.type === 'robot' ? 4 : 3);
+
+                node.append("text")
+                    .attr("dy", 35)
+                    .attr("text-anchor", "middle")
+                    .text(d => d.label)
+                    .style("font-size", d => d.type === 'robot' ? "13px" : "11px")
+                    .style("fill", "#333")
+                    .style("font-weight", d => d.type === 'robot' ? "bold" : "500");
+
+                // Add tooltips
+                node.append("title")
+                    .text(d => `${d.label}\nType: ${d.type}\nCoords: ${d.coords}`);
+
+                // Update positions on tick
+                simulation.on("tick", () => {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node.attr("transform", d => `translate(${d.x},${d.y})`);
+                });
+
+                function dragstarted(event) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    event.subject.fx = event.subject.x;
+                    event.subject.fy = event.subject.y;
+                }
+
+                function dragged(event) {
+                    event.subject.fx = event.x;
+                    event.subject.fy = event.y;
+                }
+
+                function dragended(event) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    event.subject.fx = null;
+                    event.subject.fy = null;
+                }
+
+                // Auto-center after layout stabilizes
+                setTimeout(centerGraph, 1000);
+            }
+
+            // Load graph on page load
+            loadGraph();
+
+            // Auto-refresh every 5 seconds
+            setInterval(loadGraph, 5000);
+        </script>
+    </body>
+    </html>'''
         
         @app.route('/graph-data')
         def graph_data():
             """Serve the current graph data as JSON"""
             try:
-                # Get current graph state from graph manager
                 graph_json_str = self.graph_manager.get_graph()
                 
                 if not graph_json_str:
@@ -1075,7 +1492,6 @@ class TypeFly:
                         "message": "No graph data available - start robot operations to generate data"
                     })
 
-                # Parse the JSON string to validate it
                 try:
                     graph_dict = json.loads(graph_json_str)
                 except json.JSONDecodeError as e:
@@ -1087,7 +1503,7 @@ class TypeFly:
 
                 return jsonify({
                     "success": True, 
-                    "data": graph_json_str,  # Send as string for JavaScript to parse
+                    "data": graph_json_str,
                     "message": "Current graph state retrieved successfully"
                 })
 
