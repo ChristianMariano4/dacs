@@ -24,7 +24,7 @@ class FlyzoneManager:
     def plot_current_flyzone(self):
         plt.clf()  # Clear the current figure before plotting a new flyzone
 
-        for poly in self.middle_layer.getFlyzone():
+        for poly in self.middle_layer.get_flyzone():
             x, y = poly.exterior.xy
             plt.fill(x, y, alpha=0.5)
         plt.gca().set_aspect('equal')
@@ -33,7 +33,7 @@ class FlyzoneManager:
 
     def parse_current_flyzone(self):
         with open("controller/assets/tello/flyzone/flyzone.txt", "w") as f:
-            for idx, poly in enumerate(self.middle_layer.getFlyzone()):
+            for idx, poly in enumerate(self.middle_layer.get_flyzone()):
                 coords = list(poly.exterior.coords)
                 f.write(f"Flyzone Polygon {idx+1}:\n")
                 for point in coords:
@@ -42,7 +42,7 @@ class FlyzoneManager:
 
     def format_flyzone_for_prompt(self) -> str:
         descriptions = []
-        for idx, poly in enumerate(self.middle_layer.getFlyzone()):
+        for idx, poly in enumerate(self.middle_layer.get_flyzone()):
             coords = list(poly.exterior.coords)
             points_str = ", ".join([f"({round(x)}, {round(y)})" for x, y in coords])
             descriptions.append(f"Polygon {idx+1}: defined by points {points_str}.")
@@ -72,7 +72,7 @@ class FlyzoneManager:
         # eval the returned string of polygons into a safe environment
         points_list = [Polygon(coords) for coords in parsed['points_list']]
         print("Request done")
-        self.middle_layer.setFlyzone(points_list)
+        self.middle_layer.set_flyzone(points_list)
         self.plot_current_flyzone()
         self.parse_current_flyzone()    
 

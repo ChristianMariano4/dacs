@@ -805,6 +805,27 @@ class TypeFly:
                 lines=1,
                 value="Christian",
             )
+            
+            # Add event handler to update username when changed
+            def update_username(new_name):
+                self.llm_controller.set_username(new_name)
+                return f"✅ Username updated to: {new_name}"
+            
+            username_status = gr.Textbox(
+                label="Status",
+                value="",
+                interactive=False,
+                visible=False
+            )
+            
+            # Connect the change event
+            username.change(
+                fn=update_username,
+                inputs=username,
+                outputs=username_status
+            )
+            
+            # Set initial username
             self.llm_controller.set_username(username.value)
             
             # --- Voice Settings ---
