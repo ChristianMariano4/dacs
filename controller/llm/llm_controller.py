@@ -255,8 +255,8 @@ class LLMController():
         # Convert text to speech
         tts = gTTS(text, lang="en")
         # Save as mp3 and play
-        tts.save("speech.mp3")
-        os.system("mpg123 speech.mp3")
+        tts.save("serving/webui/cache/speech.mp3")
+        os.system("mpg123 serving/webui/cache/speech.mp3")
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
         self.append_message(f"[LOG] {text}")
