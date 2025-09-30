@@ -528,7 +528,6 @@ class TypeFly:
                         history = history + [[message, None]]
                         
                         # Process message and stream response
-                        response = ""
                         for partial_response in self.process_message(message, history):
                             if partial_response:
                                 # Extract just the response text (remove "Command Complete!" etc)
@@ -536,30 +535,40 @@ class TypeFly:
                                 history[-1][1] = clean_response
                                 yield history, ""
                         
-                        return history, ""
+                        # Final yield to ensure the cleared input box
+                        yield history, ""
                     
-                    def submit_on_enter(message, history):
-                        """Handle Enter key press"""
-                        return send_message(message, history)
+                def send_message(message, history):
+                    """Send message and get response - generator for streaming"""
+                    if not message.strip():
+                        yield history, ""
+                        return
                     
-                    # Wire up events
-                    voice_btn.click(
-                        toggle_recording,
-                        inputs=[recording_state],
-                        outputs=[recording_state, voice_btn, recording_status, msg_input]
-                    )
+                    # Add user message to chat
+                    history = history + [[message, None]]
+                    yield history, ""  # Clear input immediately and show user message
                     
-                    send_btn.click(
-                        send_message,
-                        inputs=[msg_input, chatbot],
-                        outputs=[chatbot, msg_input]
-                    )
-                    
-                    msg_input.submit(
-                        submit_on_enter,
-                        inputs=[msg_input, chatbot],
-                        outputs=[chatbot, msg_input]
-                    )
+                    # Process message and stream response
+                    for partial_response in self.process_message(message, history):
+                        if partial_response:
+                            # Extract just the response text (remove "Command Complete!" etc)
+                            clean_response = partial_response.split("\nCommand Complete!")[0]
+                            # Update the last message's response
+                            history[-1][1] = clean_response
+                            yield history, ""
+
+                # Wire up events - CORRECTED VERSION
+                send_btn.click(
+                    send_message,
+                    inputs=[msg_input, chatbot],
+                    outputs=[chatbot, msg_input]
+                )
+
+                msg_input.submit(
+                    send_message,  # Use the same function, not a wrapper
+                    inputs=[msg_input, chatbot],
+                    outputs=[chatbot, msg_input]
+                )
                 
                 with gr.TabItem("📊 Graph Visualization"):
                     self.setup_graph_tab()
