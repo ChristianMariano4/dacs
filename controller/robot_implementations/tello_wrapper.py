@@ -139,7 +139,7 @@ class TelloWrapper(RobotWrapper):
         return FrameReader(self.drone.get_frame_read())
     
     # --- Flight control -----------------------------------------------------
-    def takeoff(self) -> bool:
+    def takeoff(self) -> CommandResult:
         """Command takeoff (True if accepted)."""
         if not self.is_battery_good():
             return False
@@ -153,15 +153,15 @@ class TelloWrapper(RobotWrapper):
                 self._inited  = True
         else:
             print("[Drone] Takeoff")
-        return True
+        return True, False
     
-    def land(self) -> bool:
+    def land(self) -> CommandResult:
         """Command landing."""
         if self.move_enable:
             self.drone.land()
         else:
             print("[Drone] Land")
-        return True
+        return True, False
 
     def move_north(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
         """Move forward/north by `distance_cm` centimeters."""
