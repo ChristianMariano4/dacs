@@ -1065,7 +1065,6 @@ class TypeFly:
                             complete_response += msg + '\n'
                         yield complete_response
 
-                        # ⬅️ CRITICAL: free the UI so the user can answer
                         return
 
                     # Normal streaming line
