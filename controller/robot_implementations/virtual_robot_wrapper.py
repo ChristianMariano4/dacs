@@ -86,15 +86,15 @@ class VirtualRobotWrapper(RobotWrapper):
         return FrameReader(self.cap)
 
     # --- Flight control -----------------------------------------------------
-    def takeoff(self) -> bool:
+    def takeoff(self) -> CommandResult:
         """Always succeeds for the virtual robot."""
         print("[Virtual] Takeoff")
-        return True
+        return True, False
 
-    def land(self) -> bool:
+    def land(self) -> CommandResult:
         """Land (no state changes other than log for the virtual robot)."""
         print("[Virtual] Land")
-        return True
+        return True, False
 
     def move_north(self, distance_cm: int = 10) -> CommandResult:
         """Increase Y by distance_cm."""
