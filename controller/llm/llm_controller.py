@@ -103,6 +103,8 @@ class LLMController():
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
+        self.low_level_skillset.add_skill(LowLevelSkillItem("take_off", self.drone.takeoff, "Take off", args=[]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("land", self.drone.land, "Land", args=[]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_forward", self.drone.move_north, "Move forward by a distance", args=[SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_backward", self.drone.move_south, "Move backward by a distance", args=[SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_left", self.drone.move_west, "Move left by a distance", args=[SkillArg("distance", float)]))
@@ -122,7 +124,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_height", self.vision.object_height, "Get object's height in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_dis", self.vision.object_distance, "Get object's distance in cm", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("log", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("log_user", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument. Assume this respects the flyzone while exploring. What is more, it names the current region based on what the drone can see around it.", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
