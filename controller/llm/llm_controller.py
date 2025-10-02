@@ -350,6 +350,7 @@ class LLMController():
             print(task_description)
             #TODO: use fast LLM to retrieve the sentence used as shortcut, instead of statically parsing it
             keywords = self._get_after_shortcut(task_description)
+            print(keywords)
             current_task_dict = self.long_memory_module.get_shortcut_task(username=self.username, keywords=keywords)
             self.current_task = Task(task_description=current_task_dict['task_description'], 
                                      execution_history=current_task_dict['execution_history'],
