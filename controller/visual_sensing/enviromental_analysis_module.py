@@ -10,7 +10,7 @@ import base64
 from openai import OpenAI
 import os
 from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
-from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
+from controller.llm.llm_wrapper import GPT5_MINI, GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
 from controller.utils.general_utils import encode_image
@@ -93,7 +93,7 @@ class EnvironmentalAnalysisModule:
 
             # Make the API call with all 8 images
             images = (north_image, north_east_image, east_image, south_east_image, south_image, south_west_image, west_image, north_west_image)
-            response_content = self.llm_wrapper.request(prompt, images=images, model_name=GPT5_NANO, request_type=RequestType.EXPLORE_DIRECTION)
+            response_content = self.llm_wrapper.request(prompt, images=images, model_name=GPT5_MINI, request_type=RequestType.EXPLORE_DIRECTION)
             print(f"Raw API response: {response_content}")
 
             if not response_content:
