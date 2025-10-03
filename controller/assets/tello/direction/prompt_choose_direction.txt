@@ -2,14 +2,12 @@ The drone must choose which direction to move based on the goal: **"{task}"**.
 Take also in consideration an hint (if present) of what to focus on in the choice: **"{hint}"**.
 Ignore the hint if is not useful or feasible with the given images.
 Also take the 'flyzone' into account—you must remain inside it. Respond only with a direction and distance that are feasible given the drone's 'current position' and the 'flyzone' boundaries.
+To speed up exploration, avoid choosing small distances; prefer the largest distance that allow you to better explore the environment that keeps you inside the flyzone. Usually to change context around the drone, you should move at least by 150 cm, so use it as default.
 
 Here is the the 'flyzone':
 {flyzone}
 
 Here is the 'current position': {current_position}
-
-For example if the chosen direction is
-
 You are given 8 images representing what the drone sees in each direction.
 
 Think carefully about:
@@ -19,5 +17,5 @@ Think carefully about:
 
 What is more, based on the 8 images, name the current region where the drone is.
 
-**Return the best direction** among: `North`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. What is more return the distance in cm that you consider the best to move. Also include a **short explanation** (1 sentence) of why that direction is best for the given task and why that distance.
-Respond in JSON format with the fields 'direction', 'distance', 'reason' and 'region_name'.
+**Return the best direction** among: `North`, `North-East`, `East`, `South-East`, `South`, `South-West`, `West` or `North-West`. What is more return the distance in cm that you consider the best to move.
+Respond in JSON format with the fields 'direction', 'distance', 'region_name' and 'reason' of the choice.
