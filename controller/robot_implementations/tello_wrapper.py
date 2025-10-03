@@ -205,20 +205,23 @@ class TelloWrapper(RobotWrapper):
             time.sleep(0.5)
         else:
             print("[Drone] Move Right")
-        return True, distance > SCENE_CHANGE_DISTANCE
+        return True, d > SCENE_CHANGE_DISTANCE
     
     def move_direction(self, direction_deg: int, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
         """
         Rotate by `direction_deg` (deg, +CW) and move forward `distance_cm` (cm).
         """
         d = cap_distance(int(distance_cm))
+        print(f"Distance: {d}")
         if self.move_enable:
             self.drone.rotate_clockwise(direction_deg)
+            time.sleep(2.0)
+            print(f"Attempting to move forward {d} cm after {direction_deg}° rotation")
             self.drone.move_forward(d)
             time.sleep(0.5)
         else:
             print(f"[Drone] Move after rotating by {direction_deg} degrees")
-        return True, distance_cm > SCENE_CHANGE_DISTANCE
+        return True, d > SCENE_CHANGE_DISTANCE
 
     def move_up(self, distance_cm: int) -> CommandResult:
         """Increase altitude by `distance_cm` centimeters."""
