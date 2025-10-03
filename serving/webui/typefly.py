@@ -5,7 +5,7 @@ import asyncio
 import io, time
 from fastapi.responses import JSONResponse
 import gradio as gr
-from flask import Flask, Response, jsonify
+from flask import Flask, Response, jsonify, send_file
 from flask_cors import CORS
 from threading import Thread
 import argparse
@@ -1086,12 +1086,12 @@ class TypeFly:
             frame.save(buf, format='JPEG')
             buf.seek(0)
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buf.read() + b'\r\n')
+                b'Content-Type: image/jpeg\r\n\r\n' + buf.read() + b'\r\n')
             time.sleep(1.0 / 30.0)
 
 
     def setup_graph_server(self, app):
-        """Setup the graph visualization server endpoint"""
+        """Setup the graph visualization server endpoint with enhanced pan/zoom"""
         @app.route('/graph')
         def graph_page():
             return '''<!DOCTYPE html>
@@ -1120,6 +1120,11 @@ class TypeFly:
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 background: #fafafa;
+                cursor: grab;
+                position: relative;
+            }
+            #graph:active {
+                cursor: grabbing;
             }
             .node circle {
                 stroke: #fff;
@@ -1166,6 +1171,47 @@ class TypeFly:
                 font-size: 14px;
                 font-weight: 500;
             }
+            .zoom-controls {
+                position: absolute;
+                right: 30px;
+                top: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                z-index: 1000;
+            }
+            .zoom-btn {
+                width: 36px;
+                height: 36px;
+                border: 2px solid #ddd;
+                background: white;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 18px;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.2s;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .zoom-btn:hover {
+                background: #f0f0f0;
+                border-color: #007bff;
+            }
+            .zoom-btn:active {
+                transform: scale(0.95);
+            }
+            .zoom-level {
+                text-align: center;
+                font-size: 11px;
+                color: #666;
+                padding: 4px;
+                background: white;
+                border-radius: 4px;
+                border: 2px solid #ddd;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
             .legend {
                 margin-top: 15px;
                 display: flex;
@@ -1193,6 +1239,15 @@ class TypeFly:
                 font-size: 13px;
                 color: #666;
             }
+            .hint {
+                margin-top: 10px;
+                padding: 8px 12px;
+                background: #e3f2fd;
+                border-left: 3px solid #2196F3;
+                border-radius: 4px;
+                font-size: 12px;
+                color: #1976d2;
+            }
         </style>
     </head>
     <body>
@@ -1200,8 +1255,10 @@ class TypeFly:
             <h2>🌐 Object Detection Graph</h2>
             <div id="controls">
                 <button onclick="loadGraph()">🔄 Refresh</button>
-                <button onclick="resetZoom()">🔍 Reset Zoom</button>
+                <button onclick="resetZoom()">🔍 Reset View</button>
                 <button onclick="centerGraph()">📍 Center</button>
+                <button onclick="fitToScreen()">⛶ Fit All</button>
+                <button onclick="toggleFlyzone()">🗺️ Flyzone</button>
                 <span id="status">Loading graph data...</span>
             </div>
             <div class="legend">
@@ -1218,34 +1275,142 @@ class TypeFly:
                     <span>Current Position</span>
                 </div>
             </div>
+            <div class="hint">
+                💡 <strong>Navigation:</strong> Drag to pan • Scroll to zoom • Double-click to center on node • Use +/- buttons for precise zoom control
+            </div>
             <div class="stats" id="stats"></div>
-            <svg id="graph"></svg>
+            <div style="position: relative;">
+                <svg id="graph"></svg>
+                <div class="zoom-controls">
+                    <div class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</div>
+                    <div class="zoom-level" id="zoom-level">100%</div>
+                    <div class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</div>
+                    <div class="zoom-btn" onclick="resetZoom()" title="Reset Zoom">⟲</div>
+                </div>
+            </div>
         </div>
 
         <script>
-            const width = Math.min(1360, document.getElementById('container').offsetWidth - 40);
-            const height = 650;
+            function computeSize() {
+                const graphEl = document.getElementById('graph');
+                const containerEl = document.getElementById('container');
+                // try svg width first, then container, then window; never allow <= 0
+                let w = graphEl?.clientWidth || containerEl?.clientWidth || (window.innerWidth - 80) || 0;
+                w = Math.max(700, Math.min(1360, w));  // keep it reasonable and > 0
+                return { width: w, height: 650 };
+            }
+
+            let { width, height } = computeSize();
+            let currentZoom = 1;
+            // --- coordinate mapping config ---
+            const DEFAULT_WORLD = { width: 1000, height: 1000 }; // fallback flyzone extents
+            const ORIGIN_TOP_LEFT = true; // set false if your coords are bottom-left origin
+
+            let showFlyzone = true;          // toggle visibility
+            let flyzoneOpacity = 0.28;       // background transparency
+            let lastGraphObj = null;         // keep parsed data for re-render
+
 
             const svg = d3.select("#graph")
+                // make the SVG responsive but keep internal coords stable
+                .attr("viewBox", `0 0 ${width} ${height}`)
+                .attr("preserveAspectRatio", "xMidYMid meet");
+
+            // keep the event-capturing rect in sync with the logical size
+            const rect = svg.append("rect")
                 .attr("width", width)
-                .attr("height", height);
+                .attr("height", height)
+                .style("fill", "none")
+                .style("pointer-events", "all");
 
             const g = svg.append("g");
 
+            // Enhanced zoom with smoother transitions
             const zoom = d3.zoom()
-                .scaleExtent([0.1, 4])
+                .scaleExtent([0.1, 8])  // Allow more zoom range
+                .filter((event) => {
+                    // Allow zoom on background, prevent on nodes
+                    return !event.button && event.target === rect.node();
+                })
                 .on("zoom", (event) => {
                     g.attr("transform", event.transform);
+                    currentZoom = event.transform.k;
+                    updateZoomLevel();
                 });
 
-            svg.call(zoom);
+            rect.call(zoom);
+            
+            // Also enable wheel zoom on entire SVG
+            svg.on("wheel", (event) => {
+                event.preventDefault();
+                const transform = d3.zoomTransform(svg.node());
+                const k = transform.k * (event.deltaY < 0 ? 1.2 : 0.8);
+                const constrained_k = Math.max(0.1, Math.min(8, k));
+                
+                svg.transition()
+                    .duration(100)
+                    .call(zoom.transform, transform.scale(constrained_k / transform.k));
+            });
+
+            
+            function addFlyzoneBackground() {
+                if (!showFlyzone) return;
+                // insert as FIRST child of g so it sits under links/nodes and moves with zoom/pan
+                g.insert("image", ":first-child")
+                .attr("class", "flyzone-img")
+                .attr("x", 0)
+                .attr("y", 0)
+                .attr("width", width)
+                .attr("height", height)
+                .attr("preserveAspectRatio", "none")
+                .attr("opacity", flyzoneOpacity)
+                // cache-bust so updated image shows when regenerated
+                .attr("href", `/flyzone-image?ts=${Date.now()}`);
+            }
+
+            function toggleFlyzone() {
+                showFlyzone = !showFlyzone;
+                if (lastGraphObj) renderGraph(lastGraphObj);
+            }
+
+            // Enable panning with mouse drag (already enabled by zoom behavior)
+            // Enable zoom with mouse wheel (already enabled by zoom behavior)
+
+            function updateZoomLevel() {
+                document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
+            }
+
+            function zoomIn() {
+                const transform = d3.zoomTransform(svg.node());
+                rect.transition()
+                    .duration(300)
+                    .call(zoom.transform, transform.scale(1.3));
+            }
+
+            function zoomOut() {
+                const transform = d3.zoomTransform(svg.node());
+                rect.transition()
+                    .duration(300)
+                    .call(zoom.transform, transform.scale(0.77));
+            }
 
             function resetZoom() {
-                svg.transition().duration(750).call(
-                    zoom.transform,
-                    d3.zoomIdentity
-                );
+                rect.transition()
+                    .duration(750)
+                    .call(zoom.transform, d3.zoomIdentity);
             }
+
+            window.addEventListener('resize', () => {
+                const size = computeSize();
+                width = size.width;
+                height = size.height;
+                svg.attr("viewBox", `0 0 ${width} ${height}`);
+                rect.attr("width", width).attr("height", height);
+                d3.select(".flyzone-img")
+                .attr("width", width)
+                .attr("height", height);
+            });
+
 
             function centerGraph() {
                 const bounds = g.node().getBBox();
@@ -1257,10 +1422,25 @@ class TypeFly:
                 const scale = 0.9 / Math.max(fullWidth / width, fullHeight / height);
                 const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
 
-                svg.transition().duration(750).call(
-                    zoom.transform,
-                    d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
-                );
+                rect.transition()
+                    .duration(750)
+                    .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
+            }
+
+            function fitToScreen() {
+                const bounds = g.node().getBBox();
+                const fullWidth = bounds.width;
+                const fullHeight = bounds.height;
+                const midX = bounds.x + fullWidth / 2;
+                const midY = bounds.y + fullHeight / 2;
+
+                // Calculate scale to fit everything with padding
+                const scale = 0.85 / Math.max(fullWidth / width, fullHeight / height);
+                const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
+
+                rect.transition()
+                    .duration(750)
+                    .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
             }
 
             function loadGraph() {
@@ -1270,7 +1450,9 @@ class TypeFly:
                     .then(response => response.json())
                     .then(result => {
                         if (result.success && result.data) {
+                            lastGraphData = result.data;
                             const graphData = JSON.parse(result.data);
+                            lastGraphObj = graphData;
                             renderGraph(graphData);
                             
                             const nodeCount = (graphData.objects?.length || 0) + (graphData.regions?.length || 0);
@@ -1309,59 +1491,100 @@ class TypeFly:
             function renderGraph(graphData) {
                 g.selectAll("*").remove();
 
+                // add flyzone image first so it's behind the links/nodes and participates in zoom/pan
+                addFlyzoneBackground && addFlyzoneBackground();
                 const nodes = [];
                 const links = [];
                 const nodeMap = new Map();
 
-                // Add regions
+                // --- determine world extents for scaling ---
+                const allCoords = [];
+                (graphData.regions || []).forEach(r => Array.isArray(r.coords) && allCoords.push(r.coords));
+                (graphData.objects || []).forEach(o => Array.isArray(o.coords) && allCoords.push(o.coords));
+
+                let maxX = Math.max(0, ...allCoords.map(c => +c[0] || 0));
+                let maxY = Math.max(0, ...allCoords.map(c => +c[1] || 0));
+
+                if (!isFinite(maxX) || maxX <= 0) maxX = DEFAULT_WORLD.width;
+                if (!isFinite(maxY) || maxY <= 0) maxY = DEFAULT_WORLD.height;
+
+                const xScale = d3.scaleLinear().domain([0, maxX]).range([0, width]);
+                const yScale = ORIGIN_TOP_LEFT
+                    ? d3.scaleLinear().domain([0, maxY]).range([0, height])        // y grows downward
+                    : d3.scaleLinear().domain([0, maxY]).range([height, 0]);
+
+                // --- regions (fixed at coords) ---
                 if (graphData.regions) {
                     graphData.regions.forEach(region => {
-                        const node = {
-                            id: region.name,
-                            label: region.name,
-                            type: 'region',
-                            coords: region.coords
-                        };
-                        nodes.push(node);
-                        nodeMap.set(region.name, node);
+                    const node = {
+                        id: region.name,
+                        label: region.name,
+                        type: 'region',
+                        coords: region.coords
+                    };
+                    // place & fix at world coords if present
+                    if (Array.isArray(region.coords) && region.coords.length >= 2) {
+                        const [rx, ry] = region.coords;
+                        const px = xScale(+rx || 0);
+                        const py = yScale(+ry || 0);
+                        node.x = px; node.y = py;
+                        node.fx = px; node.fy = py;   // <- fixed
+                        node.fixed = true;
+                    }
+                    nodes.push(node);
+                    nodeMap.set(region.name, node);
                     });
                 }
 
-                // Add objects
+                // --- objects (not fixed; just seeded) ---
                 if (graphData.objects) {
                     graphData.objects.forEach(obj => {
-                        const node = {
-                            id: obj.name,
-                            label: obj.name,
-                            type: 'object',
-                            coords: obj.coords
-                        };
-                        nodes.push(node);
-                        nodeMap.set(obj.name, node);
+                    const node = {
+                        id: obj.name,
+                        label: obj.name,
+                        type: 'object',
+                        coords: obj.coords
+                    };
+                    if (Array.isArray(obj.coords) && obj.coords.length >= 2) {
+                        const [ox, oy] = obj.coords;
+                        node.x = xScale(+ox || 0);
+                        node.y = yScale(+oy || 0);
+                    } else {
+                        // fallback: scatter near center
+                        const angle = Math.random() * 2 * Math.PI;
+                        const radius = Math.random() * Math.min(width, height) / 3;
+                        node.x = width / 2 + radius * Math.cos(angle);
+                        node.y = height / 2 + radius * Math.sin(angle);
+                    }
+                    nodes.push(node);
+                    nodeMap.set(obj.name, node);
                     });
                 }
 
-                // Add current position as special node
+                // Add current position
                 if (graphData.current_position) {
                     const posNode = {
-                        id: '__robot_position__',
-                        label: 'Robot',
-                        type: 'robot',
-                        coords: graphData.current_position.coords
+                    id: '__robot_position__',
+                    label: 'Robot',
+                    type: 'robot',
+                    coords: graphData.current_position.coords
                     };
+                    if (Array.isArray(posNode.coords) && posNode.coords.length >= 2) {
+                    const [rx, ry] = posNode.coords;
+                    posNode.x = xScale(+rx || 0);
+                    posNode.y = yScale(+ry || 0);
+                    } else {
+                    posNode.x = width * 0.5; posNode.y = height * 0.2;
+                    }
                     nodes.push(posNode);
                     nodeMap.set('__robot_position__', posNode);
-                    
-                    // Link robot to its current region
                     if (graphData.current_position.region) {
-                        links.push({
-                            source: '__robot_position__',
-                            target: graphData.current_position.region
-                        });
+                    links.push({ source: '__robot_position__', target: graphData.current_position.region });
                     }
                 }
 
-                // Add object connections
+
+                // Add connections
                 if (graphData.object_connections) {
                     graphData.object_connections.forEach(conn => {
                         if (conn.length === 2) {
@@ -1373,7 +1596,6 @@ class TypeFly:
                     });
                 }
 
-                // Add region connections
                 if (graphData.region_connections) {
                     graphData.region_connections.forEach(conn => {
                         if (conn.length === 2) {
@@ -1390,12 +1612,41 @@ class TypeFly:
                     return;
                 }
 
-                // Create force simulation
+                // Give nodes random initial positions spread across the canvas
+                nodes.forEach(d => {
+                    // Use a wider spread for initial positions
+                    const angle = Math.random() * 2 * Math.PI;
+                    const radius = Math.random() * Math.min(width, height) / 3;
+                    d.x = width / 2 + radius * Math.cos(angle);
+                    d.y = height / 2 + radius * Math.sin(angle);
+                });
+
+                // Create force simulation with balanced forces
                 const simulation = d3.forceSimulation(nodes)
-                    .force("link", d3.forceLink(links).id(d => d.id).distance(120))
-                    .force("charge", d3.forceManyBody().strength(-400))
-                    .force("center", d3.forceCenter(width / 2, height / 2))
-                    .force("collision", d3.forceCollide().radius(40));
+                    .force("link", d3.forceLink(links).id(d => d.id)
+                    .distance(d => {
+                        const st = d.source.type || d.source;
+                        const tt = d.target.type || d.target;
+                        if (st === 'region' && tt === 'region') return 200;
+                        return 150;
+                    })
+                    .strength(0.3)
+                    )
+                    .force("charge", d3.forceManyBody().strength(d => {
+                    if (d.type === 'region') return -1200;
+                    if (d.type === 'robot')  return -1000;
+                    return -600;
+                    }).distanceMax(400))
+                    .force("collision", d3.forceCollide().radius(d => {
+                    if (d.type === 'robot')  return 35;
+                    if (d.type === 'region') return 30;
+                    return 25;
+                    }).strength(0.7))
+                    // pull **unfixed** nodes gently toward their current x/y; fixed nodes already have fx/fy
+                    .force("x", d3.forceX(d => d.fx ?? width / 2).strength(d => d.fx != null ? 0.0 : 0.03))
+                    .force("y", d3.forceY(d => d.fy ?? height / 2).strength(d => d.fy != null ? 0.0 : 0.03))
+                    .velocityDecay(0.4)
+                    .alphaDecay(0.01);
 
                 // Create links
                 const link = g.append("g")
@@ -1413,7 +1664,23 @@ class TypeFly:
                     .call(d3.drag()
                         .on("start", dragstarted)
                         .on("drag", dragged)
-                        .on("end", dragended));
+                        .on("end", dragended))
+                    .on("dblclick", function(event, d) {
+                        // Double-click to center on node
+                        event.stopPropagation();
+                        const transform = d3.zoomTransform(rect.node());
+                        const x = transform.applyX(d.x);
+                        const y = transform.applyY(d.y);
+                        
+                        rect.transition()
+                            .duration(500)
+                            .call(zoom.transform, 
+                                d3.zoomIdentity
+                                    .translate(width / 2, height / 2)
+                                    .scale(transform.k)
+                                    .translate(-d.x, -d.y)
+                            );
+                    });
 
                 node.append("circle")
                     .attr("r", d => d.type === 'robot' ? 25 : 18)
@@ -1433,20 +1700,33 @@ class TypeFly:
                     .style("fill", "#333")
                     .style("font-weight", d => d.type === 'robot' ? "bold" : "500");
 
-                // Add tooltips
                 node.append("title")
-                    .text(d => `${d.label}\nType: ${d.type}\nCoords: ${d.coords}`);
+                    .text(d => `${d.label}\nType: ${d.type}\nCoords: ${d.coords}\n\nDouble-click to center`);
 
-                // Update positions on tick
                 simulation.on("tick", () => {
+                    const PAD = 50;
+                    const safeW = Math.max(2 * PAD, width);
+                    const safeH = Math.max(2 * PAD, height);
+
+                    nodes.forEach(d => {
+                    if (d.fx != null && d.fy != null) {
+                        // fixed (regions): keep them exactly at fx/fy
+                        d.x = d.fx; d.y = d.fy;
+                    } else {
+                        d.x = Math.max(PAD, Math.min(safeW - PAD, d.x));
+                        d.y = Math.max(PAD, Math.min(safeH - PAD, d.y));
+                    }
+                    });
+
                     link
-                        .attr("x1", d => d.source.x)
-                        .attr("y1", d => d.source.y)
-                        .attr("x2", d => d.target.x)
-                        .attr("y2", d => d.target.y);
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
 
                     node.attr("transform", d => `translate(${d.x},${d.y})`);
                 });
+
 
                 function dragstarted(event) {
                     if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -1465,15 +1745,74 @@ class TypeFly:
                     event.subject.fy = null;
                 }
 
-                // Auto-center after layout stabilizes
-                setTimeout(centerGraph, 1000);
+                // Let simulation run longer for better spreading
+                setTimeout(() => {
+                    fitToScreen();
+                }, 2000);
+
+                simulation.on("tick", () => {
+                    // Use safe inner dimensions so we never collapse to a single x=50 column
+                    const PAD = 50;
+                    const safeW = Math.max(2 * PAD, width);
+                    const safeH = Math.max(2 * PAD, height);
+
+                    nodes.forEach(d => {
+                        d.x = Math.max(PAD, Math.min(safeW - PAD, d.x));
+                        d.y = Math.max(PAD, Math.min(safeH - PAD, d.y));
+                    });
+
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node.attr("transform", d => `translate(${d.x},${d.y})`);
+                });
+            }
+
+            let lastGraphData = null;
+            let autoRefreshEnabled = true;
+
+            function checkForUpdates() {
+                if (!autoRefreshEnabled) return;
+
+                fetch('/graph-data')
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.success && result.data) {
+                            // Only reload if data actually changed
+                            if (lastGraphData !== result.data) {
+                                lastGraphData = result.data;
+                                const graphData = JSON.parse(result.data);
+                                lastGraphObj = graphData;
+                                renderGraph(graphData);
+                                
+                                const nodeCount = (graphData.objects?.length || 0) + (graphData.regions?.length || 0);
+                                const edgeCount = graphData.object_connections?.length || 0;
+                                document.getElementById('status').textContent = 
+                                    `✅ Loaded: ${nodeCount} nodes, ${edgeCount} connections`;
+                                
+                                document.getElementById('stats').innerHTML = 
+                                    `<strong>Objects:</strong> ${graphData.objects?.length || 0} | ` +
+                                    `<strong>Regions:</strong> ${graphData.regions?.length || 0} | ` +
+                                    `<strong>Current Region:</strong> ${graphData.current_position?.region || 'unknown'}`;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Background update error:', error);
+                    });
             }
 
             // Load graph on page load
             loadGraph();
 
-            // Auto-refresh every 5 seconds
-            setInterval(loadGraph, 5000);
+            // Check for updates every 2 seconds (only re-renders if changed)
+            setInterval(checkForUpdates, 2000);
+
+            // Initialize zoom level display
+            updateZoomLevel();
         </script>
     </body>
     </html>'''
@@ -1513,6 +1852,18 @@ class TypeFly:
                     "message": f"Error retrieving graph: {str(e)}"
                 })
             
+        @app.route('/flyzone-image')
+        def flyzone_image():
+            """Serve the latest flyzone background image (PNG)."""
+            path = os.path.abspath("controller/assets/tello/flyzone/flyzone_plot.png")
+            if not os.path.exists(path):
+                return jsonify({"success": False, "message": "Flyzone image not found"}), 404
+            resp = send_file(path, mimetype='image/png')
+            # prevent caching so updates show immediately
+            resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp.headers['Pragma'] = 'no-cache'
+            resp.headers['Expires'] = '0'
+            return resp
      
     def run(self):
         asyncio_thread = Thread(target=self.asyncio_loop.run_forever)
