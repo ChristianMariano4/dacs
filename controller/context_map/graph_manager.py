@@ -36,7 +36,10 @@ class GraphManager:
         return self.graph_handler.to_json_str()
     
     def name_region(self, name:str):
-        self.graph_handler.name_region(name)
+        if self.current_region.startswith("region"):
+            print("Naming region")
+            self.graph_handler.name_region(name)
+            # self.current_region = name
     
     # --- Pose
     def update_pose(self, pose: Sequence[float]) -> None:

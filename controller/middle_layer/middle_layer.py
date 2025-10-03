@@ -44,7 +44,7 @@ class MiddleLayer:
         # self.flyzone_polygons = [Polygon(list(circle.exterior.coords))]
 
     @classmethod
-    def _parse_flyzone(file_path):
+    def _parse_flyzone(cls, file_path):
         coords = []
         with open(file_path, "r") as f:
             for line in f:
