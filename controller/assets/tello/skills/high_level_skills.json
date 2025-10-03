@@ -7,6 +7,6 @@
     {
         "skill_name": "scan_abstract",
         "skill_description": "Rotate to find an abstract object by a description $1 when it's *not* in current scene",
-        "definition": "8{tp();_1=p($1);?_1!=False{->_1}tc(45)}->False;"
+        "definition": "8{tp();_1=p($1. Return True or False);?_1!=False{->_1}tc(45)}->False;"
     }
 ]
