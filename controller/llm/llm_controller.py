@@ -123,12 +123,12 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_height", self.vision.object_height, "Get object's height in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_dis", self.vision.object_distance, "Get object's distance in cm", args=[SkillArg("object_name", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning", args=[SkillArg("question", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning. Add also what do you expect as returned value type", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log_user", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument. Assume this respects the flyzone while exploring. What is more, it names the current region based on what the drone can see around it.", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task", args=[SkillArg("question", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. After this skill it automatically replans with new information", args=[SkillArg("question", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -367,10 +367,10 @@ class LLMController():
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            if ret_val is None: # This is the first iteration of the plan
-                model_name = GPT5
-            else: # This is executed after a replanning
-                model_name = GPT5_MINI
+            # if ret_val is None: # This is the first iteration of the plan
+            #     model_name = GPT5
+            # else: # This is executed after a replanning
+            #     model_name = GPT5_MINI
             model_name = GPT5_MINI
             print(f"Sending request to model {model_name}")
             # Request plan to the model chosen above
