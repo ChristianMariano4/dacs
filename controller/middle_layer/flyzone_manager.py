@@ -49,12 +49,23 @@ class FlyzoneManager:
         return "The allowed flyzone is composed of the following polygonal regions:\n" + "\n".join(descriptions)
     
     def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
-        prompt = self.prompt_flyzone.format(instruction=instruction)
-        response_content = self.llm_wrapper.request(prompt=prompt, model_name=llm_model_name)
-        if response_content.startswith("```json"):
-            response_content = response_content.replace("```json", "").replace("```", "").strip()
+        # prompt = self.prompt_flyzone.format(instruction=instruction)
+        # response_content = self.llm_wrapper.request(prompt=prompt, model_name=llm_model_name)
+        # if response_content.startswith("```json"):
+        #     response_content = response_content.replace("```json", "").replace("```", "").strip()
+
+        response_content = {
+            "points_list": [
+                [[40, 0], [39.392, 6.946], [37.588, 13.681], [34.641, 20], [30.642, 25.712], [25.712, 30.642], [20, 34.641], [13.681, 37.588], [6.946, 39.392], [0, 40], [-6.946, 39.392], [-13.681, 37.588], [-20, 34.641], [-25.712, 30.642], [-30.642, 25.712], [-34.641, 20], [-37.588, 13.681], [-39.392, 6.946], [-40, 0], [-39.392, -6.946], [-37.588, -13.681], [-34.641, -20], [-30.642, -25.712], [-25.712, -30.642], [-20, -34.641], [-13.681, -37.588], [-6.946, -39.392], [0, -40], [6.946, -39.392], [13.681, -37.588], [20, -34.641], [25.712, -30.642], [30.642, -25.712], [34.641, -20], [37.588, -13.681], [39.392, -6.946], [40, 0]],
+                [[-20, -15], [220, -15], [220, 15], [-20, 15], [-20, -15]],
+                [[240, 0], [239.392, 6.946], [237.588, 13.681], [234.641, 20], [230.642, 25.712], [225.712, 30.642], [220, 34.641], [213.681, 37.588], [206.946, 39.392], [200, 40], [193.054, 39.392], [186.319, 37.588], [180, 34.641], [174.288, 30.642], [169.358, 25.712], [165.359, 20], [162.412, 13.681], [160.608, 6.946], [160, 0], [160.608, -6.946], [162.412, -13.681], [165.359, -20], [169.358, -25.712], [174.288, -30.642], [180, -34.641], [186.319, -37.588], [193.054, -39.392], [200, -40], [206.946, -39.392], [213.681, -37.588], [220, -34.641], [225.712, -30.642], [230.642, -25.712], [234.641, -20], [237.588, -13.681], [239.392, -6.946], [240, 0]]
+            ]
+        }
+
+        response_content = response_content.__str__()
 
         print(f"Raw API response: {response_content}")
+
 
         if not response_content:
             print("ERROR: Received empty response from OpenAI API")

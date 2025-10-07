@@ -418,10 +418,15 @@ class TypeFly:
         # Graph log file path
         self.graph_log_path = os.path.join("graph_logs", "graph_history.jsonl")
         default_sentences = [
+            "Take off",
+            "Land",
             "Find an apple",
-            "Come back to region_0",
-            "Where is a banana?",
-            "Find a banana",
+            "Find an apple",
+            "Find an apple",
+            "Execute the shortcut secret task",
+            "Do you know where can I find a banana?",
+            "Follow a person",
+            "Follow a person and then find an apple"
         ]
         with self.ui:
             gr.HTML(open(os.path.join(CURRENT_DIR, 'header.html'), 'r').read())
@@ -557,8 +562,8 @@ class TypeFly:
                     outputs=[chatbot, msg_input]
                 )
                 
-                with gr.TabItem("📊 Graph Visualization"):
-                    self.setup_graph_tab()
+                # with gr.TabItem("📊 Graph Visualization"):
+                #     self.setup_graph_tab()
                 
                 with gr.TabItem("⚙️ Settings"):
                     self.setup_settings_tab()

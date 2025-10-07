@@ -43,6 +43,8 @@ class LLMPlanner():
 
         self.flyzone = ""
         self.latest_frame = latest_frame
+
+        self.current_task_id = 0
     
 
     def init(self, high_level_skillset: SkillSet, low_level_skillset: SkillSet, vision_skill: VisionSkillWrapper):
@@ -81,6 +83,9 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
             self.flyzone = f.read()
 
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/demo.json"), "r") as f:
+            self.demo = json.loads(f.read())
+
         if task.get_is_new(): # task is new, so not through shortcut
             task_description = task.get_task_description()
         else: # task is executed through shortcut, so we pass all the information already available
@@ -105,21 +110,26 @@ class LLMPlanner():
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
-        response_content = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.SIMPLE)
+        # response_content = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.SIMPLE)
 
         # Clean up the content - remove markdown code blocks if present
-        if response_content.startswith("```json"):
-            response_content = response_content.replace("```json", "").replace("```", "").strip()
+        # if response_content.startswith("```json"):
+        #     response_content = response_content.replace("```json", "").replace("```", "").strip()
 
-        if not response_content: # resend the request
-            return None, None
+        # if not response_content: # resend the request
+        #     return None, None
         
-        parsed = json.loads(response_content)
-        plan = parsed.get("plan", None)
-        reason = parsed.get("reason", None)
-        iteration_description = parsed.get("description", None)
+        # parsed = json.loads(response_content)
+        step = self.demo.get(f"{self.current_task_id}", None)
+        task = step.get("task")
+        print(f"TASK: {task}")
+        plan = step.get("plan")
+        print(f"PLAN: {plan}")
+        self.current_task_id += 1
+        # reason = parsed.get("reason", None)
+        # iteration_description = parsed.get("description", None)
         # iteration_description = "Description of the iteration: " + iteration_description
-        return plan, reason, iteration_description
+        return plan, "", ""
     
     def probe(self, question) -> MiniSpecValueType:
         if question is list:

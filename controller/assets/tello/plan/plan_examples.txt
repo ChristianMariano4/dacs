@@ -15,7 +15,7 @@ Iteration 1: New user task - create a new high level skill
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: The graph is empty and no apples are currently known. To solve this, I need to scan for apples and, if not found, explore a new region. This is already a logical pattern (scan → explore), so I can encapsulate it as a new skill search_object.
-Response: as("search_object", "Scan for an object and explore a new region if not visible", "?s($1)==True{lu($1 + ' found');->True};ed();rp();"); search_object(["apple"]);
+Response: as("search_object", "Scan for an object and explore a new region if not visible", "?s($1)==True{lu('$1 found');->True};ed();rp();"); search_object(["apple"]);
 
 Iteration 2: New region region_1 at [0, 150] - use a previously defined high level skill
 Scene: []
@@ -76,7 +76,7 @@ Iteration 11: New user task - create a new high level skill
 Scene: []
 Task: I need an apple. Is there one in the scene?
 Reason: To achieve this, I will call scan(["apple"]). If unsuccessful, I will call ed() to explore a new region. Since this pattern of scan → explore is a coherent unit of behavior, I can encapsulate it into a reusable skill fruit_hunt. This makes searching more efficient and avoids code duplication.
-Response: as("fruit_hunt", "Look for a fruit by scanning and exploring if not visible", "?s($1)==True{lu($1 + ' found');->True};ed();rp();"); fruit_hunt(["apple"]);  
+Response: as("fruit_hunt", "Look for a fruit by scanning and exploring if not visible", "?s($1)==True{lu('$1 found');->True};ed();rp();"); fruit_hunt(["apple"]);  
 
 Iteration 12: New user task - use a previously defined high level skill
 Scene: []
@@ -89,5 +89,5 @@ Iteration 12: New user task - use a previously defined high level skill
 Scene: []
 Task: Find a curly hair girl.
 Reason: I can now use the scan_abstract high level skill to search for an abstract thing like it.
-Response: sa(["Is there a curly hair girl?"])  
+Response: sa(["Is there a curly hair girl?"])
 #End of the Example 

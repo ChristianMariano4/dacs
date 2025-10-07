@@ -92,6 +92,7 @@ class LongMemoryModule:
                                         )
         
         # Send the request to gpt5-nano, because we just need to summarize information
+        return
         response_content = self.llm_wrapper.request(prompt, request_type=RequestType.SIMPLE, model_name=GPT5_NANO)
 
         # Parse the response

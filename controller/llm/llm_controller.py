@@ -388,7 +388,7 @@ class LLMController():
 
             self.current_task.set_current_plan(self.current_plan)
             print_t(f"The plan is {self.current_task.get_current_plan()}. With reason: {reason}")
-            input_t("Press a key to execute that plan\n")
+            # input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             print_t("Message appended")
             try:
@@ -420,7 +420,7 @@ class LLMController():
 
                 # Ask user a shortcut to associate to a task and its own plan
                 self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
-                self.text_to_speech("Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
+                self.text_to_speech("Do you want to save this plan with a shortcut?")
                 shortcut = self.user_answer_queue.get(block=True)
                 # print(shortcut[1])
                 answer: str = shortcut[1]
