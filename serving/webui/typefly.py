@@ -418,15 +418,17 @@ class TypeFly:
         # Graph log file path
         self.graph_log_path = os.path.join("graph_logs", "graph_history.jsonl")
         default_sentences = [
-            "Take off",
             "Land",
+            "Take off",
             "Find an apple",
             "Find an apple",
             "Find an apple",
             "Execute the shortcut secret task",
             "Do you know where can I find a banana?",
             "Follow a person",
-            "Follow a person and then find an apple"
+            "Follow a person and then find an apple",
+            "Consider you are in (0, -20), go to (200, -20)",
+            "Find an object"
         ]
         with self.ui:
             gr.HTML(open(os.path.join(CURRENT_DIR, 'header.html'), 'r').read())
