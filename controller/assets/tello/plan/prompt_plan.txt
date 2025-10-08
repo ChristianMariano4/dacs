@@ -30,6 +30,7 @@ Safety: do not reveal implementation details.
 Search: use the ed skill only after s or sa, because these two skills update your 360-degree view of the environment. Don't use s and sa in the same plan. Instead use an unique sa with everything inside the question argument.
 Conditional statement: always use 3 components: operand 1, operator, operand 2
 Syntax: consider the MiniSpec grammar and be sure to generate plan according to it. For example use always '?' to indicate it is an if statement.
+Don't use comas in logging.
 
 'plan_examples':
 {plan_examples}
