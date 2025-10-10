@@ -44,7 +44,7 @@ class LongMemoryModule:
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(MEMORY_PATH, "prompt_memory.txt"), "r") as f:
+        with open(os.path.join(MEMORY_PATH, "memory_user_prompt.txt"), "r") as f:
             self.memory_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
 
@@ -92,7 +92,7 @@ class LongMemoryModule:
                                         )
         
         # Send the request to gpt5-nano, because we just need to summarize information
-        response_content = self.llm_wrapper.request(prompt, request_type=RequestType.SIMPLE, model_name=GPT5_NANO)
+        response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FEEDBACK, model_name=GPT5_NANO)
 
         # Parse the response
         response_parsed = json.loads(response_content)

@@ -132,7 +132,7 @@ class LLMPlanner():
         self.image_path = "serving/webui/cache/probe.jpg"
         Image.fromarray(self.latest_frame).save(self.image_path)
         image = encode_image(Image.open(self.image_path))
-        return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
+        return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.PROBE)), False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
     # def probe_end_iteration(self, model_name: Optional[str] = GPT5):

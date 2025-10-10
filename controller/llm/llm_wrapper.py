@@ -12,7 +12,8 @@ GPT5 = "gpt-5" # The best model for coding and agentic tasks across domains
 GPT5_MINI = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
 GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
-PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
+PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
+FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
@@ -20,9 +21,9 @@ chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
 
 class RequestType(Enum):
     PLAN = "plan"
+    FEEDBACK = "feedback"
     EXPLORE_DIRECTION = "explore_direction"
-    SIMPLE = "simple"
-    SINGLE_IMAGE = "single_image"
+    PROBE = "probe"
     LIGHT = "light"
 
 class LLMWrapper:
@@ -48,24 +49,24 @@ class LLMWrapper:
             case RequestType.PLAN:
                 response = client.responses.create(
                     prompt={
-                        "id": PROMPT_ID,
+                        "id": PLAN_PROMPT_ID,
                         "version": "2"
                     },
                     input=user_prompt,
                     stream=stream
                 )
-            case RequestType.SIMPLE:
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=[{"role": "user", "content": user_prompt}],
-                    temperature=self.temperature,
-                    stream=stream,
+            case RequestType.FEEDBACK:
+                response = client.responses.create(
+                    prompt={
+                        "id": FEEDBACK_PROMPT_ID,
+                        "version": "1"
+                    },
+                    input=user_prompt,
+                    stream=stream
                 )
-            
 
-
-            case RequestType.SINGLE_IMAGE:
-                assert image is not None, f"Image not given in a {RequestType.SINGLE_IMAGE} request"
+            case RequestType.PROBE:
+                assert image is not None, f"Image not given in a {RequestType.PROBE} request"
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=[
@@ -82,7 +83,7 @@ class LLMWrapper:
                 )
             
             case RequestType.EXPLORE_DIRECTION:
-                assert images is not None, f"Images not given in a {RequestType.SINGLE_IMAGE} request"
+                assert images is not None, f"Images not given in a {RequestType.EXPLORE_DIRECTION} request"
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=[
