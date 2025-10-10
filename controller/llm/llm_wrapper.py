@@ -67,19 +67,21 @@ class LLMWrapper:
 
             case RequestType.PROBE:
                 assert image is not None, f"Image not given in a {RequestType.PROBE} request"
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {   
-                            "role": "user", 
+                response = client.responses.create(
+                    prompt={
+                        "id": FEEDBACK_PROMPT_ID,
+                        "version": "1"
+                    },
+                    input=[
+                        {
+                            "role": "user",
                             "content": [
                                 {"type": "text", "text": user_prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
+                                {"type": "image_url", "image_url": {"url": image}}
                             ]
                         }
                     ],
-                    temperature=self.temperature,
-                    stream=stream,
+                    stream=stream
                 )
             
             case RequestType.EXPLORE_DIRECTION:
