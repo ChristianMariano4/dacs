@@ -8,7 +8,8 @@ class MiddleLayer:
     # TODO: every info is saved on disk to not lose preferences between an interaction and another 
     def __init__(self):
         # default square flyzone
-        self.flyzone = MiddleLayer._parse_flyzone(FLYZONE_TXT)
+        with open(FLYZONE_TXT) as f:
+            self.flyzone = f.read()
         # self.username = ""
 
         ## U-shaped flyzone
@@ -45,15 +46,22 @@ class MiddleLayer:
 
     @classmethod
     def _parse_flyzone(cls, file_path):
+        print("Inside1")
         coords = []
         with open(file_path, "r") as f:
+            print("Inside2")
+
             for line in f:
+                print("Inside3")
+                print(line)
                 line = line.strip()
-                if line.startswith("  - ("):
+                if line.startswith("- ("):
                     # Extract numbers between parentheses
                     nums = line.strip("- ()").split(",")
                     x, y = map(float, nums)
                     coords.append(x, y)
+                    print("Inside4")
+        print([Polygon(coords)])
         return [Polygon(coords)]
 
 

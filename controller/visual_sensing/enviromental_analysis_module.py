@@ -100,59 +100,64 @@ class EnvironmentalAnalysisModule:
                 print("ERROR: Received empty response from OpenAI API")
                 # Return default direction as fallback
                 return "north"
+            
+            direction = response_content.get('direction', None)
+            region_name = response_content.get('region_name', None)
+            reason = response_content.get('reason', None)
+            distance = response_content.get('distance', None)
                 
             # Parse JSON response
-            try:
-                parsed = json.loads(response_content)
-            except json.JSONDecodeError as e:
-                print(f"JSON parsing error: {e}")
-                print(f"Response content: {response_content}")
-                # Try to extract direction from malformed response - now includes diagonal directions
-                response_lower = response_content.lower()
+            # try:
+            #     parsed = json.loads(response_content)
+            # except json.JSONDecodeError as e:
+            #     print(f"JSON parsing error: {e}")
+            #     print(f"Response content: {response_content}")
+            #     # Try to extract direction from malformed response - now includes diagonal directions
+            #     response_lower = response_content.lower()
                 
-                # Check for diagonal directions first (more specific)
-                if "north-east" in response_lower or "northeast" in response_lower:
-                    return "north-east"
-                elif "north-west" in response_lower or "northwest" in response_lower:
-                    return "north-west"
-                elif "south-east" in response_lower or "southeast" in response_lower:
-                    return "south-east"
-                elif "south-west" in response_lower or "southwest" in response_lower:
-                    return "south-west"
-                # Then check cardinal directions
-                elif "north" in response_lower:
-                    return "north"
-                elif "west" in response_lower:
-                    return "west"
-                elif "south" in response_lower:
-                    return "south"
-                elif "west" in response_lower:
-                    return "west"
-                else:
-                    return "north"  # Default fallback
+            #     # Check for diagonal directions first (more specific)
+            #     if "north-east" in response_lower or "northeast" in response_lower:
+            #         return "north-east"
+            #     elif "north-west" in response_lower or "northwest" in response_lower:
+            #         return "north-west"
+            #     elif "south-east" in response_lower or "southeast" in response_lower:
+            #         return "south-east"
+            #     elif "south-west" in response_lower or "southwest" in response_lower:
+            #         return "south-west"
+            #     # Then check cardinal directions
+            #     elif "north" in response_lower:
+            #         return "north"
+            #     elif "west" in response_lower:
+            #         return "west"
+            #     elif "south" in response_lower:
+            #         return "south"
+            #     elif "west" in response_lower:
+            #         return "west"
+            #     else:
+            #         return "north"  # Default fallback
 
-            # Validate parsed response structure
-            if not isinstance(parsed, dict):
-                print(f"ERROR: Expected dict, got {type(parsed)}")
-                return "north"
+            # # Validate parsed response structure
+            # if not isinstance(parsed, dict):
+            #     print(f"ERROR: Expected dict, got {type(parsed)}")
+            #     return "north"
             
-            if "direction" not in parsed:
-                print(f"ERROR: 'direction' key not found in response: {parsed}")
-                return "north"
+            # if "direction" not in parsed:
+            #     print(f"ERROR: 'direction' key not found in response: {parsed}")
+            #     return "north"
             
-            direction : str = parsed["direction"]
-            direction = direction.lower()
-            reason = parsed.get("reason", "No reason provided")
-            distance = parsed.get("distance", None)
-            region_name = parsed.get("region_name", None)
+            # direction : str = parsed["direction"]
+            # direction = direction.lower()
+            # reason = parsed.get("reason", "No reason provided")
+            # distance = parsed.get("distance", None)
+            # region_name = parsed.get("region_name", None)
 
             
 
-            # Validate direction value - now includes diagonal directions
-            valid_directions = ["north", "east", "south", "west", "north-east", "north-west", "south-east", "south-west"]
-            if direction not in valid_directions:
-                print(f"ERROR: Invalid direction '{direction}', using 'north' as fallback")
-                direction = "north"
+            # # Validate direction value - now includes diagonal directions
+            # valid_directions = ["north", "east", "south", "west", "north-east", "north-west", "south-east", "south-west"]
+            # if direction not in valid_directions:
+            #     print(f"ERROR: Invalid direction '{direction}', using 'north' as fallback")
+            #     direction = "north"
 
             input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
             return direction, distance, region_name

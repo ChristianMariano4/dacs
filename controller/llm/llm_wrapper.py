@@ -90,8 +90,8 @@ class LLMWrapper:
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": user_prompt},
-                                {"type": "image_url", "image_url": {"url": image}}
+                                {"type": "input_text", "text": user_prompt},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + image}
                             ]
                         }
                     ],
@@ -103,26 +103,43 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": DIRECTION_PROMPT_ID,
-                        "version": "1"
+                        "version": "2"
                     },
                     input=[
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": user_prompt},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[0], "name": "north.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[1], "name": "north-east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[2], "name": "east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[3], "name": "south-east.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[4], "name": "south.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[5], "name": "south-west.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[6], "name": "west.jpg"}},
-                                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[7], "name": "north-west.jpg"}},
+                                {"type": "input_text", "text": user_prompt + "\n\nPlease respond in JSON format with fields: direction, distance, region_name."},
+
+                                {"type": "input_text", "text": "Direction: North"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[0]},
+
+                                {"type": "input_text", "text": "Direction: North-East"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[1]},
+
+                                {"type": "input_text", "text": "Direction: East"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[2]},
+
+                                {"type": "input_text", "text": "Direction: South-East"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[3]},
+
+                                {"type": "input_text", "text": "Direction: South"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[4]},
+
+                                {"type": "input_text", "text": "Direction: South-West"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[5]},
+
+                                {"type": "input_text", "text": "Direction: West"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[6]},
+
+                                {"type": "input_text", "text": "Direction: North-West"},
+                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[7]},
                             ]
                         }
                     ],
                     stream=stream,
                 )
+
 
 
         # save the message in a txt
