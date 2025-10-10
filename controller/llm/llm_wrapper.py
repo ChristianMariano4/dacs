@@ -122,7 +122,5 @@ class LLMWrapper:
         # If it's JSON (as in your example), parse it:
         import json
         parsed = json.loads(raw_text)
-        print("Plan:", parsed["plan"])
 
-
-        return parsed["plan"]
+        return parsed

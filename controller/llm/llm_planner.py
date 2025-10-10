@@ -104,7 +104,8 @@ class LLMPlanner():
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
-        response_plan = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.PLAN)
+        response_json = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.PLAN)
+        response_plan = response_json["plan"]
 
         # # Clean up the content - remove markdown code blocks if present
         # if response_content.startswith("```json"):
