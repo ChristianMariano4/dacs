@@ -1,0 +1,7 @@
+Task: {task}
+
+Hint: {hint}
+
+Flyzone: {flyzone}
+
+Current Position: {current_position}

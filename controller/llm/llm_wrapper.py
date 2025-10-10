@@ -14,6 +14,8 @@ GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
 PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
 FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
+PROBE_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
+DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
@@ -69,7 +71,7 @@ class LLMWrapper:
                 assert image is not None, f"Image not given in a {RequestType.PROBE} request"
                 response = client.responses.create(
                     prompt={
-                        "id": FEEDBACK_PROMPT_ID,
+                        "id": PROBE_PROMPT_ID,
                         "version": "1"
                     },
                     input=[
@@ -86,9 +88,12 @@ class LLMWrapper:
             
             case RequestType.EXPLORE_DIRECTION:
                 assert images is not None, f"Images not given in a {RequestType.EXPLORE_DIRECTION} request"
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=[
+                response = client.responses.create(
+                    prompt={
+                        "id": DIRECTION_PROMPT_ID,
+                        "version": "1"
+                    },
+                    input=[
                         {
                             "role": "user",
                             "content": [
@@ -104,9 +109,7 @@ class LLMWrapper:
                             ]
                         }
                     ],
-                    temperature=self.temperature,
                     stream=stream,
-                    response_format={"type": "json_object"} 
                 )
 
 

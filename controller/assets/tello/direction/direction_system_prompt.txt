@@ -1,13 +1,9 @@
-The drone must choose which direction to move based on the goal: **"{task}"**.
-Take also in consideration an hint (if present) of what to focus on in the choice: **"{hint}"**.
+The drone must choose which direction to move based on the task to fulfill.
+Take also in consideration an hint (if present) of what to focus on in the choice.
 Ignore the hint if is not useful or feasible with the given images.
-Also take the 'flyzone' into account—you must remain inside it. Respond only with a direction and distance that are feasible given the drone's 'current position' and the 'flyzone' boundaries.
+Also take the `flyzone` into account—you must remain inside it. Respond only with a direction and distance that are feasible given the drone's `current position` and the `flyzone` boundaries.
 To speed up exploration, avoid choosing small distances; prefer the largest distance that allow you to better explore the environment that keeps you inside the flyzone. Usually to change context around the drone, you should move at least by 150 cm, so use it as default.
 
-Here is the the 'flyzone':
-{flyzone}
-
-Here is the 'current position': {current_position}
 You are given 8 images representing what the drone sees in each direction.
 
 Think carefully about:
