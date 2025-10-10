@@ -15,7 +15,7 @@ from ..minispec_interpreter import MiniSpecValueType, evaluate_value
 from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_prompt.txt")
+USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
 
 class LLMPlanner():
     def __init__(self, robot_type: RobotType, current_task: Task, latest_frame):
@@ -26,24 +26,12 @@ class LLMPlanner():
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
 
-        # read prompt from txt
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/prompt_plan.txt"), "r") as f:
-            self.prompt_plan = f.read()
-    
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/plan_examples.txt"), "r") as f:
-            self.plan_examples = f.read()
-
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/prompt_probe.txt"), "r") as f:
+        # read prompt from txt    
+        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/user_probe_prompt.txt"), "r") as f:
             self.prompt_probe = f.read()
 
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/plan/guides.txt"), "r") as f:
-            self.guides = f.read()
-
-        with open(os.path.join(CURRENT_DIR, f"../assets/minispec_syntax.txt"), "r") as f:
-            self.minispec_syntax = f.read()
-
         with open(USER_PROMPT_PATH) as f:
-            self.user_prompt = f.read()
+            self.prompt_plan = f.read()
 
     
         self.flyzone = ""
@@ -91,7 +79,7 @@ class LLMPlanner():
         else: # task is executed through shortcut, so we pass all the information already available
             task_description = task.to_prompt()
                 
-        prompt = self.user_prompt.format(high_level_skills=self.high_level_skillset,
+        prompt = self.prompt_plan.format(high_level_skills=self.high_level_skillset,
                                             low_level_skills=self.low_level_skillset,
                                             old_interactions_feedbacks = old_interactions_feedbacks,
                                             objects_list=objects_list,

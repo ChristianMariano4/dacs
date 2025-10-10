@@ -44,7 +44,7 @@ class LongMemoryModule:
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(MEMORY_PATH, "memory_user_prompt.txt"), "r") as f:
+        with open(os.path.join(MEMORY_PATH, "user_memory_prompt.txt"), "r") as f:
             self.memory_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
 

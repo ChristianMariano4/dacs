@@ -1,0 +1,3 @@
+Objects List: {objects_list}
+
+Question: {question}

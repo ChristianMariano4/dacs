@@ -14,8 +14,9 @@ GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
 PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
 FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
-PROBE_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
+PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
 DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
+FLYZONE_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
@@ -26,7 +27,7 @@ class RequestType(Enum):
     FEEDBACK = "feedback"
     EXPLORE_DIRECTION = "explore_direction"
     PROBE = "probe"
-    LIGHT = "light"
+    FLYZONE = "flyzone"
 
 class LLMWrapper:
     def __init__(self, temperature=1):
@@ -41,7 +42,7 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, user_prompt, image=None, images=None, model_name=GPT5, stream=False, request_type: RequestType = RequestType.SIMPLE) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, user_prompt, request_type: RequestType, image=None, images=None, model_name=GPT5, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
@@ -57,10 +58,21 @@ class LLMWrapper:
                     input=user_prompt,
                     stream=stream
                 )
+
             case RequestType.FEEDBACK:
                 response = client.responses.create(
                     prompt={
                         "id": FEEDBACK_PROMPT_ID,
+                        "version": "1"
+                    },
+                    input=user_prompt,
+                    stream=stream
+                )
+
+            case RequestType.FLYZONE:
+                response = client.responses.create(
+                    prompt={
+                        "id": FLYZONE_PROMPT_ID,
                         "version": "1"
                     },
                     input=user_prompt,

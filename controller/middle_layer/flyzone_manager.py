@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from controller.utils.constants import ROBOT_NAME
-from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper
+from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -18,7 +18,7 @@ class FlyzoneManager:
         self.middle_layer = middle_layer
         
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/flyzone/prompt_flyzone.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/flyzone/user_flyzone_prompt.txt"), "r") as f:
             self.prompt_flyzone = f.read()
 
     def plot_current_flyzone(self):
@@ -50,7 +50,7 @@ class FlyzoneManager:
     
     def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
         prompt = self.prompt_flyzone.format(instruction=instruction)
-        response_content = self.llm_wrapper.request(user_prompt=prompt, model_name=llm_model_name)
+        response_content = self.llm_wrapper.request(user_prompt=prompt, model_name=llm_model_name, request_type=RequestType.FLYZONE)
         if response_content.startswith("```json"):
             response_content = response_content.replace("```json", "").replace("```", "").strip()
 

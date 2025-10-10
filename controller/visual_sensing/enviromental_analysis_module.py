@@ -33,7 +33,7 @@ class EnvironmentalAnalysisModule:
     def __init__(self, middle_layer: MiddleLayer=None):
         # Set up your client
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))  # Or use environment variable OPENAI_API_KEY
-        with open(f"controller/assets/{ROBOT_NAME}/direction/prompt_choose_direction.txt", "r") as f:
+        with open(f"controller/assets/{ROBOT_NAME}/direction/user_direction_prompt.txt", "r") as f:
             self.direction_prompt = f.read()
 
         self.middle_layer = middle_layer

@@ -176,8 +176,8 @@ chroma.sqlite3
 # Test directory
 test/*
 
-# Flyzone directory
-flyzone.txt
-flyzone_plot.png
-
-Makefile
+# Files
+controller/assets/tello/flyzone/flyzone.txt
+controller/assets/tello/skills/*
+controller/assets/tello/memory/*/*
+./controller/assets/memory/*.txt

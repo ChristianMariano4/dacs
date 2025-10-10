@@ -92,6 +92,5 @@ Question: 'In which directions should I search for people?'
 Reasoning: Use visual cues like shadows to infer nearby movement beyond visible range.
 Output: left
 """
-Objects List:{objects_list}
-Question:{question}
+
 Please give the content of results only, don't include 'Output:' in the results.
