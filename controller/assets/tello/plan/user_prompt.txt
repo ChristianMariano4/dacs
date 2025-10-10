@@ -1,0 +1,9 @@
+
+"high_level_skills": {high_level_skills},
+"low_level_skills": {low_level_skills},
+"old_interactions_feedbacks": {old_interactions_feedbacks},
+"objects_list": {objects_list},
+"task_description": {task_description},
+"execution_history": {execution_history},
+"context_graph": {context_graph},
+"flyzone": {flyzone}

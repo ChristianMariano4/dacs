@@ -50,7 +50,7 @@ class FlyzoneManager:
     
     def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
         prompt = self.prompt_flyzone.format(instruction=instruction)
-        response_content = self.llm_wrapper.request(prompt=prompt, model_name=llm_model_name)
+        response_content = self.llm_wrapper.request(user_prompt=prompt, model_name=llm_model_name)
         if response_content.startswith("```json"):
             response_content = response_content.replace("```json", "").replace("```", "").strip()
 

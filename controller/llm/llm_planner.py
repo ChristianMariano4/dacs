@@ -15,6 +15,7 @@ from ..minispec_interpreter import MiniSpecValueType, evaluate_value
 from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_prompt.txt")
 
 class LLMPlanner():
     def __init__(self, robot_type: RobotType, current_task: Task, latest_frame):
@@ -41,6 +42,10 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"../assets/minispec_syntax.txt"), "r") as f:
             self.minispec_syntax = f.read()
 
+        with open(USER_PROMPT_PATH) as f:
+            self.user_prompt = f.read()
+
+    
         self.flyzone = ""
         self.latest_frame = latest_frame
     
@@ -86,40 +91,34 @@ class LLMPlanner():
         else: # task is executed through shortcut, so we pass all the information already available
             task_description = task.to_prompt()
                 
-        prompt = self.prompt_plan.format(high_level_skills=self.high_level_skillset,
+        prompt = self.user_prompt.format(high_level_skills=self.high_level_skillset,
                                             low_level_skills=self.low_level_skillset,
-                                            guides=self.guides,
-                                            plan_examples=self.plan_examples,
                                             old_interactions_feedbacks = old_interactions_feedbacks,
-                                            error_message=error_message,
                                             objects_list=objects_list,
                                             task_description=task_description,
                                             execution_history=execution_history,
                                             context_graph=context_graph,
-                                            current_position=current_position,
-                                            current_region=current_region,
-                                            minispec_syntax=self.minispec_syntax,
                                             flyzone=self.flyzone,
                                             )
         
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
-        response_content = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.SIMPLE)
+        response_plan = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.PLAN)
 
-        # Clean up the content - remove markdown code blocks if present
-        if response_content.startswith("```json"):
-            response_content = response_content.replace("```json", "").replace("```", "").strip()
+        # # Clean up the content - remove markdown code blocks if present
+        # if response_content.startswith("```json"):
+        #     response_content = response_content.replace("```json", "").replace("```", "").strip()
 
-        if not response_content: # resend the request
-            return None, None
+        # if not response_content: # resend the request
+        #     return None, None
         
-        parsed = json.loads(response_content)
-        plan = parsed.get("plan", None)
-        reason = parsed.get("reason", None)
-        iteration_description = parsed.get("description", None)
+        # parsed = json.loads(response_content)
+        # plan = parsed.get("plan", None)
+        # reason = parsed.get("reason", None)
+        # iteration_description = parsed.get("description", None)
         # iteration_description = "Description of the iteration: " + iteration_description
-        return plan, reason, iteration_description
+        return response_plan, None, None
     
     def probe(self, question) -> MiniSpecValueType:
         if question is list:
@@ -132,7 +131,7 @@ class LLMPlanner():
         self.image_path = "serving/webui/cache/probe.jpg"
         Image.fromarray(self.latest_frame).save(self.image_path)
         image = encode_image(Image.open(self.image_path))
-        return evaluate_value(self.llm.request(prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
+        return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.SINGLE_IMAGE)), False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
     # def probe_end_iteration(self, model_name: Optional[str] = GPT5):

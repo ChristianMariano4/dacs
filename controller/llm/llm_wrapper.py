@@ -1,7 +1,7 @@
 from enum import Enum
 import os
 import openai
-from openai import Stream, ChatCompletion
+from openai import Stream, ChatCompletion, OpenAI
 
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 GPT3 = "gpt-3.5-turbo-16k"
@@ -12,10 +12,14 @@ GPT5 = "gpt-5" # The best model for coding and agentic tasks across domains
 GPT5_MINI = "gpt-5-mini" # A faster, cost-efficient version of GPT-5 for well-defined tasks
 GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
+PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
 
+
 class RequestType(Enum):
+    PLAN = "plan"
     EXPLORE_DIRECTION = "explore_direction"
     SIMPLE = "simple"
     SINGLE_IMAGE = "single_image"
@@ -24,30 +28,42 @@ class RequestType(Enum):
 class LLMWrapper:
     def __init__(self, temperature=1):
         self.temperature = temperature
-        self.llama_client = openai.OpenAI(
+        
+        self.llama_client = OpenAI(
             # base_url="http://10.66.41.78:8000/v1",
             base_url="http://localhost:8000/v1",
             api_key="token-abc123",
         )
-        self.gpt_client = openai.OpenAI(
+        self.gpt_client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, prompt, image=None, images=None, model_name=GPT5, stream=False, request_type: RequestType = RequestType.SIMPLE) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, user_prompt, image=None, images=None, model_name=GPT5, stream=False, request_type: RequestType = RequestType.SIMPLE) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
             client = self.gpt_client
         
         match request_type:
+            case RequestType.PLAN:
+                response = client.responses.create(
+                    prompt={
+                        "id": PROMPT_ID,
+                        "version": "2"
+                    },
+                    input=user_prompt,
+                    stream=stream
+                )
             case RequestType.SIMPLE:
                 response = client.chat.completions.create(
                     model=model_name,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": user_prompt}],
                     temperature=self.temperature,
                     stream=stream,
                 )
             
+
+
             case RequestType.SINGLE_IMAGE:
                 assert image is not None, f"Image not given in a {RequestType.SINGLE_IMAGE} request"
                 response = client.chat.completions.create(
@@ -56,7 +72,7 @@ class LLMWrapper:
                         {   
                             "role": "user", 
                             "content": [
-                                {"type": "text", "text": prompt},
+                                {"type": "text", "text": user_prompt},
                                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image}"}}
                             ]
                         }
@@ -73,7 +89,7 @@ class LLMWrapper:
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": prompt},
+                                {"type": "text", "text": user_prompt},
                                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[0], "name": "north.jpg"}},
                                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[1], "name": "north-east.jpg"}},
                                 {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + images[2], "name": "east.jpg"}},
@@ -93,11 +109,20 @@ class LLMWrapper:
 
         # save the message in a txt
         with open(chat_log_path, "a") as f:
-            f.write(prompt + "\n---\n")
+            f.write(user_prompt + "\n---\n")
             if not stream:
                 f.write(response.model_dump_json(indent=2) + "\n---\n")
 
         if stream:
             return response
+        # Access the raw text
+        raw_text = response.output[1].content[0].text
+        # print("Raw text:", raw_text)
 
-        return response.choices[0].message.content
+        # If it's JSON (as in your example), parse it:
+        import json
+        parsed = json.loads(raw_text)
+        print("Plan:", parsed["plan"])
+
+
+        return parsed["plan"]
