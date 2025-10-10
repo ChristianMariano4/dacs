@@ -1,0 +1,5 @@
+Task: {task_text}
+
+Robot execution output: {execution_output}
+
+User feedback: {feedback_text}
