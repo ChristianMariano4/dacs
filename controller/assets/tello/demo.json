@@ -11,21 +11,21 @@
     },
     "2": {
         "task": "Find an apple before feedback without exploration, adding a new high level skill",
-        "plan": "as('apple_hunt', 'Locate an apple: scan first, log if visible, otherwise explore and replan', '?s(['orange'])==True{lu('apple found');->True};ed('search for apple');rp();'); apple_hunt();",
+        "plan": "as('apple_hunt', 'Locate an apple: scan first, log if visible, otherwise explore and replan', '?s(['orange'])==True{lu('apple found');->True};ed('search for apple');rp();'); apple_hunt();l();",
         "reason": "Perform a 360° scan for an apple first (s). If the apple is detected, log success and return True. If not found, explore a new region (ed) and then replan (rp).",
         "feedback_summary": "Interaction summary saved:\nTask Summary: Locate an apple using the provided hint-driven plan and report the outcome.\nExecution Summary: The robot attempted to evaluate a condition to detect an apple and, if found, log a message and return true. The observed execution output shows a conditional placeholder '[if s(['apple'])==True {...}]' and a final 'None', indicating no explicit success log or confirmation of finding the apple.\nFeedback Summary: User requested that the system log when an object is found. The execution did not produce such a log, highlighting a gap between the intended logging behavior and the actual output.\nLessons Learned: 1) Ensure that a successful object detection triggers a concrete log message (e.g., 'apple found') in all code paths. 2) Guarantee a clear success return value even when the condition evaluates to true. 3) Implement robust logging of object discoveries to support future tasks and embeddings, including persistent or structured logs."
     },
     "3": {
         "task": "Find an apple after feedback without exploration",
-        "plan": "as('apple_hunt', 'Locate an apple: scan first, go to it if visible, otherwise explore and replan', '?s(['orange'])==True{lu('apple found');g('orange');lu('now close to apple');->True};ed('search for apple');rp();'); apple_hunt();",
+        "plan": "as('apple_hunt', 'Locate an apple: scan first, go to it if visible, otherwise explore and replan', '?s(['orange'])==True{lu('apple found');g('orange');lu('now close to apple');->True};ed('search for apple');rp();'); apple_hunt();l();",
         "reason": "I will scan the current view for an apple. If the scan finds one, I will explicitly log 'apple found' and navigate to it (user requested that the robot go to found objects). If not found, I will explore a new region and then replan to continue the search."
     },
     "4": {
         "task": "Find an apple after feedback with exploration - part 1",
         "plan": "apple_hunt();",
         "ed_response": {
-            "direction": "East",
-            "distance": 200,
+            "direction": "West",
+            "distance": 150,
             "region_name": "conference_room",
             "reason": "I have seen a banana"
         },
@@ -33,15 +33,15 @@
     },
     "5": {
         "task": "Find an apple after feedback with exploration - part 2",
-        "plan": "apple_hunt();",
+        "plan": "apple_hunt();l();",
         "reason": "Replanning from previous attempt: first scan for an apple. If found, explicitly log success and navigate to the apple (per prior feedback). If not visible, explore a new region to continue the search, then re-plan."
     },
     "6": {
         "task": "Find an apple after feedback with exploration with shortcut 'Secret task' - part 1",
         "plan": "apple_hunt();",
         "ed_response": {
-            "direction": "East",
-            "distance": 200,
+            "direction": "West",
+            "distance": 150,
             "region_name": "conference_room",
             "reason": "I have seen a banana"
         },
@@ -49,7 +49,7 @@
     },
     "7": {
         "task": "Find an apple after feedback with exploration with shortcut 'Secret task' - part 2",
-        "plan": "apple_hunt();",
+        "plan": "apple_hunt();l();",
         "reason": "Replanning from previous attempt: first scan for an apple. If found, explicitly log success and navigate to the apple (per prior feedback). If not visible, explore a new region to continue the search, then re-plan."
     },
     "8": {
@@ -59,15 +59,19 @@
     },
     "9": {
         "task": "Follow a person by creating high level skill",
-        "plan": "as('follow_person','Locate and continuously follow a person','?s(['person'])==True{lu('person found'); g('person'); 20{?iv(['person'])==True{g('person'); d(0.5)}; ?iv(['person'])==False{lu('person lost'); s(['person']); rp()}} ->True}; ed('search for person'); s(['person']);rp();'); follow_person();",
+        "plan": "as('follow_person','Follow the person twice using goto then stop','?iv(['person'])==True{1{g('person');d(0.5);}lu('Stopped following person');->True};?iv(['person'])==False{lu('person not visible');->False}'); follow_person();l();",
         "reson": "Create a reusable high-level skill 'follow_person' that: (1) scans for a person (s) and logs 'person found' when detected, (2) immediately navigates to the person (g) per past feedback requesting immediate navigation on detection, (3) enters a short loop (20 iterations) that keeps issuing g('person') while the person remains visible, with a 0.5s delay between updates to maintain following, and (4) if the person is lost, logs the loss, calls s() to search, and replans."
     },
     "10": {
         "task": "Follow a person and then find an apple",
-        "plan": "follow_person(); apple_hunt();",
+        "plan": "follow_person(); apple_hunt();l();",
         "reson": "Reuse the previously defined high-level skills from execution_history: follow_person will locate and continuously follow a visible person (there are multiple persons in the current view), and apple_hunt will then search for an apple and navigate to it when found. Each skill contains built-in fallback behavior (reacquisition, exploration, and replanning) so the robot will handle lost targets or not-yet-seen apples while respecting the flyzone."
     },
     "11": {
+        "task": "Find an object",
+        "plan": "au('Which object do you want me to find?');"
+    },
+    "12": {
         "task": "Consider you are in (0, -20), go to (200, -20)",
         "plan": "gx(0,-15,0); gx(200,-15,0); gx(200,-20,0); lu('Moved to (200,-20) via safe path staying inside flyzone.');"
     }
