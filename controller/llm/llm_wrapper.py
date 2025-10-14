@@ -53,7 +53,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "2"
+                        "version": "6"
                     },
                     input=user_prompt,
                     stream=stream
@@ -73,7 +73,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "1"
+                        "version": "2"
                     },
                     input=user_prompt,
                     stream=stream
@@ -84,7 +84,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PROBE_PROMPT_ID,
-                        "version": "1"
+                        "version": "2"
                     },
                     input=[
                         {
@@ -154,7 +154,7 @@ class LLMWrapper:
         raw_text = response.output[1].content[0].text
         # print("Raw text:", raw_text)
 
-        # If it's JSON (as in your example), parse it:
+        # Parse it:
         import json
         parsed = json.loads(raw_text)
 

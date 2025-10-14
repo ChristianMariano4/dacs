@@ -93,4 +93,4 @@ Reasoning: Use visual cues like shadows to infer nearby movement beyond visible 
 Output: left
 """
 
-Please give the content of results only, don't include 'Output:' in the results.
+Respond in JSON format with the only field "answer".
