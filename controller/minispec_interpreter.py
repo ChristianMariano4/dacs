@@ -25,6 +25,7 @@ def print_debug(*args):
 MiniSpecValueType = Union[int, float, bool, str, None]
 
 def evaluate_value(value: str) -> MiniSpecValueType:
+    value = str(value)
     if value.isdigit():
         return int(value)
     elif value.replace('.', '', 1).isdigit():
@@ -337,9 +338,6 @@ class Statement:
             else:
                 # Multiple arguments - use split_args
                 args = split_args(args_str)
-                
-            # args = [self.get_env_value(a) if a.strip().startswith('_')
-            #         else a.strip().strip('\'"') for a in args]
             
             # Process each argument
             processed_args = []
@@ -360,8 +358,24 @@ class Statement:
                     # Variable reference
                     processed_args.append(self.get_env_value(a))
                 else:
-                    # Regular string argument
-                    processed_args.append(a.strip('\'"'))
+                    # Regular string argument - check for variable interpolation
+                    arg_value = a.strip('\'"')
+
+                    # Look for variable references in the string (e.g., "text _varname more text")
+                    import re
+                    var_pattern = r'\b(_[a-zA-Z0-9_]*)\b'
+
+                    def replace_var(match):
+                        var_name = match.group(1)
+                        try:
+                            var_value = self.get_env_value(var_name)
+                            return str(var_value)
+                        except:
+                            # If variable doesn't exists, leave it as-is
+                            return var_name
+                    
+                    arg_value = re.sub(var_pattern, replace_var, arg_value)
+                    processed_args.append(arg_value)
 
             args = processed_args
         else:
