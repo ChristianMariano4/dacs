@@ -113,7 +113,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("move_down", self.drone.move_down, "Move down by a distance", args=[SkillArg("distance", float)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("go_xy", self.drone.go_to_position, "Move to x,y,z absolute position.", args=[SkillArg("x", int), SkillArg("y", int), SkillArg("z", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_new_region", self.explore_new_region, "Explore a new region (forward, backward, left, right) by a given distance in cm", args=[SkillArg("direction", str), SkillArg("distance", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self._name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
+        # self.low_level_skillset.add_skill(LowLevelSkillItem("name_region", self._name_region, "Give a meaningful name to current region node in context graph", args=[SkillArg("region_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
@@ -261,6 +261,7 @@ class LLMController():
         os.system("mpg123 serving/webui/cache/speech.mp3")
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
+        text = str(text)
         self.append_message(f"[LOG] {text}")
         self.text_to_speech(text)
         return None, False
