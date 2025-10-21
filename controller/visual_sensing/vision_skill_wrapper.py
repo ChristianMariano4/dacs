@@ -234,6 +234,7 @@ class VisionSkillWrapper():
             object_name = object_name[0]
         for _ in range(10):
             self.update_obj_list()
+            print(self.object_list)
             for obj in self.object_list:
                 if obj.name.startswith(object_name):
                     return obj
@@ -248,9 +249,9 @@ class VisionSkillWrapper():
         return self.scene_description
 
     def is_visible(self, objects: List[str]) -> Tuple[bool, bool]:
-        # print(objects)
         for a in objects:
             obj = self.get_obj_info(a)
+            print(obj)
             if self.get_obj_info(a) is not None:
                 return True, False
         return False, False
