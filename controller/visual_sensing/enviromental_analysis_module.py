@@ -101,7 +101,7 @@ class EnvironmentalAnalysisModule:
                 # Return default direction as fallback
                 return "north"
             
-            direction = response_content.get('direction', None)
+            direction = str(response_content.get('direction', None)).lower()
             region_name = response_content.get('region_name', None)
             reason = response_content.get('reason', None)
             distance = response_content.get('distance', None)
