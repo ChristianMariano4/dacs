@@ -248,6 +248,7 @@ class LLMController():
         self._name_region(region_name)
         valid_directions = ["north", "east", "sourh", "west", "north-east", "north-west", "south-east", "south-west"]
         if dir in valid_directions:
+            print(f"{dir} is a valide direction")
             next_yaw = {"north":0, "north-east": 45, "east":90, "south-east": 135, "south":180, "south-west": -135, "west":-90, "north-west": -45}[dir]
             print(f"Next yaw {next_yaw}")
             self.drone.move_direction(next_yaw, distance)
