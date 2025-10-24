@@ -87,7 +87,7 @@ class VisionSkillWrapper():
         self.shared_frame = shared_frame
         self.last_update = 0
         self.object_trackers: dict[str, ObjectTracker] = {}
-        self.object_list = []
+        self.objects_list = []
         self.aruco_detector = cv2.aruco.ArucoDetector(
             cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
             cv2.aruco.DetectorParameters())
@@ -114,7 +114,7 @@ class VisionSkillWrapper():
         if self.shared_frame.timestamp == self.last_update:
             return
         self.last_update = self.shared_frame.timestamp
-        self.object_list = []
+        self.objects_list = []
         objs = self.shared_frame.get_yolo_result()['result']
         for obj in objs:
             name = obj['name']
@@ -123,7 +123,7 @@ class VisionSkillWrapper():
             y = (box['y1'] + box['y2']) / 2
             w = box['x2'] - box['x1']
             h = box['y2'] - box['y1']
-            self.object_list.append(ObjectInfo(name, x, y, w, h))
+            self.objects_list.append(ObjectInfo(name, x, y, w, h))
             if True:  # TODO: remove this condition when you want to localize objects
                 pos = self.graph_manager.get_drone_pose()   # auto-samples depth
                 if pos is not None:
@@ -132,6 +132,10 @@ class VisionSkillWrapper():
             else:
                 # print(f"Object {obj["name"]} detected without localization")
                 self.graph_manager.add_object_detection(obj["name"])
+            return self.objects_list
+        
+    def get_objects_list(self):
+        return self.objects_list
 
     def update_scene_description(self):
         self.scene_description = self.env_analysis_module.get_scene_description(self.shared_frame)
@@ -182,12 +186,12 @@ class VisionSkillWrapper():
         self.object_trackers = updated_trackers
 
         # Create the list of current objects
-        self.object_list = []
+        self.objects_list = []
         to_delete = []
         for key, tracker in self.object_trackers.items():
             obj = tracker.predict()
             if obj is not None:
-                self.object_list.append(obj)
+                self.objects_list.append(obj)
             else:
                 to_delete.append(key)
         
@@ -225,7 +229,7 @@ class VisionSkillWrapper():
     def get_obj_list(self) -> str:
         self.update_obj_list()
         str_list = []
-        for obj in self.object_list:
+        for obj in self.objects_list:
             str_list.append(str(obj))
         return str(str_list).replace("'", '')
 
@@ -235,7 +239,7 @@ class VisionSkillWrapper():
         for _ in range(10):
             self.update_obj_list()
             # print(self.object_list)
-            for obj in self.object_list:
+            for obj in self.objects_list:
                 if obj.name.startswith(object_name):
                     return obj
             time.sleep(0.2)
@@ -279,23 +283,39 @@ class VisionSkillWrapper():
         if info is None:
             return f'object_height: {object_name} not in sight', True
         return info.h, False
-    
+            
     def object_distance(self, object_name: str) -> Tuple[Union[int, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
             return f'object_distance: {object_name} not in sight', True
-        mid_point = (info.x, info.y)
-        FOV_X = 0.42
-        FOV_Y = 0.55
-        if mid_point[0] < 0.5 - FOV_X / 2 or mid_point[0] > 0.5 + FOV_X / 2 \
-        or mid_point[1] < 0.5 - FOV_Y / 2 or mid_point[1] > 0.5 + FOV_Y / 2:
-            return 30, False
-        depth = self.shared_frame.get_depth().data
-        start_x = 0.5 - FOV_X / 2
-        start_y = 0.5 - FOV_Y / 2
-        index_x = (mid_point[0] - start_x) / FOV_X * (depth.shape[1] - 1)
-        index_y = (mid_point[1] - start_y) / FOV_Y * (depth.shape[0] - 1)
-        return int(depth[int(index_y), int(index_x)] / 10), False
+        
+        # Estimate distance based on object height in image
+        # Assumption: average person height is ~170cm
+        # When person fills 80% of image height (0.8), they're ~100cm away
+        # When person fills 40% of image height (0.4), they're ~200cm away
+        # etc.
+        
+        if object_name.startswith('person'):
+            # Use height ratio to estimate distance
+            height_ratio = info.h  # normalized height (0-1)
+            
+            # Empirical formula (adjust based on your camera)
+            if height_ratio > 0.01:  # avoid division by zero
+                # Rough estimate: distance (cm) = 80 / height_ratio
+                estimated_distance = int(80 / height_ratio)
+                # Clamp to reasonable range
+                estimated_distance = max(30, min(estimated_distance, 500))
+                print(f"DEBUG: Height ratio={height_ratio:.3f}, estimated distance={estimated_distance}cm")
+                return estimated_distance, False
+        
+        # For other objects, use width
+        width_ratio = info.w
+        if width_ratio > 0.01:
+            estimated_distance = int(50 / width_ratio)
+            estimated_distance = max(30, min(estimated_distance, 500))
+            return estimated_distance, False
+        
+        return 100, False  # default fallback
 
     # ──────────────────────────────────────────────────────────────
     #  New helper – normalized → pixel
