@@ -192,6 +192,7 @@ class LLMController():
         return time.time() - self.execution_time, False
 
     def skill_goto(self, object_name: str) -> Tuple[None, bool]:
+        # TODO: improve this skill to not be fixed of 110 cm moving forward
         print(f'Goto {object_name}')
         if '[' in object_name:
             x = float(object_name.split('[')[1].split(']')[0])
@@ -325,8 +326,10 @@ class LLMController():
     def get_latest_frame(self, plot=False):
         image = self.shared_frame.get_image()
         if plot and image:
-            self.vision.update_obj_list()
-            YoloClient.plot_results_oi(image, self.vision.object_list)
+            objects_list = self.vision.update_obj_list()
+            # for obj in self.vision.get_objects_list():
+                # print(f"{obj.name}: {self.vision.object_distance(obj.name)}")
+            YoloClient.plot_results_oi(image, objects_list)
         return image
     
     def execute_minispec(self, minispec: str, iteration_description: str):
@@ -390,7 +393,7 @@ class LLMController():
 
             self.current_task.set_current_plan(self.current_plan)
             print_t(f"The plan is {self.current_task.get_current_plan()}. With reason: {reason}")
-            input_t("Press a key to execute that plan\n")
+            # input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             print_t("Message appended")
             try:
@@ -416,7 +419,7 @@ class LLMController():
                 user_feedback = self.user_answer_queue.get(block=True)
                 # print(user_feedback) debug
                 self.current_task.set_user_feedback(user_feedback[1])
-                self.long_memory_module.save_interaction_summary(self.current_task)
+                self.long_memory_module.save_task_summary(self.current_task)
                 self.append_message("Ready again to execute your command.")
                 self.text_to_speech("Ready again to execute your command.")
 
