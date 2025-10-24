@@ -234,7 +234,7 @@ class VisionSkillWrapper():
             object_name = object_name[0]
         for _ in range(10):
             self.update_obj_list()
-            print(self.object_list)
+            # print(self.object_list)
             for obj in self.object_list:
                 if obj.name.startswith(object_name):
                     return obj
