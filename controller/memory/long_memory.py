@@ -81,7 +81,7 @@ class LongMemoryModule:
         self.save_last_task_id(next_id)
         return next_id
             
-    def save_interaction_summary(self, task: Task, conf=0.3):
+    def save_task_summary(self, task: Task, conf=0.3):
         '''
         Save in memory a summary of the executed task, in order to keep some lessons learned.
         '''
@@ -248,7 +248,7 @@ Response: ed(); rp(); l('No apple found, exploring...');""",
 
     print("=== Saving interactions ===")
     for task in examples:
-        memory_module.save_interaction_summary(task)
+        memory_module.save_task_summary(task)
 
     # Query with a new task
     query = "Where can I find a banana?"
