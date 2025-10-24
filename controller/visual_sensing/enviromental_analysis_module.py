@@ -69,16 +69,16 @@ class EnvironmentalAnalysisModule:
     def choose_direction(self, current_task, base_path, current_position, hint: Optional[str]):
         try:
             # Read and encode all 8 directional images
-            north_image = encode_image(Image.open(os.path.join(base_path, 'north.jpg')))
-            east_image = encode_image(Image.open(os.path.join(base_path, 'east.jpg')))
-            south_image = encode_image(Image.open(os.path.join(base_path, 'south.jpg')))
-            west_image = encode_image(Image.open(os.path.join(base_path, 'west.jpg')))
+            north_image = encode_image(os.path.join(base_path, 'north.jpg'))
+            east_image = encode_image(os.path.join(base_path, 'east.jpg'))
+            south_image = encode_image(os.path.join(base_path, 'south.jpg'))
+            west_image = encode_image(os.path.join(base_path, 'west.jpg'))
             
             # Diagonal direction images
-            north_east_image = encode_image(Image.open(os.path.join(base_path, 'north-east.jpg')))
-            north_west_image = encode_image(Image.open(os.path.join(base_path, 'north-west.jpg')))
-            south_east_image = encode_image(Image.open(os.path.join(base_path, 'south-east.jpg')))
-            south_west_image = encode_image(Image.open(os.path.join(base_path, 'south-west.jpg')))
+            north_east_image = encode_image(os.path.join(base_path, 'north-east.jpg'))
+            north_west_image = encode_image(os.path.join(base_path, 'north-west.jpg'))
+            south_east_image = encode_image(os.path.join(base_path, 'south-east.jpg'))
+            south_west_image = encode_image(os.path.join(base_path, 'south-west.jpg'))
 
             total_size = sum(len(img) for img in [
                 north_image, east_image, south_image, west_image,
@@ -159,7 +159,7 @@ class EnvironmentalAnalysisModule:
             #     print(f"ERROR: Invalid direction '{direction}', using 'north' as fallback")
             #     direction = "north"
 
-            input(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
+            print(f"{current_task}: chosen {direction} because {reason}. Press a key to continue\n")
             return direction, distance, region_name
         
         except Exception as e:

@@ -64,8 +64,9 @@ def sharpen_image(img):
     sharpened = cv2.filter2D(img, -1, kernel)
     return sharpened
 
-def encode_image(image, quality=70, max_size=(500, 500)):
+def encode_image(image_path, quality=40, max_size=(500, 500)):
     """Compress and convert an image (PIL or numpy) to base64 string."""
+    image = Image.open(image_path)
     if isinstance(image, np.ndarray):
         # Resize if needed
         height, width = image.shape[:2]
@@ -78,6 +79,7 @@ def encode_image(image, quality=70, max_size=(500, 500)):
         success, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
         if not success:
             raise ValueError("Could not encode numpy image")
+        Image.fromarray(image).save(image_path)
         return base64.b64encode(buffer).decode("utf-8")
 
     elif isinstance(image, Image.Image):
@@ -87,10 +89,11 @@ def encode_image(image, quality=70, max_size=(500, 500)):
         # Compress and encode
         buffered = BytesIO()
         image.save(buffered, format="JPEG", quality=quality, optimize=True)
+        Image.fromarray(image).save(image_path)
         return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
     else:
-        raise TypeError(f"Unsupported image type {type(image)}")
+        raise TypeError(f"Unsupported image type {type(image)}")    
 
 
 # -----------------------------------------------------------------------------
