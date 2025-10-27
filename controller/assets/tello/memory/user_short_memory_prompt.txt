@@ -1,0 +1,4 @@
+Current iteretion: {last_iteration}
+
+Previously iterations: 
+{previously_iterations}
