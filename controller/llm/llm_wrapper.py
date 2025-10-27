@@ -14,6 +14,7 @@ GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 
 PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
 FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
+SHORT_MEMORY_PROMPT_ID = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
 PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
 DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 FLYZONE_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
@@ -25,6 +26,7 @@ chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
 class RequestType(Enum):
     PLAN = "plan"
     FEEDBACK = "feedback"
+    SHORT_MEMORY = "short_memory"
     EXPLORE_DIRECTION = "explore_direction"
     PROBE = "probe"
     FLYZONE = "flyzone"
@@ -64,6 +66,16 @@ class LLMWrapper:
                     prompt={
                         "id": FEEDBACK_PROMPT_ID,
                         "version": "1"
+                    },
+                    input=user_prompt,
+                    stream=stream
+                )
+
+            case RequestType.SHORT_MEMORY:
+                    response = client.responses.create(
+                    prompt={
+                        "id": SHORT_MEMORY_PROMPT_ID,
+                        "version": "6"
                     },
                     input=user_prompt,
                     stream=stream
