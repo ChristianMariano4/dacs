@@ -6,8 +6,9 @@ from typing import List, Optional, Tuple
 import asyncio
 import uuid
 
+from controller.memory.short_memory import ShortMemoryModule
 from controller.utils.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
-from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO
+from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO, LLMWrapper
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
@@ -53,7 +54,8 @@ class LLMController():
     def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
         # shared middle layer that stores user settings
         self.middle_layer = MiddleLayer()
-
+        self.short_memory = ShortMemoryModule()
+        
         self.shared_frame = SharedFrame()
         if use_http:
             self.yolo_client = YoloClient(shared_frame=self.shared_frame)
@@ -411,6 +413,7 @@ class LLMController():
                 continue
             elif ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
+                self.short_memory.generate_interaction_summary(self.current_task)
                 continue
             else:
                 # Ask user a feedback about the executed plan
