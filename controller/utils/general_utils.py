@@ -64,37 +64,28 @@ def sharpen_image(img):
     sharpened = cv2.filter2D(img, -1, kernel)
     return sharpened
 
-def encode_image(image_path, quality=40, max_size=(500, 500)):
-    """Compress and convert an image (PIL or numpy) to base64 string."""
-    image = Image.open(image_path)
-    if isinstance(image, np.ndarray):
-        # Resize if needed
-        height, width = image.shape[:2]
-        if max(height, width) > max(max_size):
-            scale = min(max_size[0] / width, max_size[1] / height)
-            new_size = (int(width * scale), int(height * scale))
-            image = cv2.resize(image, new_size, interpolation=cv2.INTER_AREA)
+def encode_image(image_input, quality=40, max_size=(500, 500)):
+    """Compress and convert an image (path, PIL.Image, or numpy array) to base64 string."""
 
-        # Compress and encode
-        success, buffer = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
-        if not success:
-            raise ValueError("Could not encode numpy image")
-        Image.fromarray(image).save(image_path)
-        return base64.b64encode(buffer).decode("utf-8")
-
-    elif isinstance(image, Image.Image):
-        # Resize if needed
-        image.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-        # Compress and encode
-        buffered = BytesIO()
-        image.save(buffered, format="JPEG", quality=quality, optimize=True)
-        Image.fromarray(image).save(image_path)
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
+    # --- Handle input type ---
+    if isinstance(image_input, str):  # Path
+        image = Image.open(image_input)
+    elif isinstance(image_input, Image.Image):  # PIL image
+        image = image_input
+    elif isinstance(image_input, np.ndarray):  # Numpy array
+        image = cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB)
+        image = Image.fromarray(image)
     else:
-        raise TypeError(f"Unsupported image type {type(image)}")    
+        raise TypeError(f"Unsupported image type {type(image_input)}")
 
+    # --- Resize ---
+    image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+    # --- Compress & encode ---
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG", quality=quality, optimize=True)
+
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 # -----------------------------------------------------------------------------
 # Movement helpers
