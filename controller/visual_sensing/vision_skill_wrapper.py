@@ -132,7 +132,7 @@ class VisionSkillWrapper():
             else:
                 # print(f"Object {obj["name"]} detected without localization")
                 self.graph_manager.add_object_detection(obj["name"])
-            return self.objects_list
+        return self.objects_list
         
     def get_objects_list(self):
         return self.objects_list
