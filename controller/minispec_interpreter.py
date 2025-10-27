@@ -311,9 +311,11 @@ class Statement:
                     return ret_val
             return ret_val
 
-        # normale espressione
+        # normal expression
         self.ret = False
-        return self.eval_expr(self.action)
+        action_ret_val = self.eval_expr(self.action)
+        self.interpreter.execution_history[1].append([self.action, action_ret_val]) 
+        return action_ret_val
 
     # ---------------------------------------------------------------- eval func
     def get_env_value(self, var: str) -> MiniSpecValueType:
@@ -559,7 +561,10 @@ class MiniSpecInterpreter:
     """Thread che esegue gli Statement in una coda FIFO condivisa."""
     def __init__(self, message_queue: queue.Queue):
         self.env: dict = {}
-        self.execution_history: list[Statement] = []
+        # execution history structure:
+        # - first field is a string, that is the complete plan
+        # - second field is a list of tuple, where first element is a string of the action executed and secondo one the returned value
+        self.execution_history: Tuple[str, list[Tuple[str, MiniSpecReturnValue]]] = ["", []]
         if Statement.low_level_skillset is None or Statement.high_level_skillset is None:
             raise Exception('Statement: Skillset is not initialized')
 
@@ -581,7 +586,8 @@ class MiniSpecInterpreter:
         print_t('>>> Get a stream')
         self.timestamp_get_plan = time.time()
 
-        self.execution_history.clear()
+        # self.execution_history.clear()
+        self.execution_history = ["", []]
         
         # Don't reset program_count here - let the parse function update it
         with self.program_lock:
@@ -613,8 +619,6 @@ class MiniSpecInterpreter:
             print_debug('Queue get statement:', stmt)
             ret_val = stmt.eval()
             print_t('Queue statement done:', stmt)
-
-            self.execution_history.append(stmt) 
             
             with self.program_lock:
                 if stmt.ret:                           # early return
