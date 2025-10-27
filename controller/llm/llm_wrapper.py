@@ -112,47 +112,44 @@ class LLMWrapper:
             
             case RequestType.EXPLORE_DIRECTION:
                 assert images is not None, f"Images not given in a {RequestType.EXPLORE_DIRECTION} request"
+                input_payload = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    user_prompt
+                                    + "\n\nPlease respond in JSON format with fields: "
+                                    "direction, distance, region_name."
+                                ),
+                            }
+                        ],
+                    }
+                ]
+
+                # Iterate over dict items and append direction + image pairs
+                for direction, img_b64 in images.items():
+                    input_payload[0]["content"].append(
+                        {"type": "input_text", "text": f"Direction: {direction}"}
+                    )
+                    input_payload[0]["content"].append(
+                        {"type": "input_image", "image_url": "data:image/jpeg;base64," + img_b64}
+                    )
+
                 response = client.responses.create(
                     prompt={
                         "id": DIRECTION_PROMPT_ID,
-                        "version": "2"
+                        "version": "3"
                     },
                     input=[
                         {
                             "role": "user",
-                            "content": [
-                                {"type": "input_text", "text": user_prompt + "\n\nPlease respond in JSON format with fields: direction, distance, region_name."},
-
-                                {"type": "input_text", "text": "Direction: North"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[0]},
-
-                                {"type": "input_text", "text": "Direction: North-East"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[1]},
-
-                                {"type": "input_text", "text": "Direction: East"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[2]},
-
-                                {"type": "input_text", "text": "Direction: South-East"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[3]},
-
-                                {"type": "input_text", "text": "Direction: South"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[4]},
-
-                                {"type": "input_text", "text": "Direction: South-West"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[5]},
-
-                                {"type": "input_text", "text": "Direction: West"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[6]},
-
-                                {"type": "input_text", "text": "Direction: North-West"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + images[7]},
-                            ]
+                            "content": input_payload
                         }
                     ],
                     stream=stream,
                 )
-
-
 
         # save the message in a txt
         with open(chat_log_path, "a") as f:

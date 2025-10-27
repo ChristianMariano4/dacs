@@ -56,13 +56,13 @@ class EnvironmentalAnalysisModule:
     def choose_direction(self, current_task, base_path, current_position, hint: Optional[str]):
         try:
             # Read and encode updated directional images
-            images = []
+            images = {}
             for dir in self.updated_directions:
                 if self.updated_directions[dir]:
-                    images.append(encode_image(os.path.join(base_path, f'{dir}.jpg')))
+                    images.update({dir: encode_image(os.path.join(base_path, f'{dir}.jpg'))})
                     print(f"Image of direction {dir} appended")
 
-            total_size = sum(len(img) for img in images)
+            total_size = sum(len(images.get(dir)) for dir in images)
             print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
             prompt = self.direction_prompt.format(task=current_task, 
                                                   hint=hint, 
@@ -77,7 +77,7 @@ class EnvironmentalAnalysisModule:
             if not response_content:
                 print("ERROR: Received empty response from OpenAI API")
                 # Return default direction as fallback
-                return "north"
+                return "north", 150, None
             
             direction = str(response_content.get('direction', None)).lower()
             region_name = response_content.get('region_name', None)
