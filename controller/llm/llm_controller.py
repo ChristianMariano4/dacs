@@ -235,7 +235,11 @@ class LLMController():
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         time.sleep(0.1)
-        img_path = os.path.join(self.cache_folder, f"{self.directions.get(self.images_counter)}.jpg")
+        if self.images_counter == 0:
+            self.env_analysis_module.reset_updated_directions()
+        direction = self.directions.get(self.images_counter)
+        img_path = os.path.join(self.cache_folder, f"{direction}.jpg")
+        self.env_analysis_module.set_updated_directions(direction)
         self.images_counter = (self.images_counter + 1) % 8
         Image.fromarray(self.latest_frame).save(img_path)
         print_t(f"[C] Picture saved to {img_path}")
