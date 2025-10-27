@@ -101,7 +101,7 @@ class LLMController():
                 print_t("[C] Start Virtual drone...")
                 self.drone: RobotWrapper = VirtualRobotWrapper(graph_manager=self.graph_manager, move_enable=True)
         
-        self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame)
+        self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame, self.flyzone_manager)
 
         # load low-level skills
         self.low_level_skillset = SkillSet(level="low")
@@ -131,6 +131,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument. Assume this respects the flyzone while exploring. What is more, it names the current region based on what the drone can see around it.", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. After this skill it automatically replans with new information", args=[SkillArg("question", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:

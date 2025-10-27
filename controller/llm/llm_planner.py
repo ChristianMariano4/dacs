@@ -1,9 +1,10 @@
 import json
 import os, ast
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Tuple
 from PIL import Image
 
 from controller.abs.skill_item import SkillItem
+from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
 from controller.task import Task
 
@@ -18,7 +19,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
 
 class LLMPlanner():
-    def __init__(self, robot_type: RobotType, current_task: Task, latest_frame):
+    def __init__(self, robot_type: RobotType, current_task: Task, latest_frame, flyzone_manager: FlyzoneManager):
         self.llm = LLMWrapper()
         self.current_task = current_task
 
@@ -33,7 +34,7 @@ class LLMPlanner():
         with open(USER_PROMPT_PATH) as f:
             self.prompt_plan = f.read()
 
-    
+        self.flyzone_manager = flyzone_manager
         self.flyzone = ""
         self.latest_frame = latest_frame
     
@@ -121,6 +122,10 @@ class LLMPlanner():
         Image.fromarray(self.latest_frame).save(self.image_path)
         image = encode_image(Image.open(self.image_path))
         return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.PROBE)["answer"]), False
+    
+    def skill_create_flyzone(self, user_instructions: str) -> Tuple[None, bool]:
+        self.flyzone_manager.request_new_flyzone(user_instructions)
+        return None, False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
     # def probe_end_iteration(self, model_name: Optional[str] = GPT5):
