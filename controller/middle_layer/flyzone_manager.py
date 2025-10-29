@@ -51,8 +51,8 @@ class FlyzoneManager:
     def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
         prompt = self.prompt_flyzone.format(instruction=instruction)
         response_content = self.llm_wrapper.request(user_prompt=prompt, model_name=llm_model_name, request_type=RequestType.FLYZONE)
-        if response_content.startswith("```json"):
-            response_content = response_content.replace("```json", "").replace("```", "").strip()
+        # if response_content.startswith("```json"):
+        #     response_content = response_content.replace("```json", "").replace("```", "").strip()
 
         print(f"Raw API response: {response_content}")
 
@@ -62,15 +62,15 @@ class FlyzoneManager:
             return
             
         # Parse JSON response
-        try:
-            parsed = json.loads(response_content)
-        except json.JSONDecodeError as e:
-            print(f"JSON parsing error: {e}")
-            print(f"Response content: {response_content}")
-            return
+        # try:
+        #     parsed = json.loads(response_content)
+        # except json.JSONDecodeError as e:
+        #     print(f"JSON parsing error: {e}")
+        #     print(f"Response content: {response_content}")
+        #     return
 
         # eval the returned string of polygons into a safe environment
-        points_list = [Polygon(coords) for coords in parsed['points_list']]
+        points_list = [Polygon(coords) for coords in response_content['points_list']]
         print("Request done")
         self.middle_layer.set_flyzone(points_list)
         self.plot_current_flyzone()
