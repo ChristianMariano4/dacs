@@ -132,6 +132,8 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. After this skill it automatically replans with new information", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
+
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
