@@ -429,9 +429,53 @@ class TypeFly:
             # Create tabs for different views
             with gr.Tabs():
                 with gr.TabItem("🤖 Robot Control"):
-                    gr.HTML(open(os.path.join(CURRENT_DIR, 'drone-pov.html'), 'r').read())
+                    # Username display at the top with auto-refresh
+                    def _ui_get_username():
+                        # Always read from the controller so any backend change is reflected
+                        return f"### 👤 Pilot: {self.llm_controller.get_username()}"
+
+                    self.username_display = gr.Markdown(
+                        _ui_get_username(),
+                        elem_id="username-display"
+                    )
+
+                    # Poll every 1s to refresh the label if it changed
+                    gr.Timer(1.0).tick(
+                        fn=_ui_get_username,
+                        outputs=self.username_display
+                    )
+                    # Create two-column layout for drone POV and flyzone
+                    with gr.Row():
+                        # Left column: Drone POV
+                        with gr.Column(scale=1):
+                            gr.HTML(open(os.path.join(CURRENT_DIR, 'drone-pov.html'), 'r').read())
+                        
+                        # Right column: Flyzone Map
+                        with gr.Column(scale=1):
+                            gr.Markdown("### 🗺️ Current Flyzone")
+                            flyzone_display = gr.Image(
+                                value="controller/assets/tello/flyzone/flyzone_plot.png",
+                                label="Flyzone Map",
+                                show_label=False,
+                                interactive=False,
+                                container=True
+                            )
+                            # Add refresh button for flyzone
+                            refresh_flyzone_btn = gr.Button("🔄 Refresh Flyzone", size="sm")
+                            
+                            def refresh_flyzone_image():
+                                flyzone_path = "controller/assets/tello/flyzone/flyzone_plot.png"
+                                if os.path.exists(flyzone_path):
+                                    # Force reload by returning the path with timestamp
+                                    return flyzone_path
+                                return None
+                            
+                            refresh_flyzone_btn.click(
+                                refresh_flyzone_image,
+                                outputs=flyzone_display
+                            )
                     
-                    # Create custom chat interface with integrated audio controls
+                    # Chat interface below the two-column layout
                     with gr.Column():
                         # Chat display area
                         chatbot = gr.Chatbot(
@@ -559,9 +603,12 @@ class TypeFly:
                 
                 with gr.TabItem("📊 Graph Visualization"):
                     self.setup_graph_tab()
-                
-                with gr.TabItem("⚙️ Settings"):
-                    self.setup_settings_tab()
+    
+
+    def change_username(self):
+        return gr.update(
+            value=f"### 👤 Pilot: {self.llm_controller.get_username()}"
+        )
 
     def transcribe_and_send(self):
         """Transcribe last recording and run it through the same controller pipeline."""
@@ -779,131 +826,6 @@ class TypeFly:
             clear_btn.click(self.clear_graph_data, outputs=[self.graph_status])
             auto_refresh_btn.click(self.toggle_auto_refresh, outputs=[self.graph_status])
 
-    def setup_settings_tab(self):
-        """Setup the Settings tab with flyzone generation and feedback."""
-        with gr.Column():
-            gr.Markdown("## 🌐 User Settings")
-            gr.Markdown("Personalize your experience by adjusting options to suit your preferences.")
-
-            # --- User name section ---
-            username = gr.Textbox(
-                label="Enter your name",
-                placeholder="Type your name here...",
-                lines=1,
-                value="Christian",
-            )
-            
-            # Add event handler to update username when changed
-            def update_username(new_name):
-                self.llm_controller.set_username(new_name)
-                return f"✅ Username updated to: {new_name}"
-            
-            username_status = gr.Textbox(
-                label="Status",
-                value="",
-                interactive=False,
-                visible=False
-            )
-            
-            # Connect the change event
-            username.change(
-                fn=update_username,
-                inputs=username,
-                outputs=username_status
-            )
-            
-            # Set initial username
-            self.llm_controller.set_username(username.value)
-            
-            # --- Voice Settings ---
-            gr.Markdown("### 🎤 Voice Settings")
-            with gr.Row():
-                audio_devices_btn = gr.Button("🔍 Show Audio Devices")
-                test_audio_btn = gr.Button("🔊 Test Audio")
-            
-            audio_info = gr.Textbox(
-                label="Audio Device Info",
-                value="Click 'Show Audio Devices' to see available devices",
-                interactive=False,
-                lines=5
-            )
-            
-            # --- Flyzone generation section ---
-            gr.Markdown("### ✈️ Generate Flyzone")
-            flyzone_prompt = gr.Textbox(
-                label="Enter prompt to generate a flyzone",
-                placeholder="Describe the area and shape of the flyzone...",
-                lines=2
-            )
-            generate_btn = gr.Button("🚀 Generate Flyzone")
-
-            # --- Feedback and result section ---
-            status_output = gr.Label(label="Request Status")
-            flyzone_image = gr.Image(
-                label="Generated Flyzone Preview",
-                type="filepath",
-                visible=True
-            )
-
-            # Absolute path for flyzone image
-            flyzone_img_path = os.path.abspath("controller/assets/tello/flyzone/flyzone_plot.png")
-
-            # --- Handler functions ---
-            def show_audio_devices():
-                try:
-                    devices = sd.query_devices()
-                    device_info = "Available Audio Devices:\n\n"
-                    for i, device in enumerate(devices):
-                        device_info += f"Device {i}: {device['name']}\n"
-                        device_info += f"  Max Input Channels: {device['max_input_channels']}\n"
-                        device_info += f"  Max Output Channels: {device['max_output_channels']}\n"
-                        device_info += f"  Default Sample Rate: {device['default_samplerate']}\n\n"
-                    return device_info
-                except Exception as e:
-                    return f"Error getting audio devices: {e}"
-
-            def test_audio():
-                try:
-                    # Generate a test tone
-                    duration = 1.0  # seconds
-                    frequency = 440  # Hz (A note)
-                    sample_rate = 44100
-                    t = np.linspace(0, duration, int(sample_rate * duration), False)
-                    test_tone = np.sin(frequency * 2 * np.pi * t) * 0.3
-                    
-                    sd.play(test_tone, sample_rate)
-                    sd.wait()  # Wait until the sound is finished
-                    
-                    return "✅ Audio test completed - you should have heard a tone"
-                except Exception as e:
-                    return f"❌ Audio test failed: {e}"
-
-            def handle_flyzone_request(instruction: str):
-                yield "⏳ Generating flyzone, please wait...", None
-
-                try:
-                    # Call controller to request flyzone
-                    self.llm_controller.get_flyzone_manager().request_new_flyzone(instruction=instruction)
-
-                    # Show image if it exists
-                    if os.path.exists(flyzone_img_path):
-                        yield "✅ Flyzone generated successfully!", flyzone_img_path
-                    else:
-                        yield "⚠️ Flyzone generated, but no image found.", None
-
-                except Exception as e:
-                    yield f"❌ Failed to generate flyzone: {str(e)}", None
-
-            # --- Connect UI events ---
-            audio_devices_btn.click(show_audio_devices, outputs=[audio_info])
-            test_audio_btn.click(test_audio, outputs=[audio_info])
-            
-            generate_btn.click(
-                fn=handle_flyzone_request,
-                inputs=flyzone_prompt,
-                outputs=[status_output, flyzone_image]
-            )
-
     def get_graph_html(self):
         """Generate the HTML for the graph visualization"""
         return """
@@ -974,20 +896,12 @@ class TypeFly:
             self.user_question_answer.append(message)
             temp = self.user_question_answer.copy()
 
-            question = self.user_question_answer[0]
-            is_feedback_question = "feedback" in question.lower()
-            
             self.user_question_answer = []
 
             # Now put the answer - background thread can continue
             self.user_answer_queue.put(temp)
 
-            if is_feedback_question:
-                yield_msg = "Thank you for your feedback. I am elaborating it."
-                self.llm_controller.text_to_speech(yield_msg)
-                complete_response = yield_msg + "\n"
-            else:
-                complete_response = ""
+            complete_response = ""
 
             deadline = time.time() + 60
             while True:
