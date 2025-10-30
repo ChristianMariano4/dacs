@@ -169,6 +169,8 @@ class Statement:
         self.env = env
         self.read_argument = False
         self.depth_paren = 0  # ( … )
+        self.in_single_quote = False  # Track single quote strings
+        self.in_double_quote = False  # Track double quote strings
 
     # ---------------------------------------------------------- parsing helpers
     @staticmethod
@@ -183,13 +185,21 @@ class Statement:
             match self.parsing_state:
                 # -------------------------------------------------- codice base
                 case ParsingState.CODE:
-                    # if/condition
-                    if c == '?' and not self.read_argument:
+                    # Track quote state
+                    if c == "'" and not self.in_double_quote:
+                        self.in_single_quote = not self.in_single_quote
+                        self.code_buffer += c
+                    elif c == '"' and not self.in_single_quote:
+                        self.in_double_quote = not self.in_double_quote
+                        self.code_buffer += c
+                    
+                    # if/condition (only if not in quotes)
+                    elif c == '?' and not self.read_argument and not self.in_single_quote and not self.in_double_quote:
                         self.action = 'if'
                         self.parsing_state = ParsingState.CONDITION
 
-                    # fine statement con ';'
-                    elif c == ';' and self.depth_paren == 0:
+                    # fine statement con ';' (only if not in quotes)
+                    elif c == ';' and self.depth_paren == 0 and not self.in_single_quote and not self.in_double_quote:
                         self.action = self.code_buffer.strip()
                         print_debug(f'SP Action: {self.action}')
                         self.executable = True
@@ -201,8 +211,8 @@ class Statement:
                                     Statement.interpreter.program_count += 1
                         return True
 
-                    # chiusura parentesi tonda a livello 0
-                    elif c == ')':
+                    # chiusura parentesi tonda a livello 0 (only if not in quotes)
+                    elif c == ')' and not self.in_single_quote and not self.in_double_quote:
                         self.depth_paren -= 1
                         self.code_buffer += c
                         if self.depth_paren == 0:
@@ -218,7 +228,7 @@ class Statement:
                                         Statement.interpreter.program_count += 1
                             return True
                         
-                    elif c == '}' and self.depth_paren == 0 and self.code_buffer.strip():
+                    elif c == '}' and self.depth_paren == 0 and self.code_buffer.strip() and not self.in_single_quote and not self.in_double_quote:
                         # Considera '}' come terminatore se abbiamo accumulato codice
                         self.action = self.code_buffer.strip()
                         self.executable = True
@@ -233,15 +243,15 @@ class Statement:
 
                     # accumula carattere
                     else:
-                        if c == '(':
+                        if c == '(' and not self.in_single_quote and not self.in_double_quote:
                             self.read_argument = True
                             self.depth_paren += 1
                         if c.isalpha() or c == '_':
                             self.allow_digit = True
                         self.code_buffer += c
 
-                    # inizio di un loop numerico
-                    if c.isdigit() and not self.allow_digit:
+                    # inizio di un loop numerico (only if not in quotes)
+                    if c.isdigit() and not self.allow_digit and not self.in_single_quote and not self.in_double_quote:
                         self.action = 'loop'
                         self.parsing_state = ParsingState.LOOP_COUNT
 
