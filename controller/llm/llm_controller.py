@@ -1,4 +1,5 @@
 from enum import Enum
+import enum
 import re
 from PIL import Image
 import queue, time, os, json
@@ -51,7 +52,8 @@ class IterationDecision(Enum):
     IMPOSSIBLE = "impossible"
 
 class LLMController():
-    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
+    def __init__(self, ui, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
+        self.ui = ui
         # shared middle layer that stores user settings
         self.middle_layer = MiddleLayer()
         self.short_memory = ShortMemoryModule()
@@ -68,6 +70,7 @@ class LLMController():
         self.controller_wait_takeoff = True
         self.message_queue = message_queue
         self.user_answer_queue = user_answer_queue
+        self.last_task = None
         self.current_task = None
         if message_queue is None:
             self.cache_folder = os.path.join(CURRENT_DIR, 'cache')
@@ -119,21 +122,21 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects", args=[SkillArg("objects_name", list)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects. Returns True or False", args=[SkillArg("objects_name", list)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get the object’s center X in normalized image coordinates (0,1) (left=0, right=1).", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_y", self.vision.object_y, "Get the object’s center Y in normalized image coordinates (0,1) (top=0, bottom=1).", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_height", self.vision.object_height, "Get object's height in (0,1)", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_dis", self.vision.object_distance, "Get object's distance in cm", args=[SkillArg("object_name", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning. Add also what do you expect as returned value type", args=[SkillArg("question", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("probe", self.planner.probe, "Probe the LLM for reasoning. Add also what do you expect as returned value type. It automatically take the image in front of the robot", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("log_user", self.skill_log, "Output text to console", args=[SkillArg("text", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument. Assume this respects the flyzone while exploring. What is more, it names the current region based on what the drone can see around it.", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. After this skill it automatically replans with new information", args=[SkillArg("question", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. Then automatically replan, so dont add a replan skill", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
-
+        self.low_level_skillset.add_skill(LowLevelSkillItem("save_user_feedback", self.save_user_feedback, "Save user feedback in persistent memory", args=[SkillArg("user_feedback", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -147,7 +150,7 @@ class LLMController():
         #                       lambda: (self.graph_mgr.flush_prompt_updates(), False),
         #                       "Return accumulated graph diff and clear buffer")
         # )
-        self.low_level_skillset.add_skill(LowLevelSkillItem("goto", self.skill_goto, "goto the object", args=[SkillArg("object_name[*x-value]", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("goto", self.skill_goto, "goto the object", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("time", self.skill_time, "Get current execution time", args=[]))
 
         # load high-level skills
@@ -173,12 +176,21 @@ class LLMController():
         self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
 
-    def set_username(self, username):
+    def set_username(self, username) -> Tuple[None, False]:
         self.username = username
-        self.long_memory_module.change_username(self.username)
+        self.long_memory_module.change_username(username)
+        return None, False
 
     def get_username(self) -> str:
         return self.username 
+
+    def save_user_feedback(self, user_feedback) -> Tuple[None, False]:
+        if self.last_task != None:
+            self.last_task.set_user_feedback(user_feedback)
+            self.long_memory_module.save_task_summary(self.last_task)
+        else:
+            self.append_message("\nNo previous task saved.")
+        return None, False
 
     def set_graph_manager(self, graph_manager):
         self.graph_manager = graph_manager
@@ -376,6 +388,7 @@ class LLMController():
                 self.append_message("Sorry. Given shortcut is not existing")
                 return
         else:
+            self.last_task = self.current_task
             self.current_task = Task(task_description)
 
         self.append_message('[TASK]: ' + task_description)
@@ -424,27 +437,27 @@ class LLMController():
                 continue
             else:
                 # Ask user a feedback about the executed plan
-                self.append_message("[Q] Write a feedback of the executed plan")
-                self.text_to_speech("Write a feedback of the executed plan")
-                user_feedback = self.user_answer_queue.get(block=True)
-                # print(user_feedback) debug
-                self.current_task.set_user_feedback(user_feedback[1])
-                self.long_memory_module.save_task_summary(self.current_task)
-                self.append_message("Ready again to execute your command.")
-                self.text_to_speech("Ready again to execute your command.")
+                # self.append_message("[Q] Write a feedback of the executed plan")
+                # self.text_to_speech("Write a feedback of the executed plan")
+                # user_feedback = self.user_answer_queue.get(block=True)
+                # # print(user_feedback) debug
+                # self.current_task.set_user_feedback(user_feedback[1])
+                # self.long_memory_module.save_task_summary(self.current_task)
+                # self.append_message("Ready again to execute your command.")
+                # self.text_to_speech("Ready again to execute your command.")
 
                 # Ask user a shortcut to associate to a task and its own plan
-                self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
-                self.text_to_speech("Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
-                shortcut = self.user_answer_queue.get(block=True)
-                # print(shortcut[1])
-                answer: str = shortcut[1]
-                if answer.lower() == "no":
-                    print("No shortcut")
-                    break
-                self.long_memory_module.save_shortcut_task(username=self.username,
-                                                    keywords=answer,
-                                                    task=self.current_task)
+                # self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
+                # self.text_to_speech("Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
+                # shortcut = self.user_answer_queue.get(block=True)
+                # # print(shortcut[1])
+                # answer: str = shortcut[1]
+                # if answer.lower() == "no":
+                #     print("No shortcut")
+                #     break
+                # self.long_memory_module.save_shortcut_task(username=self.username,
+                #                                     keywords=answer,
+                #                                     task=self.current_task)
                 break
         print("[Task ended]")
         self.append_message(f'\n[Task ended]')
