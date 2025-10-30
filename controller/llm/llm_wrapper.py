@@ -55,7 +55,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "6"
+                        "version": "12"
                     },
                     input=user_prompt,
                     stream=stream
