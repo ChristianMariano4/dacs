@@ -61,6 +61,9 @@ class LongMemoryModule:
         self.username = username
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
+    
+    def get_username(self):
+        return self.username
 
     def load_last_task_id(self):
         if os.path.exists(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE)):
@@ -92,14 +95,13 @@ class LongMemoryModule:
                                         )
         
         # Send the request to gpt5-nano, because we just need to summarize information
-        response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FEEDBACK, model_name=GPT5_NANO)
+        response_content: dict = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FEEDBACK, model_name=GPT5_NANO)
 
         # Parse the response
-        response_parsed = json.loads(response_content)
-        task_summary = response_parsed.get("task_summary", "No task_summary provided")
-        execution_summary = response_parsed.get("execution_summary", "No execution_summary provided")
-        feedback_summary = response_parsed.get("feedback_summary", "No feedback_summary provided")
-        lessons_learned = response_parsed.get("lessons_learned", "No lessons_learned provided")
+        task_summary = response_content.get("task_summary", "No task_summary provided")
+        execution_summary = response_content.get("execution_summary", "No execution_summary provided")
+        feedback_summary = response_content.get("feedback_summary", "No feedback_summary provided")
+        lessons_learned = response_content.get("lessons_learned", "No lessons_learned provided")
 
         doc_text = f"""
         Task Summary: {task_summary}
