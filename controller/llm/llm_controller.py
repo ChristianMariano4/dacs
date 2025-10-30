@@ -133,6 +133,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("take_picture", self.skill_take_picture, "Take a picture"))
         self.low_level_skillset.add_skill(LowLevelSkillItem("explore_direction", self.skill_explore_direction, "Explore through a direction based on video streaming, graph, current task and an hint (if needed) given as argument. Assume this respects the flyzone while exploring. What is more, it names the current region based on what the drone can see around it.", args=[SkillArg("hint", Optional[str])]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("delete_skill", self.delete_skill, "Delete the specified high-level skill", args=[SkillArg("skill_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. Then automatically replan, so dont add a replan skill", args=[SkillArg("question", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
@@ -321,6 +322,16 @@ class LLMController():
             "skill_description": description,
             "definition": minispec_def
         })
+
+        # Write back to file
+        with open(HIGH_LEVEL_SKILL_FILE, "w") as f:
+            json.dump(skills, f, indent=4)
+
+        return True, False
+    
+    def delete_skill(self, skill_name):
+        #TODO: this retrieve all the skills with different name and then write them back. Probably there is a better option 
+        skills = [s for s in skills if s.get("skill_name") != skill_name]
 
         # Write back to file
         with open(HIGH_LEVEL_SKILL_FILE, "w") as f:
