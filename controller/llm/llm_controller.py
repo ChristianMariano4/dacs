@@ -138,6 +138,8 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_user_feedback", self.save_user_feedback, "Save user feedback in persistent memory", args=[SkillArg("user_feedback", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("save_shortcut", self.save_shortcut, "Save previous task to a shortcut in persistent memory", args=[SkillArg("shortcut", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("execute_shortcut", self.execute_shortcut, "Execute a task previously mapped to a given shortcut", args=[SkillArg("shortcut", str)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -192,6 +194,16 @@ class LLMController():
         else:
             self.append_message("\nNo previous task saved.")
         return None, False
+    
+    def save_shortcut(self, shortcut: str) -> Tuple[None, False]:
+        if self.last_task != None:
+            self.long_memory_module.save_shortcut_task(self.username, shortcut, self.last_task)
+        else:
+            self.append_message("\nNo previous task saved.")
+        return None, False
+    
+    def execute_shortcut(self, shortcut: str) -> Tuple[None, False]:
+        self.execute_task_description(is_shortcut=True, shortcut=shortcut)
 
     def set_graph_manager(self, graph_manager):
         self.graph_manager = graph_manager
@@ -371,24 +383,15 @@ class LLMController():
         # self.execution_history = interpreter.execution_history
         # ret_val = interpreter.ret_queue.get()
         return ret_val
-    
-    def _get_after_shortcut(self, text: str) -> str:
-        '''
-        Retrieve the words used after "shortcut" using regex.
-        '''
-        match = re.search(r"shortcut\s+(.*)", text, re.IGNORECASE)
-        return match.group(1).strip() if match else ""
 
-    def execute_task_description(self, task_description: str):
+    def execute_task_description(self, task_description: str = "", is_shortcut: bool = False, shortcut: str = ""):
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
-        if "shortcut" in task_description:
-            print(task_description)
-            #TODO: use fast LLM to retrieve the sentence used as shortcut, instead of statically parsing it
-            keywords = self._get_after_shortcut(task_description)
-            print(keywords)
-            current_task_dict = self.long_memory_module.get_shortcut_task(username=self.username, keywords=keywords)
+        if is_shortcut:
+            assert shortcut != "", "shortcut should be not empty"
+
+            current_task_dict = self.long_memory_module.get_shortcut_task(username=self.username, shortcut=shortcut)
             self.current_task = Task(task_description=current_task_dict['task_description'], 
                                      execution_history=current_task_dict['execution_history'],
                                      current_plan=current_task_dict['current_plan'],
@@ -399,6 +402,7 @@ class LLMController():
                 self.append_message("Sorry. Given shortcut is not existing")
                 return
         else:
+            assert task_description != "", "task_description should be not empty"
             self.last_task = self.current_task
             self.current_task = Task(task_description)
 
@@ -447,28 +451,6 @@ class LLMController():
                 self.short_memory.generate_interaction_summary(self.current_task)
                 continue
             else:
-                # Ask user a feedback about the executed plan
-                # self.append_message("[Q] Write a feedback of the executed plan")
-                # self.text_to_speech("Write a feedback of the executed plan")
-                # user_feedback = self.user_answer_queue.get(block=True)
-                # # print(user_feedback) debug
-                # self.current_task.set_user_feedback(user_feedback[1])
-                # self.long_memory_module.save_task_summary(self.current_task)
-                # self.append_message("Ready again to execute your command.")
-                # self.text_to_speech("Ready again to execute your command.")
-
-                # Ask user a shortcut to associate to a task and its own plan
-                # self.append_message(f"[Q] Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
-                # self.text_to_speech("Do you want to save this plan with a shortcut? If yes, say a sentence to associate to this task, otherwise say 'No'")
-                # shortcut = self.user_answer_queue.get(block=True)
-                # # print(shortcut[1])
-                # answer: str = shortcut[1]
-                # if answer.lower() == "no":
-                #     print("No shortcut")
-                #     break
-                # self.long_memory_module.save_shortcut_task(username=self.username,
-                #                                     keywords=answer,
-                #                                     task=self.current_task)
                 break
         print("[Task ended]")
         self.append_message(f'\n[Task ended]')
