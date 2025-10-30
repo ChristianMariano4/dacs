@@ -120,13 +120,21 @@ class HighLevelSkillItem(SkillItem):
         self.args = self.generate_argument_list()
 
     def generate_argument_list(self) -> List[SkillArg]:
+        # Find ALL placeholder references in the entire definition
+        all_placeholders = set(re.findall(r'\$(\d+)', self.definition))
+        
         # Extract all skill calls with their arguments from the code
         skill_calls = re.findall(r'(\w+)\(([^)]*)\)', self.definition)
 
         arg_types = {}
 
         for skill_name, args in skill_calls:
-            args = [a.strip() for a in args.split(',')]
+            # Skip if this is a numeric identifier (means $N was incorrectly captured)
+            if skill_name.isdigit():
+                continue
+                
+            args = [a.strip() for a in args.split(',') if a.strip()]
+            
             if skill_name == "int":
                 function_args = [SkillArg("value", int)]
             elif skill_name == "float":
@@ -139,28 +147,42 @@ class HighLevelSkillItem(SkillItem):
                     skill = self.high_level_skillset.get_skill(skill_name)
 
                 if skill is None:
-                    raise ValueError(f"Skill '{skill_name}' not found in the low-level or high-level skillset.")
+                    # If skill not found, skip it - might be a variable or placeholder
+                    continue
 
                 function_args = skill.get_argument()
+            
+            # Process each argument in the function call
             for i, arg in enumerate(args):
-                placeholders = re.findall(r'\$\d', arg)
-                for ph in placeholders:
-                    if ph not in arg_types:
-                        # Match the positional argument with its type from the function definition
-                        arg_types[arg] = function_args[i]
+                # Find all placeholder references in this argument
+                placeholders = re.findall(r'\$(\d+)', arg)
+                for ph_num in placeholders:
+                    ph = f"${ph_num}"
+                    if ph not in arg_types and i < len(function_args):
+                        # Map this placeholder to the expected type at this position
+                        arg_types[ph] = function_args[i]
+        
+        # For any placeholders not yet typed (e.g., $1 used as function reference),
+        # default them to generic type
+        for ph_num in all_placeholders:
+            ph = f"${ph_num}"
+            if ph not in arg_types:
+                # Default to string type for untyped placeholders
+                arg_types[ph] = SkillArg(f"arg{ph_num}", str)
 
         # Convert the mapped arguments to a user-friendly list in order of $position
-        arg_types = dict(sorted(arg_types.items()))
-        arg_list = [arg for arg in arg_types.values()]
+        # Sort by the numeric value of the placeholder ($1, $2, $3, etc.)
+        sorted_args = sorted(arg_types.items(), key=lambda x: int(x[0][1:]))
+        arg_list = [arg_type for _, arg_type in sorted_args]
 
         return arg_list
-
+    
     def execute(self, arg_list: List[Union[int, float, str]]):
         """Executes the skill with the provided arguments."""
         if self.low_level_skillset is None:
             raise ValueError("Low-level skillset is not set.")
         if len(arg_list) != len(self.args):
-            raise ValueError(f"Expected {len(self.args)} arguments, but got {len(arg_list)}.")
+            raise ValueError(f"{self.get_name()} expectes {len(self.args)} arguments, but got {len(arg_list)}.")
         # replace all $1, $2, ... with segments
         definition = self.definition
         for i in range(0, len(arg_list)):
