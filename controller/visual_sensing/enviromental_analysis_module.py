@@ -39,7 +39,7 @@ class EnvironmentalAnalysisModule:
 
         self.middle_layer = middle_layer
         if self.middle_layer != None:
-            self.flyzone = middle_layer.get_flyzone()
+            self.flyzone = middle_layer.get_flyzone_txt()
 
         self.llm_wrapper = LLMWrapper()
 
