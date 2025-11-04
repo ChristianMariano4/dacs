@@ -1,9 +1,12 @@
 import json
+import math
 import os
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 from controller.context_map.graph_handler import GraphHandler
 import numpy as np
 import uuid
+
+from controller.llm.llm_wrapper import LLMWrapper, RequestType
 
 
 class GraphManager:
@@ -11,12 +14,17 @@ class GraphManager:
     Keeps an up-to-date scene graph that every other TypeFly
     component can share without ROS.
     """
-    def __init__(self, llm_controller, init_graph_json: str | None = None, start_region: str = "region_0", start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(self, llm_controller, init_graph_json: str | None = None, start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
         #TODO: put start_region as the closer region to the drone
         self.llmController = llm_controller
-        self.graph_handler = GraphHandler(init_graph_json or "", init_node=start_region)
-        self.current_region = start_region
+        self.llm_wrapper = LLMWrapper()
+        with open("controller/assets/tello/memory/user_graph_prompt.txt", "r") as f:
+            self.user_prompt = f.read()
         self.drone_pose = np.zeros(3)
+        self.graph_handler = GraphHandler(init_graph_json or "")
+        start_region = self.graph_handler.get_closest_region()
+        self.graph_handler.update_location(start_region)
+        self.current_region = start_region
 
         if not self.graph_handler.graph.has_node(start_region):
             # no neighbours yet – just a stand-alone region
@@ -25,6 +33,9 @@ class GraphManager:
                 edges=[],
                 attrs={"coords": list(start_coords), "type": "region"},
             )
+    def request_new_graph(self, description: Optional[str], image: Optional[str]) -> str:
+        prompt = self.user_prompt.format(description=description)
+        return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
 
     def get_drone_pose(self):
         return self.drone_pose

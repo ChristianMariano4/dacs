@@ -1,9 +1,12 @@
 import json
+import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 import numpy as np
 from scipy.spatial.transform import Rotation
+
+from controller.llm.llm_wrapper import LLMWrapper, RequestType
 
 
 # empty graph from which to start
@@ -180,18 +183,33 @@ def parse_graph(
 
 # class that handle the graph. If given one as input (grapt_path), otherwise crate an empty one
 class GraphHandler:
-    def __init__(self, graph_path: str , init_node: Union[None, str] = None) -> None:
+    def __init__(self, graph_path: str) -> None:
         if graph_path == "":
             self.graph = nx.Graph()
             self.as_json_str = "{}"
             self.current_location = "region_0"
             self.drone_position = np.zeros(3)
         else:
+            self.current_location = None
             with open(graph_path) as f:
                 data = json.load(f)
             self.graph, self.as_json_str, self.drone_position = parse_graph(data)
-            self.current_location = init_node
+            self.current_location = self.get_closest_region()
 
+
+    
+    def get_closest_region(self):
+        x, y, _ = self.drone_position
+        graph_json = json.loads(self.to_json_str())
+        min_dist = None
+        curr_region = None
+        for region in graph_json["regions"]:
+            curr_dist = math.dist([x, y], [region["coords"][0], region["coords"][1]])
+            if min_dist == None or curr_dist < min_dist:
+                min_dist = curr_dist
+                curr_region = region
+        return curr_region["name"]
+    
     def ensure_region_for_pose(
         self,
         pose_xyz: Sequence[float],          # (x, y) in the SAME frame your graph uses
@@ -330,12 +348,9 @@ class GraphHandler:
             node_type = node_attrs["type"]
             
             if node_type == "region":
-                coords = node_attrs["coords"]
-                coords = f"[{coords[0]:0.1f}, {coords[1]:0.1f}]"
-                
-                # Use display_name if available, otherwise use the node identifier
                 name = node_attrs.get("display_name", node)
-                
+                coords = node_attrs.get("coords", node)
+                # Use display_name if available, otherwise use the node identifier
                 graph_dict[f"{node_type}s"].append({"name": name, "coords": coords})
             else:
                 # For objects, check for display_name as well
