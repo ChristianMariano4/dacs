@@ -52,8 +52,7 @@ class IterationDecision(Enum):
     IMPOSSIBLE = "impossible"
 
 class LLMController():
-    def __init__(self, ui, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
-        self.ui = ui
+    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
         # shared middle layer that stores user settings
         self.middle_layer = MiddleLayer()
         self.short_memory = ShortMemoryModule()
@@ -140,6 +139,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_user_feedback", self.save_user_feedback, "Save user feedback in persistent memory", args=[SkillArg("user_feedback", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_shortcut", self.save_shortcut, "Save previous task to a shortcut in persistent memory", args=[SkillArg("shortcut", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("execute_shortcut", self.execute_shortcut, "Execute a task previously mapped to a given shortcut", args=[SkillArg("shortcut", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("create_graph", self.create_graph, "Create a new context graph based on a description and/or a picture of the environment.", args=[SkillArg("description", Optional[str]), SkillArg("picture", Optional[str])]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -259,7 +259,14 @@ class LLMController():
     #     self.graph_manager.add_region(self.drone.get_pose(), region_name)
 
     def _name_region(self, region_name: str) -> Tuple[None, bool]:
-        self.graph_manager.name_region(region_name)
+        self.graph_manager.name_region(region_name)        
+
+    def create_graph(self, description: Optional[str], image: Optional[str]) -> Tuple[None, bool]:
+        """
+        Create neew graph based on given description and/or picture
+        """
+        self.graph_manager.request_new_graph(description, image)
+
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         time.sleep(0.1)
