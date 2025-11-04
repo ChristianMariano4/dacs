@@ -1,3 +1,4 @@
+import os
 from shapely import Polygon
 
 from controller.utils.constants import FLYZONE_TXT
@@ -46,29 +47,42 @@ class MiddleLayer:
 
     @classmethod
     def _parse_flyzone(cls, file_path):
-        print("Inside1")
+        polygons = []
         coords = []
-        with open(file_path, "r") as f:
-            print("Inside2")
 
+        with open(file_path, "r") as f:
             for line in f:
-                print("Inside3")
-                print(line)
                 line = line.strip()
-                if line.startswith("- ("):
-                    # Extract numbers between parentheses
-                    nums = line.strip("- ()").split(",")
-                    x, y = map(float, nums)
-                    coords.append(x, y)
-                    print("Inside4")
-        print([Polygon(coords)])
-        return [Polygon(coords)]
+                if not line:
+                    continue
+                if line.startswith("Flyzone Polygon"):
+                    if coords:
+                        polygons.append(Polygon(coords))
+                        coords = []
+                elif line.startswith("- ("):
+                    # Safer parsing: remove "- (" at start and ")" at end explicitly
+                    coord_str = line.replace("- (", "").replace(")", "")
+                    x_str, y_str = coord_str.split(",")
+                    x, y = float(x_str.strip()), float(y_str.strip())
+                    coords.append((x, y))
+
+        if coords:
+            polygons.append(Polygon(coords))
+
+        return polygons
+
+
 
 
     def set_flyzone(self, flyzone):
         self.flyzone = flyzone
-
-    def get_flyzone(self):
+        
+    def get_flyzone_polygon(self):
+        if os.path.exists(FLYZONE_TXT):
+            return self._parse_flyzone(FLYZONE_TXT)
+        return []
+    
+    def get_flyzone_txt(self):
         return self.flyzone
     
     # def set_username(self, username):
