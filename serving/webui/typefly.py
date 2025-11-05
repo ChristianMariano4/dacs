@@ -1,5 +1,6 @@
 import json
 import queue
+import random
 import sys, os
 import asyncio
 import io, time
@@ -9,20 +10,26 @@ from flask import Flask, Response, jsonify, send_file
 from flask_cors import CORS
 from threading import Thread
 import argparse
+from shapely import Polygon
 import websockets
 import sounddevice as sd
 import pyttsx3
 import numpy as np
+import matplotlib.pyplot as plt
 import base64
 from collections import deque
 import wave
 from openai import OpenAI
 from queue import Empty as _QEmpty
+import mpld3
+from PIL import Image
+
 
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 sys.path.append(PARENT_DIR)
+from controller.utils.constants import FLYZONE_TXT_PATH, FLYZONE_USER_IMAGE_PATH
 from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
 from controller.utils.general_utils import print_t
@@ -495,6 +502,13 @@ class TypeFly:
                                 scale=1,
                                 min_width=60
                             )
+
+                            image_input = gr.Image(
+                                label="Upload Image",
+                                type="numpy",   # returns numpy array
+                                visible=True,
+                                scale=2
+                            )
                             
                             # Text input (center - takes most space)
                             msg_input = gr.Textbox(
@@ -564,40 +578,41 @@ class TypeFly:
                                 )
 
                     
-                def send_message(message, history):
+                def send_message(message, history, image_array):
                     """Send message and get response - generator for streaming"""
-                    if not message.strip():
+                    if not message.strip() and not image_array:
                         yield history, ""
                         return
-                    
-                    # Add user message to chat
-                    history = history + [[message, None]]
-                    yield history, ""  # Clear input immediately and show user message
-                    
-                    # Process message and stream response
-                    for partial_response in self.process_message(message, history):
-                        if partial_response:
-                            # Extract just the response text (remove "Command Complete!" etc)
-                            clean_response = partial_response.split("\nCommand Complete!")[0]
-                            # Update the last message's response
-                            history[-1][1] = clean_response
+                    user_entry = message
 
-                            if clean_response.strip().startswith("[Q]"):
-                                yield history, ""   # show question
-                                return              # exit stream to accept next user input
-                            
+                    # Handle image uploads (convert numpy → base64) and save it to use it later
+                    if image_array is not None:
+                        img = Image.fromarray(image_array.astype('uint8'))
+                        img.save(FLYZONE_USER_IMAGE_PATH)
+                        buf = io.BytesIO()
+                        img.save(buf, format="PNG")
+                        img_b64 = base64.b64encode(buf.getvalue()).decode()
+                        user_entry += f"\n\n![uploaded image](data:image/png;base64,{img_b64})"
+                        
+                    history = history + [[user_entry, None]]
+                    yield history, ""
+
+                    # Process message as before
+                    for partial_response in self.process_message(message, history, img_b64):
+                        if partial_response:
+                            clean_response = partial_response.split("\nCommand Complete!")[0]
+                            history[-1][1] = clean_response
                             yield history, ""
 
-                # Wire up events - CORRECTED VERSION
                 send_btn.click(
                     send_message,
-                    inputs=[msg_input, chatbot],
+                    inputs=[msg_input, chatbot, image_input],
                     outputs=[chatbot, msg_input]
                 )
 
                 msg_input.submit(
-                    send_message,  # Use the same function, not a wrapper
-                    inputs=[msg_input, chatbot],
+                    send_message,
+                    inputs=[msg_input, chatbot, image_input],
                     outputs=[chatbot, msg_input]
                 )
                 
@@ -875,7 +890,7 @@ class TypeFly:
             print_t(f"Switch to gpt4")
             self.llm_controller.planner.set_model(GPT4)
 
-    def process_message(self, message, history):
+    def process_message(self, message, history, img_b64):
         print("Message to be processed is: " + message)
         """Process message and yield responses"""
         print_t(f"[S] Receiving task description: {message}")
@@ -944,7 +959,7 @@ class TypeFly:
                     
         else:
             # New task execution
-            task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message,))
+            task_thread = Thread(target=self.llm_controller.execute_task_description, args=(message, img_b64,))
             task_thread.start()
             complete_response = ''
             
@@ -1005,731 +1020,163 @@ class TypeFly:
 
 
     def setup_graph_server(self, app):
-        """Setup the graph visualization server endpoint with enhanced pan/zoom"""
+        """Setup graph visualization endpoints (matplotlib style)"""
+
+        from shapely import Polygon
+        import plotly.graph_objects as go
+
         @app.route('/graph')
         def graph_page():
-            return '''<!DOCTYPE html>
-    <html>
-    <head>
-        <title>TypeFly Graph Visualization</title>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-        <style>
-            body {
-                margin: 0;
-                padding: 20px;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                background: #f5f5f5;
-            }
-            #container {
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                padding: 20px;
-                max-width: 1400px;
-                margin: 0 auto;
-            }
-            #graph {
-                width: 100%;
-                height: 650px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background: #fafafa;
-                cursor: grab;
-                position: relative;
-            }
-            #graph:active {
-                cursor: grabbing;
-            }
-            .node circle {
-                stroke: #fff;
-                stroke-width: 3px;
-                cursor: pointer;
-                transition: r 0.2s;
-            }
-            .node:hover circle {
-                r: 25;
-            }
-            .node text {
-                font-size: 11px;
-                pointer-events: none;
-                font-weight: 500;
-            }
-            .link {
-                stroke: #999;
-                stroke-opacity: 0.4;
-                stroke-width: 1.5px;
-            }
-            #controls {
-                margin-bottom: 20px;
-                display: flex;
-                gap: 10px;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-            button {
-                padding: 8px 16px;
-                border: none;
-                border-radius: 4px;
-                background: #007bff;
-                color: white;
-                cursor: pointer;
-                font-size: 14px;
-                transition: background 0.2s;
-            }
-            button:hover {
-                background: #0056b3;
-            }
-            #status {
-                margin-left: auto;
-                color: #666;
-                font-size: 14px;
-                font-weight: 500;
-            }
-            .zoom-controls {
-                position: absolute;
-                right: 30px;
-                top: 20px;
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                z-index: 1000;
-            }
-            .zoom-btn {
-                width: 36px;
-                height: 36px;
-                border: 2px solid #ddd;
-                background: white;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 18px;
-                font-weight: bold;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.2s;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .zoom-btn:hover {
-                background: #f0f0f0;
-                border-color: #007bff;
-            }
-            .zoom-btn:active {
-                transform: scale(0.95);
-            }
-            .zoom-level {
-                text-align: center;
-                font-size: 11px;
-                color: #666;
-                padding: 4px;
-                background: white;
-                border-radius: 4px;
-                border: 2px solid #ddd;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            .legend {
-                margin-top: 15px;
-                display: flex;
-                gap: 20px;
-                font-size: 13px;
-                flex-wrap: wrap;
-            }
-            .legend-item {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-            .legend-color {
-                width: 18px;
-                height: 18px;
-                border-radius: 50%;
-                border: 3px solid #fff;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-            }
-            .stats {
-                margin-top: 15px;
-                padding: 10px;
-                background: #f8f9fa;
-                border-radius: 4px;
-                font-size: 13px;
-                color: #666;
-            }
-            .hint {
-                margin-top: 10px;
-                padding: 8px 12px;
-                background: #e3f2fd;
-                border-left: 3px solid #2196F3;
-                border-radius: 4px;
-                font-size: 12px;
-                color: #1976d2;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="container">
-            <h2>🌐 Object Detection Graph</h2>
-            <div id="controls">
-                <button onclick="loadGraph()">🔄 Refresh</button>
-                <button onclick="resetZoom()">🔍 Reset View</button>
-                <button onclick="centerGraph()">📍 Center</button>
-                <button onclick="fitToScreen()">⛶ Fit All</button>
-                <button onclick="toggleFlyzone()">🗺️ Flyzone</button>
-                <span id="status">Loading graph data...</span>
-            </div>
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #4CAF50"></div>
-                    <span>Regions</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #2196F3"></div>
-                    <span>Objects</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: #FF9800"></div>
-                    <span>Current Position</span>
-                </div>
-            </div>
-            <div class="hint">
-                💡 <strong>Navigation:</strong> Drag to pan • Scroll to zoom • Double-click to center on node • Use +/- buttons for precise zoom control
-            </div>
-            <div class="stats" id="stats"></div>
-            <div style="position: relative;">
-                <svg id="graph"></svg>
-                <div class="zoom-controls">
-                    <div class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</div>
-                    <div class="zoom-level" id="zoom-level">100%</div>
-                    <div class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</div>
-                    <div class="zoom-btn" onclick="resetZoom()" title="Reset Zoom">⟲</div>
-                </div>
-            </div>
-        </div>
+            """Render the coordinate-based graph visualization aligned with flyzone and auto-offset objects (interactive Plotly version)."""
+            try:
+                graph_json_str = self.graph_manager.get_graph()
+                if not graph_json_str:
+                    return "<h3>No graph data available</h3>"
+
+                graph_data: dict = json.loads(graph_json_str)
+
+                # --- Helper to safely parse XY ---
+                def parse_xy(v):
+                    if isinstance(v, str):
+                        try:
+                            v = json.loads(v)
+                        except Exception:
+                            return (0.0, 0.0)
+                    if isinstance(v, (list, tuple)) and len(v) >= 2:
+                        return float(v[0]), float(v[1])
+                    return (0.0, 0.0)
+
+                regions = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("regions", [])}
+                objects = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("objects", [])}
+                region_connections = graph_data.get("region_connections", [])
+                object_connections = graph_data.get("object_connections", [])
+                current_pos = graph_data.get("current_pos", {})
+
+                # --- AUTO OFFSET for clustered (0,0) objects ---
+                if objects and all((x == 0.0 and y == 0.0) for (_, (x, y)) in objects.items()):
+                    region_lookup = {reg: obj for reg, obj in graph_data.get("object_connections", []) if reg in regions}
+                    for name in objects:
+                        if name in region_lookup:
+                            rx, ry = regions[region_lookup[name]]
+                        else:
+                            rx, ry = 0, 0
+                        angle = random.uniform(0, 2 * np.pi)
+                        dist = random.uniform(10, 40)
+                        objects[name] = (rx + dist * np.cos(angle), ry + dist * np.sin(angle))
+
+                # --- Build interactive Plotly figure ---
+                fig = go.Figure()
+
+                # 🟧 Flyzones (background polygons)
+                try:
+                    flyzones = self.llm_controller.middle_layer.get_flyzone_polygon()
+                    for idx, poly in enumerate(flyzones):
+                        if isinstance(poly, Polygon):
+                            x, y = poly.exterior.xy
+                            x, y = list(x), list(y)
+
+                            fig.add_trace(go.Scatter(
+                                x=x, y=y,
+                                fill='toself',
+                                fillcolor='rgba(255,165,0,0.1)',
+                                line=dict(color='orange', width=2),
+                                name=f"Flyzone {idx+1}",
+                                hoverinfo='skip'
+                            ))
+                except Exception as e:
+                    print(f"[WARN] Could not plot flyzone: {e}")
+
+                # ⚫ Region–Region links
+                for r1, r2 in region_connections:
+                    if r1 in regions and r2 in regions:
+                        x1, y1 = regions[r1]
+                        x2, y2 = regions[r2]
+                        fig.add_trace(go.Scatter(
+                            x=[x1, x2], y=[y1, y2],
+                            mode='lines',
+                            line=dict(color='gray', dash='dot'),
+                            opacity=0.5,
+                            hoverinfo='none',
+                            showlegend=False
+                        ))
+
+                # 🔵 Object–Region links
+                for a, b in object_connections:
+                    if a in regions and b in objects:
+                        x1, y1 = regions[a]
+                        x2, y2 = objects[b]
+                    elif a in objects and b in regions:
+                        x1, y1 = objects[a]
+                        x2, y2 = regions[b]
+                    else:
+                        continue
+                    fig.add_trace(go.Scatter(
+                        x=[x1, x2], y=[y1, y2],
+                        mode='lines',
+                        line=dict(color='lightblue', dash='dot'),
+                        opacity=0.7,
+                        hoverinfo='none',
+                        showlegend=False
+                    ))
+
+                # 🔷 Regions (blue circles)
+                if regions:
+                    fig.add_trace(go.Scatter(
+                        x=[x for x, _ in regions.values()],
+                        y=[y for _, y in regions.values()],
+                        mode='markers+text',
+                        text=[n for n in regions.keys()],
+                        textposition='top center',
+                        marker=dict(size=14, color='skyblue', line=dict(color='black', width=1)),
+                        name='Regions'
+                    ))
+
+                # 🟢 Objects (green circles)
+                if objects:
+                    fig.add_trace(go.Scatter(
+                        x=[x for x, _ in objects.values()],
+                        y=[y for _, y in objects.values()],
+                        mode='markers+text',
+                        text=[n for n in objects.keys()],
+                        textposition='top center',
+                        marker=dict(size=9, color='lightgreen', line=dict(color='black', width=1)),
+                        name='Objects'
+                    ))
+
+                # 🔴 Current position ("you")
+                if "coords" in current_pos and current_pos["coords"]:
+                    x, y, *_ = current_pos["coords"]
+                    region = current_pos.get("region", "unknown")
+                    fig.add_trace(go.Scatter(
+                        x=[x], y=[y],
+                        mode='markers+text',
+                        text=[f"you ({region})"],
+                        textposition='top right',
+                        marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)),
+                        name='You'
+                    ))
+
+                # --- Layout and style ---
+                fig.update_layout(
+                    title="📈 Coordinate Graph View",
+                    xaxis_title="X Coordinates",
+                    yaxis_title="Y Coordinates",
+                    template="plotly_white",
+                    height=750,
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+                )
+
+                fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+                fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
+                fig.update_layout(dragmode='pan')  # default: panning mode
+
+                # Return self-contained HTML (with zoom/pan controls)
+                return fig.to_html(include_plotlyjs='cdn', full_html=True)
+
+            except Exception as e:
+                return f"<h3>Error rendering graph: {e}</h3>"
 
-        <script>
-            function computeSize() {
-                const graphEl = document.getElementById('graph');
-                const containerEl = document.getElementById('container');
-                // try svg width first, then container, then window; never allow <= 0
-                let w = graphEl?.clientWidth || containerEl?.clientWidth || (window.innerWidth - 80) || 0;
-                w = Math.max(700, Math.min(1360, w));  // keep it reasonable and > 0
-                return { width: w, height: 650 };
-            }
-
-            let { width, height } = computeSize();
-            let currentZoom = 1;
-            // --- coordinate mapping config ---
-            const DEFAULT_WORLD = { width: 1000, height: 1000 }; // fallback flyzone extents
-            const ORIGIN_TOP_LEFT = true; // set false if your coords are bottom-left origin
-
-            let showFlyzone = true;          // toggle visibility
-            let flyzoneOpacity = 0.28;       // background transparency
-            let lastGraphObj = null;         // keep parsed data for re-render
-
-
-            const svg = d3.select("#graph")
-                // make the SVG responsive but keep internal coords stable
-                .attr("viewBox", `0 0 ${width} ${height}`)
-                .attr("preserveAspectRatio", "xMidYMid meet");
-
-            // keep the event-capturing rect in sync with the logical size
-            const rect = svg.append("rect")
-                .attr("width", width)
-                .attr("height", height)
-                .style("fill", "none")
-                .style("pointer-events", "all");
-
-            const g = svg.append("g");
-
-            // Enhanced zoom with smoother transitions
-            const zoom = d3.zoom()
-                .scaleExtent([0.1, 8])  // Allow more zoom range
-                .filter((event) => {
-                    // Allow zoom on background, prevent on nodes
-                    return !event.button && event.target === rect.node();
-                })
-                .on("zoom", (event) => {
-                    g.attr("transform", event.transform);
-                    currentZoom = event.transform.k;
-                    updateZoomLevel();
-                });
-
-            rect.call(zoom);
-            
-            // Also enable wheel zoom on entire SVG
-            svg.on("wheel", (event) => {
-                event.preventDefault();
-                const transform = d3.zoomTransform(svg.node());
-                const k = transform.k * (event.deltaY < 0 ? 1.2 : 0.8);
-                const constrained_k = Math.max(0.1, Math.min(8, k));
-                
-                svg.transition()
-                    .duration(100)
-                    .call(zoom.transform, transform.scale(constrained_k / transform.k));
-            });
-
-            
-            function addFlyzoneBackground() {
-                if (!showFlyzone) return;
-                // insert as FIRST child of g so it sits under links/nodes and moves with zoom/pan
-                g.insert("image", ":first-child")
-                .attr("class", "flyzone-img")
-                .attr("x", 0)
-                .attr("y", 0)
-                .attr("width", width)
-                .attr("height", height)
-                .attr("preserveAspectRatio", "none")
-                .attr("opacity", flyzoneOpacity)
-                // cache-bust so updated image shows when regenerated
-                .attr("href", `/flyzone-image?ts=${Date.now()}`);
-            }
-
-            function toggleFlyzone() {
-                showFlyzone = !showFlyzone;
-                if (lastGraphObj) renderGraph(lastGraphObj);
-            }
-
-            // Enable panning with mouse drag (already enabled by zoom behavior)
-            // Enable zoom with mouse wheel (already enabled by zoom behavior)
-
-            function updateZoomLevel() {
-                document.getElementById('zoom-level').textContent = Math.round(currentZoom * 100) + '%';
-            }
-
-            function zoomIn() {
-                const transform = d3.zoomTransform(svg.node());
-                rect.transition()
-                    .duration(300)
-                    .call(zoom.transform, transform.scale(1.3));
-            }
-
-            function zoomOut() {
-                const transform = d3.zoomTransform(svg.node());
-                rect.transition()
-                    .duration(300)
-                    .call(zoom.transform, transform.scale(0.77));
-            }
-
-            function resetZoom() {
-                rect.transition()
-                    .duration(750)
-                    .call(zoom.transform, d3.zoomIdentity);
-            }
-
-            window.addEventListener('resize', () => {
-                const size = computeSize();
-                width = size.width;
-                height = size.height;
-                svg.attr("viewBox", `0 0 ${width} ${height}`);
-                rect.attr("width", width).attr("height", height);
-                d3.select(".flyzone-img")
-                .attr("width", width)
-                .attr("height", height);
-            });
-
-
-            function centerGraph() {
-                const bounds = g.node().getBBox();
-                const fullWidth = bounds.width;
-                const fullHeight = bounds.height;
-                const midX = bounds.x + fullWidth / 2;
-                const midY = bounds.y + fullHeight / 2;
-
-                const scale = 0.9 / Math.max(fullWidth / width, fullHeight / height);
-                const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
-
-                rect.transition()
-                    .duration(750)
-                    .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
-            }
-
-            function fitToScreen() {
-                const bounds = g.node().getBBox();
-                const fullWidth = bounds.width;
-                const fullHeight = bounds.height;
-                const midX = bounds.x + fullWidth / 2;
-                const midY = bounds.y + fullHeight / 2;
-
-                // Calculate scale to fit everything with padding
-                const scale = 0.85 / Math.max(fullWidth / width, fullHeight / height);
-                const translate = [width / 2 - scale * midX, height / 2 - scale * midY];
-
-                rect.transition()
-                    .duration(750)
-                    .call(zoom.transform, d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale));
-            }
-
-            function loadGraph() {
-                document.getElementById('status').textContent = 'Loading...';
-                
-                fetch('/graph-data')
-                    .then(response => response.json())
-                    .then(result => {
-                        if (result.success && result.data) {
-                            lastGraphData = result.data;
-                            const graphData = JSON.parse(result.data);
-                            lastGraphObj = graphData;
-                            renderGraph(graphData);
-                            
-                            const nodeCount = (graphData.objects?.length || 0) + (graphData.regions?.length || 0);
-                            const edgeCount = graphData.object_connections?.length || 0;
-                            document.getElementById('status').textContent = 
-                                `✅ Loaded: ${nodeCount} nodes, ${edgeCount} connections`;
-                            
-                            document.getElementById('stats').innerHTML = 
-                                `<strong>Objects:</strong> ${graphData.objects?.length || 0} | ` +
-                                `<strong>Regions:</strong> ${graphData.regions?.length || 0} | ` +
-                                `<strong>Current Region:</strong> ${graphData.current_position?.region || 'unknown'}`;
-                        } else {
-                            document.getElementById('status').textContent = 
-                                '⚠️ ' + (result.message || 'No data available');
-                            renderEmptyState();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        document.getElementById('status').textContent = '❌ Failed to load';
-                        renderEmptyState();
-                    });
-            }
-
-            function renderEmptyState() {
-                g.selectAll("*").remove();
-                g.append("text")
-                    .attr("x", width / 2)
-                    .attr("y", height / 2)
-                    .attr("text-anchor", "middle")
-                    .attr("fill", "#999")
-                    .style("font-size", "16px")
-                    .text("No graph data available. Start robot operations to generate data.");
-            }
-
-            function renderGraph(graphData) {
-                g.selectAll("*").remove();
-
-                // add flyzone image first so it's behind the links/nodes and participates in zoom/pan
-                addFlyzoneBackground && addFlyzoneBackground();
-                const nodes = [];
-                const links = [];
-                const nodeMap = new Map();
-
-                // --- determine world extents for scaling ---
-                const allCoords = [];
-                (graphData.regions || []).forEach(r => Array.isArray(r.coords) && allCoords.push(r.coords));
-                (graphData.objects || []).forEach(o => Array.isArray(o.coords) && allCoords.push(o.coords));
-
-                let maxX = Math.max(0, ...allCoords.map(c => +c[0] || 0));
-                let maxY = Math.max(0, ...allCoords.map(c => +c[1] || 0));
-
-                if (!isFinite(maxX) || maxX <= 0) maxX = DEFAULT_WORLD.width;
-                if (!isFinite(maxY) || maxY <= 0) maxY = DEFAULT_WORLD.height;
-
-                const xScale = d3.scaleLinear().domain([0, maxX]).range([0, width]);
-                const yScale = ORIGIN_TOP_LEFT
-                    ? d3.scaleLinear().domain([0, maxY]).range([0, height])        // y grows downward
-                    : d3.scaleLinear().domain([0, maxY]).range([height, 0]);
-
-                // --- regions (fixed at coords) ---
-                if (graphData.regions) {
-                    graphData.regions.forEach(region => {
-                    const node = {
-                        id: region.name,
-                        label: region.name,
-                        type: 'region',
-                        coords: region.coords
-                    };
-                    // place & fix at world coords if present
-                    if (Array.isArray(region.coords) && region.coords.length >= 2) {
-                        const [rx, ry] = region.coords;
-                        const px = xScale(+rx || 0);
-                        const py = yScale(+ry || 0);
-                        node.x = px; node.y = py;
-                        node.fx = px; node.fy = py;   // <- fixed
-                        node.fixed = true;
-                    }
-                    nodes.push(node);
-                    nodeMap.set(region.name, node);
-                    });
-                }
-
-                // --- objects (not fixed; just seeded) ---
-                if (graphData.objects) {
-                    graphData.objects.forEach(obj => {
-                    const node = {
-                        id: obj.name,
-                        label: obj.name,
-                        type: 'object',
-                        coords: obj.coords
-                    };
-                    if (Array.isArray(obj.coords) && obj.coords.length >= 2) {
-                        const [ox, oy] = obj.coords;
-                        node.x = xScale(+ox || 0);
-                        node.y = yScale(+oy || 0);
-                    } else {
-                        // fallback: scatter near center
-                        const angle = Math.random() * 2 * Math.PI;
-                        const radius = Math.random() * Math.min(width, height) / 3;
-                        node.x = width / 2 + radius * Math.cos(angle);
-                        node.y = height / 2 + radius * Math.sin(angle);
-                    }
-                    nodes.push(node);
-                    nodeMap.set(obj.name, node);
-                    });
-                }
-
-                // Add current position
-                if (graphData.current_position) {
-                    const posNode = {
-                    id: '__robot_position__',
-                    label: 'Robot',
-                    type: 'robot',
-                    coords: graphData.current_position.coords
-                    };
-                    if (Array.isArray(posNode.coords) && posNode.coords.length >= 2) {
-                    const [rx, ry] = posNode.coords;
-                    posNode.x = xScale(+rx || 0);
-                    posNode.y = yScale(+ry || 0);
-                    } else {
-                    posNode.x = width * 0.5; posNode.y = height * 0.2;
-                    }
-                    nodes.push(posNode);
-                    nodeMap.set('__robot_position__', posNode);
-                    if (graphData.current_position.region) {
-                    links.push({ source: '__robot_position__', target: graphData.current_position.region });
-                    }
-                }
-
-
-                // Add connections
-                if (graphData.object_connections) {
-                    graphData.object_connections.forEach(conn => {
-                        if (conn.length === 2) {
-                            const [source, target] = conn;
-                            if (nodeMap.has(source) && nodeMap.has(target)) {
-                                links.push({ source, target });
-                            }
-                        }
-                    });
-                }
-
-                if (graphData.region_connections) {
-                    graphData.region_connections.forEach(conn => {
-                        if (conn.length === 2) {
-                            const [source, target] = conn;
-                            if (nodeMap.has(source) && nodeMap.has(target)) {
-                                links.push({ source, target });
-                            }
-                        }
-                    });
-                }
-
-                if (nodes.length === 0) {
-                    renderEmptyState();
-                    return;
-                }
-
-                // Give nodes random initial positions spread across the canvas
-                nodes.forEach(d => {
-                    // Use a wider spread for initial positions
-                    const angle = Math.random() * 2 * Math.PI;
-                    const radius = Math.random() * Math.min(width, height) / 3;
-                    d.x = width / 2 + radius * Math.cos(angle);
-                    d.y = height / 2 + radius * Math.sin(angle);
-                });
-
-                // Create force simulation with balanced forces
-                const simulation = d3.forceSimulation(nodes)
-                    .force("link", d3.forceLink(links).id(d => d.id)
-                    .distance(d => {
-                        const st = d.source.type || d.source;
-                        const tt = d.target.type || d.target;
-                        if (st === 'region' && tt === 'region') return 200;
-                        return 150;
-                    })
-                    .strength(0.3)
-                    )
-                    .force("charge", d3.forceManyBody().strength(d => {
-                    if (d.type === 'region') return -1200;
-                    if (d.type === 'robot')  return -1000;
-                    return -600;
-                    }).distanceMax(400))
-                    .force("collision", d3.forceCollide().radius(d => {
-                    if (d.type === 'robot')  return 35;
-                    if (d.type === 'region') return 30;
-                    return 25;
-                    }).strength(0.7))
-                    // pull **unfixed** nodes gently toward their current x/y; fixed nodes already have fx/fy
-                    .force("x", d3.forceX(d => d.fx ?? width / 2).strength(d => d.fx != null ? 0.0 : 0.03))
-                    .force("y", d3.forceY(d => d.fy ?? height / 2).strength(d => d.fy != null ? 0.0 : 0.03))
-                    .velocityDecay(0.4)
-                    .alphaDecay(0.01);
-
-                // Create links
-                const link = g.append("g")
-                    .selectAll("line")
-                    .data(links)
-                    .join("line")
-                    .attr("class", "link");
-
-                // Create nodes
-                const node = g.append("g")
-                    .selectAll("g")
-                    .data(nodes)
-                    .join("g")
-                    .attr("class", "node")
-                    .call(d3.drag()
-                        .on("start", dragstarted)
-                        .on("drag", dragged)
-                        .on("end", dragended))
-                    .on("dblclick", function(event, d) {
-                        // Double-click to center on node
-                        event.stopPropagation();
-                        const transform = d3.zoomTransform(rect.node());
-                        const x = transform.applyX(d.x);
-                        const y = transform.applyY(d.y);
-                        
-                        rect.transition()
-                            .duration(500)
-                            .call(zoom.transform, 
-                                d3.zoomIdentity
-                                    .translate(width / 2, height / 2)
-                                    .scale(transform.k)
-                                    .translate(-d.x, -d.y)
-                            );
-                    });
-
-                node.append("circle")
-                    .attr("r", d => d.type === 'robot' ? 25 : 18)
-                    .attr("fill", d => {
-                        if (d.type === 'region') return '#4CAF50';
-                        if (d.type === 'object') return '#2196F3';
-                        if (d.type === 'robot') return '#FF9800';
-                        return '#9E9E9E';
-                    })
-                    .attr("stroke-width", d => d.type === 'robot' ? 4 : 3);
-
-                node.append("text")
-                    .attr("dy", 35)
-                    .attr("text-anchor", "middle")
-                    .text(d => d.label)
-                    .style("font-size", d => d.type === 'robot' ? "13px" : "11px")
-                    .style("fill", "#333")
-                    .style("font-weight", d => d.type === 'robot' ? "bold" : "500");
-
-                node.append("title")
-                    .text(d => `${d.label}\nType: ${d.type}\nCoords: ${d.coords}\n\nDouble-click to center`);
-
-                simulation.on("tick", () => {
-                    const PAD = 50;
-                    const safeW = Math.max(2 * PAD, width);
-                    const safeH = Math.max(2 * PAD, height);
-
-                    nodes.forEach(d => {
-                    if (d.fx != null && d.fy != null) {
-                        // fixed (regions): keep them exactly at fx/fy
-                        d.x = d.fx; d.y = d.fy;
-                    } else {
-                        d.x = Math.max(PAD, Math.min(safeW - PAD, d.x));
-                        d.y = Math.max(PAD, Math.min(safeH - PAD, d.y));
-                    }
-                    });
-
-                    link
-                    .attr("x1", d => d.source.x)
-                    .attr("y1", d => d.source.y)
-                    .attr("x2", d => d.target.x)
-                    .attr("y2", d => d.target.y);
-
-                    node.attr("transform", d => `translate(${d.x},${d.y})`);
-                });
-
-
-                function dragstarted(event) {
-                    if (!event.active) simulation.alphaTarget(0.3).restart();
-                    event.subject.fx = event.subject.x;
-                    event.subject.fy = event.subject.y;
-                }
-
-                function dragged(event) {
-                    event.subject.fx = event.x;
-                    event.subject.fy = event.y;
-                }
-
-                function dragended(event) {
-                    if (!event.active) simulation.alphaTarget(0);
-                    event.subject.fx = null;
-                    event.subject.fy = null;
-                }
-
-                // Let simulation run longer for better spreading
-                setTimeout(() => {
-                    fitToScreen();
-                }, 2000);
-
-                simulation.on("tick", () => {
-                    // Use safe inner dimensions so we never collapse to a single x=50 column
-                    const PAD = 50;
-                    const safeW = Math.max(2 * PAD, width);
-                    const safeH = Math.max(2 * PAD, height);
-
-                    nodes.forEach(d => {
-                        d.x = Math.max(PAD, Math.min(safeW - PAD, d.x));
-                        d.y = Math.max(PAD, Math.min(safeH - PAD, d.y));
-                    });
-
-                    link
-                        .attr("x1", d => d.source.x)
-                        .attr("y1", d => d.source.y)
-                        .attr("x2", d => d.target.x)
-                        .attr("y2", d => d.target.y);
-
-                    node.attr("transform", d => `translate(${d.x},${d.y})`);
-                });
-            }
-
-            let lastGraphData = null;
-            let autoRefreshEnabled = true;
-
-            function checkForUpdates() {
-                if (!autoRefreshEnabled) return;
-
-                fetch('/graph-data')
-                    .then(response => response.json())
-                    .then(result => {
-                        if (result.success && result.data) {
-                            // Only reload if data actually changed
-                            if (lastGraphData !== result.data) {
-                                lastGraphData = result.data;
-                                const graphData = JSON.parse(result.data);
-                                lastGraphObj = graphData;
-                                renderGraph(graphData);
-                                
-                                const nodeCount = (graphData.objects?.length || 0) + (graphData.regions?.length || 0);
-                                const edgeCount = graphData.object_connections?.length || 0;
-                                document.getElementById('status').textContent = 
-                                    `✅ Loaded: ${nodeCount} nodes, ${edgeCount} connections`;
-                                
-                                document.getElementById('stats').innerHTML = 
-                                    `<strong>Objects:</strong> ${graphData.objects?.length || 0} | ` +
-                                    `<strong>Regions:</strong> ${graphData.regions?.length || 0} | ` +
-                                    `<strong>Current Region:</strong> ${graphData.current_position?.region || 'unknown'}`;
-                            }
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Background update error:', error);
-                    });
-            }
-
-            // Load graph on page load
-            loadGraph();
-
-            // Check for updates every 2 seconds (only re-renders if changed)
-            setInterval(checkForUpdates, 2000);
-
-            // Initialize zoom level display
-            updateZoomLevel();
-        </script>
-    </body>
-    </html>'''
         
         @app.route('/graph-data')
         def graph_data():
