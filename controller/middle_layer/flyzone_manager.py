@@ -3,10 +3,12 @@ import os
 from shapely.geometry import Polygon, Point
 import matplotlib.pyplot as plt
 
+from controller.utils.general_utils import encode_image
+
 
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controller.utils.constants import ROBOT_NAME
+from controller.utils.constants import FLYZONE_USER_IMAGE_PATH, ROBOT_NAME
 from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 
@@ -48,9 +50,13 @@ class FlyzoneManager:
             descriptions.append(f"Polygon {idx+1}: defined by points {points_str}.")
         return "The allowed flyzone is composed of the following polygonal regions:\n" + "\n".join(descriptions)
     
-    def request_new_flyzone(self, instruction: str, llm_model_name: str = GPT5):
+    def request_new_flyzone(self, instruction: str, image_present: bool, llm_model_name: str = GPT5):
         prompt = self.prompt_flyzone.format(instruction=instruction)
-        response_content = self.llm_wrapper.request(user_prompt=prompt, model_name=llm_model_name, request_type=RequestType.FLYZONE)
+        if image_present:
+            image = encode_image(FLYZONE_USER_IMAGE_PATH)
+            response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FLYZONE, image=image)
+        else:
+            response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FLYZONE)
         # if response_content.startswith("```json"):
         #     response_content = response_content.replace("```json", "").replace("```", "").strip()
 

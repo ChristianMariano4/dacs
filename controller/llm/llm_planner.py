@@ -47,7 +47,7 @@ class LLMPlanner():
     def update_latest_frame(self, latest_frame):
         self.latest_frame = latest_frame
 
-    def plan(self, task: Task, context_graph: str, current_position: Sequence[float], current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
+    def plan(self, task: Task, img_b64, context_graph: str, current_position: Sequence[float], current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
         # by default, the task_description is an action
         if not task.get_task_description().startswith("["):
             task_description = "[A] " + task.get_task_description()
@@ -93,7 +93,7 @@ class LLMPlanner():
         #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
-        response_json = self.llm.request(prompt, model_name=model_name, stream=False, request_type=RequestType.PLAN)
+        response_json = self.llm.request(prompt, request_type=RequestType.PLAN, image=img_b64)
         response_plan = response_json["plan"]
 
         # # Clean up the content - remove markdown code blocks if present
@@ -123,8 +123,8 @@ class LLMPlanner():
         image = encode_image(Image.open(self.image_path))
         return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.PROBE)["answer"]), False
     
-    def skill_create_flyzone(self, user_instructions: str) -> Tuple[None, bool]:
-        self.flyzone_manager.request_new_flyzone(user_instructions)
+    def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> Tuple[None, bool]:
+        self.flyzone_manager.request_new_flyzone(user_instructions, image_present)
         return None, False
     
     # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible

@@ -61,11 +61,7 @@ class LLMWrapper:
                         "content": [
                             {
                                 "type": "input_text",
-                                "text": (
-                                    user_prompt
-                                    + "\n\nPlease respond in JSON format with fields: "
-                                    "direction, distance, region_name."
-                                ),
+                                "text": user_prompt,
                             }
                         ],
                     }
@@ -105,12 +101,28 @@ class LLMWrapper:
                 )
 
             case RequestType.FLYZONE:
+                input_payload = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": user_prompt + "\n\nPlease respond in JSON format with fields: `points_list` and `reason`.",
+                            }
+                        ],
+                    }
+                ]
+
+                if image != None:
+                    input_payload[0]["content"].append({"type": "input_text", "text": f"Image:"})
+                    input_payload[0]["content"].append({"type": "input_image", "image_url": "data:image/jpeg;base64," + image})
+                
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "2"
+                        "version": "9"
                     },
-                    input=user_prompt + "\n\nPlease respond in JSON format with fields: points_list.",
+                    input=input_payload,
                     stream=stream
                 )
 
