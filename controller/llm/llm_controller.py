@@ -8,7 +8,7 @@ import asyncio
 import uuid
 
 from controller.memory.short_memory import ShortMemoryModule
-from controller.utils.constants import HIGH_LEVEL_SKILL_FILE, REGION_THRESHOLD, ROBOT_NAME
+from controller.utils.constants import HIGH_LEVEL_SKILL_PATH, REGION_THRESHOLD, ROBOT_NAME
 from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO, LLMWrapper
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
@@ -134,12 +134,12 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("add_skill", self.skill_add_skill, "Define a new high-level skill through already existing low and high-level ones", args=[SkillArg("name", str), SkillArg("description", str), SkillArg("definition", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delete_skill", self.delete_skill, "Delete the specified high-level skill", args=[SkillArg("skill_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("ask_user", self.skill_ask_user, "Ask user a question in order to retrieve some missing information about his task. Then automatically replan, so dont add a replan skill", args=[SkillArg("question", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Ask another LLM instance to create a flyzone, based on user instructions", args=[SkillArg("user_instructions", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("create_flyzone", self.planner.skill_create_flyzone, "Create through another LLM a new flyzone, passing only the user description that you had without adding anything. Set the `image_present` flag to True if the user also provides an image.", args=[SkillArg("user_description", str), SkillArg("image_present", bool)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_user_feedback", self.save_user_feedback, "Save user feedback in persistent memory", args=[SkillArg("user_feedback", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_shortcut", self.save_shortcut, "Save previous task to a shortcut in persistent memory", args=[SkillArg("shortcut", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("execute_shortcut", self.execute_shortcut, "Execute a task previously mapped to a given shortcut", args=[SkillArg("shortcut", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("create_graph", self.create_graph, "Create a new context graph based on a description and/or a picture of the environment.", args=[SkillArg("description", Optional[str]), SkillArg("picture", Optional[str])]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("create_graph", self.create_graph, "Create through another LLM a new context graph based on the environment description you pass. Do not include other text. Set the `image_present` flag to True if the user also provides an image.", args=[SkillArg("user_description", str), SkillArg("image_present", bool)]))
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -323,8 +323,8 @@ class LLMController():
         print(f"Skill added: {skill_name}: {minispec_def}")
 
         # Load existing skills
-        if os.path.exists(HIGH_LEVEL_SKILL_FILE):
-            with open(HIGH_LEVEL_SKILL_FILE, "r") as f:
+        if os.path.exists(HIGH_LEVEL_SKILL_PATH):
+            with open(HIGH_LEVEL_SKILL_PATH, "r") as f:
                 skills = json.load(f)
                 if not isinstance(skills, list):
                     print("Error: Skill file is not a list. Resetting.")
@@ -343,7 +343,7 @@ class LLMController():
         })
 
         # Write back to file
-        with open(HIGH_LEVEL_SKILL_FILE, "w") as f:
+        with open(HIGH_LEVEL_SKILL_PATH, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
@@ -353,7 +353,7 @@ class LLMController():
         skills = [s for s in skills if s.get("skill_name") != skill_name]
 
         # Write back to file
-        with open(HIGH_LEVEL_SKILL_FILE, "w") as f:
+        with open(HIGH_LEVEL_SKILL_PATH, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
@@ -424,7 +424,8 @@ class LLMController():
             print(f"Sending request to model {model_name}")
             # Request plan to the model chosen above
             print(self.current_task)
-            self.current_plan, reason, iteration_description = self.planner.plan(self.current_task, 
+            self.current_plan, reason, iteration_description = self.planner.plan(self.current_task,
+                                                                img_b64 = img_b64,
                                                                 execution_history=self.current_task.get_execution_history(), 
                                                                 context_graph=self.graph_manager.get_graph(), 
                                                                 current_position=self.graph_manager.get_drone_pose(), 
