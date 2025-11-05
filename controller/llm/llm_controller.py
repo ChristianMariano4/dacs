@@ -391,7 +391,7 @@ class LLMController():
         # ret_val = interpreter.ret_queue.get()
         return ret_val
 
-    def execute_task_description(self, task_description: str = "", is_shortcut: bool = False, shortcut: str = ""):
+    def execute_task_description(self, task_description: str = "", img_b64 = None, is_shortcut: bool = False, shortcut: str = ""):
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
@@ -410,34 +410,30 @@ class LLMController():
                 return
         else:
             assert task_description != "", "task_description should be not empty"
-            self.last_task = self.current_task
             self.current_task = Task(task_description)
 
         self.append_message('[TASK]: ' + task_description)
         ret_val = None
         while True:
-            # if ret_val is None: # This is the first iteration of the plan
-            #     model_name = GPT5
-            # else: # This is executed after a replanning
-            #     model_name = GPT5_MINI
-            model_name = GPT5_MINI
-            print(f"Sending request to model {model_name}")
-            # Request plan to the model chosen above
-            print(self.current_task)
-            self.current_plan, reason, iteration_description = self.planner.plan(self.current_task,
+            # Request plan
+            #TODO: define in system prompt to return is_new_task: bool
+            self.current_plan, is_new_task, iteration_description = self.planner.plan(self.current_task,
                                                                 img_b64 = img_b64,
                                                                 execution_history=self.current_task.get_execution_history(), 
                                                                 context_graph=self.graph_manager.get_graph(), 
                                                                 current_position=self.graph_manager.get_drone_pose(), 
                                                                 current_region=self.graph_manager.get_current_region(),
                                                                 old_interactions_feedbacks = self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
-                                                                model_name=model_name
                                                                 )
+            # If the task is new means that the task is neither a user feedback nor a shortcut definition.
+            # Then, we need to update the last task to refer to for new feedback or shortcut.
+            if is_new_task == True:
+                self.last_task = self.current_task
+
             if not self.current_plan: # Resend the request
                 continue
 
             self.current_task.set_current_plan(self.current_plan)
-            print_t(f"The plan is {self.current_task.get_current_plan()}. With reason: {reason}")
             # input_t("Press a key to execute that plan\n")
             self.append_message(f'[Plan]: \\\\')
             print_t("Message appended")
