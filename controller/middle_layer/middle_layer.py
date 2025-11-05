@@ -1,7 +1,7 @@
 import os
 from shapely import Polygon
 
-from controller.utils.constants import FLYZONE_TXT
+from controller.utils.constants import FLYZONE_TXT_PATH
 
 
 class MiddleLayer:
@@ -9,7 +9,7 @@ class MiddleLayer:
     # TODO: every info is saved on disk to not lose preferences between an interaction and another 
     def __init__(self):
         # default square flyzone
-        with open(FLYZONE_TXT) as f:
+        with open(FLYZONE_TXT_PATH) as f:
             self.flyzone = f.read()
         # self.username = ""
 
@@ -78,8 +78,8 @@ class MiddleLayer:
         self.flyzone = flyzone
         
     def get_flyzone_polygon(self):
-        if os.path.exists(FLYZONE_TXT):
-            return self._parse_flyzone(FLYZONE_TXT)
+        if os.path.exists(FLYZONE_TXT_PATH):
+            return self._parse_flyzone(FLYZONE_TXT_PATH)
         return []
     
     def get_flyzone_txt(self):
