@@ -55,12 +55,32 @@ class LLMWrapper:
         
         match request_type:
             case RequestType.PLAN:
+                input_payload = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    user_prompt
+                                    + "\n\nPlease respond in JSON format with fields: "
+                                    "direction, distance, region_name."
+                                ),
+                            }
+                        ],
+                    }
+                ]
+
+                if image != None:
+                    input_payload[0]["content"].append({"type": "input_text", "text": f"Image:"})
+                    input_payload[0]["content"].append({"type": "input_image", "image_url": "data:image/jpeg;base64," + image})
+                    
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "12"
+                        "version": "14"
                     },
-                    input=user_prompt,
+                    input=input_payload,
                     stream=stream
                 )
 
@@ -155,6 +175,23 @@ class LLMWrapper:
                 )
             
             case RequestType.NEW_GRAPH:
+                input_payload = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    user_prompt
+                                ),
+                            }
+                        ],
+                    }
+                ]
+                if image != None:
+                    input_payload[0]["content"].append({"type": "input_text", "text": f"Image:"})
+                    input_payload[0]["content"].append({"type": "input_image", "image_url": "data:image/jpeg;base64," + image})
+
                 response = client.responses.create(
                     prompt={
                         "id": NEW_GRAPH_PROMPT_ID,
@@ -165,8 +202,7 @@ class LLMWrapper:
                             "role": "user",
                             "content": [
                                 {"type": "input_text", "text": user_prompt},
-                                {"type": "input_text", "text": f"Image:"},
-                                {"type": "input_image", "image_url": "data:image/jpeg;base64," + image}
+
                             ]
                         }
                     ],
