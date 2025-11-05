@@ -585,6 +585,7 @@ class TypeFly:
                         return
                     user_entry = message
 
+                    img_b64 = None
                     # Handle image uploads (convert numpy → base64) and save it to use it later
                     if image_array is not None:
                         img = Image.fromarray(image_array.astype('uint8'))
