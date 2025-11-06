@@ -8,7 +8,7 @@ import asyncio
 import uuid
 
 from controller.memory.short_memory import ShortMemoryModule
-from controller.utils.constants import HIGH_LEVEL_SKILL_PATH, REGION_THRESHOLD, ROBOT_NAME
+from controller.utils.constants import FLYZONE_USER_IMAGE_PATH, GRAPH_TXT_PATH, HIGH_LEVEL_SKILL_PATH, REGION_THRESHOLD, ROBOT_NAME, SKILL_PATH
 from controller.llm.llm_wrapper import GPT4, GPT5, GPT5_MINI, GPT5_NANO, LLMWrapper
 from controller.memory.long_memory import LongMemoryModule
 from controller.middle_layer.flyzone_manager import FlyzoneManager
@@ -35,7 +35,7 @@ from ..abs.robot_wrapper import RobotWrapper
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from ..skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
-from ..utils.general_utils import input_t, print_t
+from ..utils.general_utils import encode_image, input_t, print_t
 from ..minispec_interpreter import MiniSpecInterpreter, Statement
 from ..abs.robot_wrapper import RobotType
 
@@ -162,7 +162,10 @@ class LLMController():
         type_folder_name = 'tello'
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/skills/high_level_skills.json"), "r") as f:
+            
+        user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "high_level_skills.json")
+        
+        with open(user_high_level_skill_path, "r") as f:
             json_data = json.load(f)
             for skill in json_data:
                 self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
@@ -261,12 +264,18 @@ class LLMController():
     def _name_region(self, region_name: str) -> Tuple[None, bool]:
         self.graph_manager.name_region(region_name)        
 
-    def create_graph(self, description: Optional[str], image: Optional[str]) -> Tuple[None, bool]:
+    def create_graph(self, description: Optional[str], image_present: bool = False) -> Tuple[None, bool]:
         """
         Create neew graph based on given description and/or picture
         """
-        self.graph_manager.request_new_graph(description, image)
-
+        if image_present:
+            image = encode_image(FLYZONE_USER_IMAGE_PATH)
+        graph = self.graph_manager.request_new_graph(description, image).__str__()
+        with open(GRAPH_TXT_PATH, "w") as f:
+            print_t("Write graph.txt")
+            print(graph)
+            f.write(graph)
+        return None, False
 
     def skill_take_picture(self) -> Tuple[None, bool]:
         time.sleep(0.1)
@@ -322,9 +331,11 @@ class LLMController():
         minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
         print(f"Skill added: {skill_name}: {minispec_def}")
 
+        user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "high_level_skills.json")
+
         # Load existing skills
-        if os.path.exists(HIGH_LEVEL_SKILL_PATH):
-            with open(HIGH_LEVEL_SKILL_PATH, "r") as f:
+        if os.path.exists(user_high_level_skill_path):
+            with open(user_high_level_skill_path, "r") as f:
                 skills = json.load(f)
                 if not isinstance(skills, list):
                     print("Error: Skill file is not a list. Resetting.")
@@ -343,7 +354,7 @@ class LLMController():
         })
 
         # Write back to file
-        with open(HIGH_LEVEL_SKILL_PATH, "w") as f:
+        with open(user_high_level_skill_path, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
@@ -353,7 +364,8 @@ class LLMController():
         skills = [s for s in skills if s.get("skill_name") != skill_name]
 
         # Write back to file
-        with open(HIGH_LEVEL_SKILL_PATH, "w") as f:
+        user_high_level_skill_path = os.path.join(SKILL_PATH, self.username)
+        with open(user_high_level_skill_path, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
