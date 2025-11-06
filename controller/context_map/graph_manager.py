@@ -33,7 +33,7 @@ class GraphManager:
                 edges=[],
                 attrs={"coords": list(start_coords), "type": "region"},
             )
-    def request_new_graph(self, description: Optional[str], image: Optional[str]) -> str:
+    def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
         prompt = self.user_prompt.format(description=description)
         return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
 
