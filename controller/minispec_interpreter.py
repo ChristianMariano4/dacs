@@ -402,10 +402,7 @@ class Statement:
         skill = Statement.low_level_skillset.get_skill(name)
         if skill:
             print_debug(f'Executing low-level skill: {skill.get_name()} {args}')
-            ret = MiniSpecReturnValue.from_tuple(skill.execute(args))
-            if skill.get_name() == 'add_skill':
-                Statement.high_level_skillset.update()
-            return ret
+            return MiniSpecReturnValue.from_tuple(skill.execute(args))
 
         # high-level skill -----------------------------------------------------
         skill = Statement.high_level_skillset.get_skill(name)

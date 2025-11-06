@@ -27,8 +27,8 @@ class SkillSet():
             skill = self.skills.get(SkillItem.abbr_dict[skill_name])
         return skill
     
-    def update(self):
-        with open(os.path.join(CURRENT_DIR, f"assets/tello/skills/high_level_skills.json"), "r") as f:
+    def update(self, skills_path):
+        with open(skills_path, "r") as f:
             json_data = json.load(f)
             self.add_skill(HighLevelSkillItem.load_from_dict(json_data[-1]))
 
