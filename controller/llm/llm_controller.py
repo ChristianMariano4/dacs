@@ -80,8 +80,7 @@ class LLMController():
             os.makedirs(self.cache_folder)
 
         # Name of the user, used to personalized his own experience (different feedbacks, skills and shortcuts)
-        self.username = self.set_username(username) 
-
+        self.set_username(username, long_memory_flag= False) 
         self.long_memory_module = LongMemoryModule(username=self.username)
 
         # Flyzone section
@@ -121,7 +120,7 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_cw", self.drone.turn_cw, "Rotate clockwise/right by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("turn_ccw", self.drone.turn_ccw, "Rotate counterclockwise/left by certain degrees", args=[SkillArg("degrees", int)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delay", self.skill_delay, "Wait for specified seconds", args=[SkillArg("seconds", float)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects. Returns True or False", args=[SkillArg("objects_name", list)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("is_visible", self.vision.is_visible, "Check the visibility of target YOLO-detectable objects. Use only YOLO-detectable objects. Returns True or False", args=[SkillArg("objects_name", list)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_x", self.vision.object_x, "Get the object’s center X in normalized image coordinates (0,1) (left=0, right=1).", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_y", self.vision.object_y, "Get the object’s center Y in normalized image coordinates (0,1) (top=0, bottom=1).", args=[SkillArg("object_name", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("object_width", self.vision.object_width, "Get object's width in (0,1)", args=[SkillArg("object_name", str)]))
@@ -163,15 +162,11 @@ class LLMController():
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
             
-        # Load common high level skills 
-        common_skills: list = []    
-        with open(SKILL_PATH, "r") as f:
-            common_skills = json.load(f)
-            for skill in common_skills:
-                self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+
 
         # Load user specific high level skills if available.
         # Otherwise create the file to save them later.
+        common_skills: list = []
         user_skills: list = []    
         if os.path.exists(self.user_high_level_skill_path):
             with open(self.user_high_level_skill_path, "r") as f:
@@ -179,10 +174,15 @@ class LLMController():
                 for skill in user_skills:
                     self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
         else:
-            os.makedirs(self.user_high_level_skill_path)
+            # Create file for user specific high level skills.
+            open(self.user_high_level_skill_path, "w").close()
 
-        # Write all the skills in the file of the user.
-        # This is done to always retrieve some common skills defined by the programmer + the skills defined by LLM at runtime. 
+            # Load common high level skills if there are no already saved skills.
+            with open(HIGH_LEVEL_SKILL_PATH, "r") as f:
+                common_skills = json.load(f)
+                for skill in common_skills:
+                    self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+
         with open(self.user_high_level_skill_path, "w") as f:
             json.dump(common_skills+user_skills, f, indent=4)
 
@@ -198,13 +198,14 @@ class LLMController():
         self.directions  = {0: "north", 1: "north-east", 2: "east", 3:"south-east", 4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
 
-    def set_username(self, username) -> Tuple[None, False]:
+    def set_username(self, username, long_memory_flag: bool = True) -> Tuple[None, False]:
         self.username = username
-        self.long_memory_module.change_username(username)
         self.user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "user_high_level_skills.json")
+
+        if long_memory_flag:
+            self.long_memory_module.change_username(username)
         return None, False
     
-
     def get_username(self) -> str:
         return self.username 
 
@@ -290,8 +291,6 @@ class LLMController():
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
         graph = self.graph_manager.request_new_graph(description, image).__str__()
         with open(GRAPH_TXT_PATH, "w") as f:
-            print_t("Write graph.txt")
-            print(graph)
             f.write(graph)
         return None, False
 
@@ -372,6 +371,8 @@ class LLMController():
         # Write back to file
         with open(self.user_high_level_skill_path, "w") as f:
             json.dump(skills, f, indent=4)
+
+        Statement.high_level_skillset.update(self.user_high_level_skill_path)
 
         return True, False
     
