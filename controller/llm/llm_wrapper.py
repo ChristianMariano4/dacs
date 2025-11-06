@@ -74,7 +74,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "14"
+                        "version": "16"
                     },
                     input=input_payload,
                     stream=stream
@@ -120,7 +120,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "9"
+                        "version": "18"
                     },
                     input=input_payload,
                     stream=stream
@@ -207,7 +207,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": NEW_GRAPH_PROMPT_ID,
-                        "version": "2"
+                        "version": "3"
                     },
                     input=[
                         {
