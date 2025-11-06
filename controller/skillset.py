@@ -2,6 +2,7 @@ import json
 import os
 import re
 from enum import Enum
+import shlex
 from typing import Optional, List, Union
 from .abs.skill_item import SkillItem, SkillArg
 
@@ -121,10 +122,15 @@ class HighLevelSkillItem(SkillItem):
 
     def generate_argument_list(self) -> List[SkillArg]:
         # Find ALL placeholder references in the entire definition
-        all_placeholders = set(re.findall(r'\$(\d+)', self.definition))
+        all_placeholders = set(re.findall(r'(?<!\\)\$(\d+)', self.definition))
+
         
         # Extract all skill calls with their arguments from the code
-        skill_calls = re.findall(r'(\w+)\(([^)]*)\)', self.definition)
+        skill_calls = re.findall(
+            r'(\w+)\(((?:[^()\'"]|\\.|\'[^\']*\'|"[^"]*")*)\)',
+            self.definition
+        )
+
 
         arg_types = {}
 
@@ -133,7 +139,9 @@ class HighLevelSkillItem(SkillItem):
             if skill_name.isdigit():
                 continue
                 
-            args = [a.strip() for a in args.split(',') if a.strip()]
+            # args = [a.strip() for a in args.split(',') if a.strip()]
+            raw_args = shlex.split(args, posix=False)
+            args = [a.strip() for a in raw_args]
             
             if skill_name == "int":
                 function_args = [SkillArg("value", int)]
@@ -155,7 +163,7 @@ class HighLevelSkillItem(SkillItem):
             # Process each argument in the function call
             for i, arg in enumerate(args):
                 # Find all placeholder references in this argument
-                placeholders = re.findall(r'\$(\d+)', arg)
+                placeholders = re.findall(r'(?<!\\)\$(\d+)', arg)
                 for ph_num in placeholders:
                     ph = f"${ph_num}"
                     if ph not in arg_types and i < len(function_args):
