@@ -403,13 +403,9 @@ class TypeFly:
         self.user_question_answer = [] # list of last question-answer pair between LLM and user
         self.llm_controller = LLMController(robot_type, use_http, self.message_queue, self.user_answer_queue)
 
-        # Convert the JSON to a string
-        init_graph_path = "controller/assets/tello/memory/graph.txt"
-
         # Initialize GraphManager with the sample data
         self.graph_manager = GraphManager(
             llm_controller=self.llm_controller, 
-            init_graph_json=init_graph_path,
         )
         # self.graph_manager = GraphManager(llm_controller=self.llm_controller, init_graph_json=)
         self.llm_controller.set_graph_manager(self.graph_manager)

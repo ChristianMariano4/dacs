@@ -7,6 +7,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from controller.llm.llm_wrapper import LLMWrapper, RequestType
+from controller.utils.constants import GRAPH_TXT_PATH
 
 
 # empty graph from which to start
@@ -183,20 +184,15 @@ def parse_graph(
 
 # class that handle the graph. If given one as input (grapt_path), otherwise crate an empty one
 class GraphHandler:
-    def __init__(self, graph_path: str) -> None:
-        if graph_path == "":
-            self.graph = nx.Graph()
-            self.as_json_str = "{}"
-            self.current_location = "region_0"
-            self.drone_position = np.zeros(3)
-        else:
-            self.current_location = None
-            with open(graph_path) as f:
-                data = json.load(f)
-            self.graph, self.as_json_str, self.drone_position = parse_graph(data)
-            self.current_location = self.get_closest_region()
+    def __init__(self) -> None:
+        self.current_location = None
+        self.update_graph_from_file()
 
-
+    def update_graph_from_file(self):
+        with open(GRAPH_TXT_PATH) as f:
+            data = json.load(f)
+        self.graph, self.as_json_str, self.drone_position = parse_graph(data)
+        self.current_location = self.get_closest_region()
     
     def get_closest_region(self):
         x, y, _ = self.drone_position

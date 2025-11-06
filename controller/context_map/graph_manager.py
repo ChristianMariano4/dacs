@@ -14,14 +14,14 @@ class GraphManager:
     Keeps an up-to-date scene graph that every other TypeFly
     component can share without ROS.
     """
-    def __init__(self, llm_controller, init_graph_json: str | None = None, start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
+    def __init__(self, llm_controller, start_coords: tuple[float, float] = (0.0, 0.0)) -> None:
         #TODO: put start_region as the closer region to the drone
         self.llmController = llm_controller
         self.llm_wrapper = LLMWrapper()
         with open("controller/assets/tello/memory/user_graph_prompt.txt", "r") as f:
             self.user_prompt = f.read()
         self.drone_pose = np.zeros(3)
-        self.graph_handler = GraphHandler(init_graph_json or "")
+        self.graph_handler = GraphHandler()
         start_region = self.graph_handler.get_closest_region()
         self.graph_handler.update_location(start_region)
         self.current_region = start_region
