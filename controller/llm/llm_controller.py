@@ -52,7 +52,7 @@ class IterationDecision(Enum):
     IMPOSSIBLE = "impossible"
 
 class LLMController():
-    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None):
+    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None,  user_answer_queue: Optional[queue.Queue]=None, username: str = "Christian"):
         # shared middle layer that stores user settings
         self.middle_layer = MiddleLayer()
         self.short_memory = ShortMemoryModule()
@@ -79,8 +79,8 @@ class LLMController():
         if not os.path.exists(self.cache_folder):
             os.makedirs(self.cache_folder)
 
-        # user preferences in middle layer
-        self.username = "Christian" # name of the user, used to personalized his own experience (e.g. different feedbacks)
+        # Name of the user, used to personalized his own experience (different feedbacks, skills and shortcuts)
+        self.username = self.set_username(username) 
 
         self.long_memory_module = LongMemoryModule(username=self.username)
 
@@ -163,12 +163,28 @@ class LLMController():
         if robot_type == RobotType.GEAR:
             type_folder_name = 'gear'
             
-        user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "high_level_skills.json")
-        
-        with open(user_high_level_skill_path, "r") as f:
-            json_data = json.load(f)
-            for skill in json_data:
+        # Load common high level skills 
+        common_skills: list = []    
+        with open(SKILL_PATH, "r") as f:
+            common_skills = json.load(f)
+            for skill in common_skills:
                 self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+
+        # Load user specific high level skills if available.
+        # Otherwise create the file to save them later.
+        user_skills: list = []    
+        if os.path.exists(self.user_high_level_skill_path):
+            with open(self.user_high_level_skill_path, "r") as f:
+                user_skills = json.load(f)
+                for skill in user_skills:
+                    self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
+        else:
+            os.makedirs(self.user_high_level_skill_path)
+
+        # Write all the skills in the file of the user.
+        # This is done to always retrieve some common skills defined by the programmer + the skills defined by LLM at runtime. 
+        with open(self.user_high_level_skill_path, "w") as f:
+            json.dump(common_skills+user_skills, f, indent=4)
 
         Statement.low_level_skillset = self.low_level_skillset
         Statement.high_level_skillset = self.high_level_skillset
@@ -185,7 +201,9 @@ class LLMController():
     def set_username(self, username) -> Tuple[None, False]:
         self.username = username
         self.long_memory_module.change_username(username)
+        self.user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "user_high_level_skills.json")
         return None, False
+    
 
     def get_username(self) -> str:
         return self.username 
@@ -331,11 +349,9 @@ class LLMController():
         minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
         print(f"Skill added: {skill_name}: {minispec_def}")
 
-        user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "high_level_skills.json")
-
         # Load existing skills
-        if os.path.exists(user_high_level_skill_path):
-            with open(user_high_level_skill_path, "r") as f:
+        if os.path.exists(self.user_high_level_skill_path):
+            with open(self.user_high_level_skill_path, "r") as f:
                 skills = json.load(f)
                 if not isinstance(skills, list):
                     print("Error: Skill file is not a list. Resetting.")
@@ -354,7 +370,7 @@ class LLMController():
         })
 
         # Write back to file
-        with open(user_high_level_skill_path, "w") as f:
+        with open(self.user_high_level_skill_path, "w") as f:
             json.dump(skills, f, indent=4)
 
         return True, False
