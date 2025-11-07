@@ -19,6 +19,7 @@ PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
 DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
 NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
+EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +34,7 @@ class RequestType(Enum):
     PROBE = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
     FLYZONE = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
     NEW_GRAPH = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
+    EVERGREEN_FEEDBACK = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
 
 class LLMWrapper:
     def __init__(self, temperature=1):
@@ -74,7 +76,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "16"
+                        "version": "19"
                     },
                     input=input_payload,
                     stream=stream
@@ -85,6 +87,16 @@ class LLMWrapper:
                     prompt={
                         "id": FEEDBACK_PROMPT_ID,
                         "version": "1"
+                    },
+                    input=user_prompt,
+                    stream=stream
+                )
+
+            case RequestType.EVERGREEN_FEEDBACK:
+                response = client.responses.create(
+                    prompt={
+                        "id": EVERGREEN_FEEDBACK_PROMPT_ID,
+                        "version": "4"
                     },
                     input=user_prompt,
                     stream=stream
@@ -177,12 +189,7 @@ class LLMWrapper:
                         "id": DIRECTION_PROMPT_ID,
                         "version": "3"
                     },
-                    input=[
-                        {
-                            "role": "user",
-                            "content": input_payload
-                        }
-                    ],
+                    input=input_payload,
                     stream=stream,
                 )
             

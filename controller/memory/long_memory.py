@@ -7,7 +7,7 @@ import numpy as np
 import base64
 from openai import OpenAI
 import os
-from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_PLAN_PROMPT_PATH, X_BOUND, Y_BOUND
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
@@ -47,6 +47,9 @@ class LongMemoryModule:
         with open(os.path.join(MEMORY_PATH, "user_memory_prompt.txt"), "r") as f:
             self.memory_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
+        
+        with open(USER_EVERGREEN_FEEDBACK_PROMPT_PATH, "r") as f:
+            self.user_evergreen_feedback_prompt = f.read()
 
         # Vector db section: retrieve the db of the specified user
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -83,6 +86,19 @@ class LongMemoryModule:
         next_id = last_id + 1
         self.save_last_task_id(next_id)
         return next_id
+    
+    def change_feedback_prompt(self, user_request: str):
+        with open(USER_EVERGREEN_FEEDBACK_PATH, "r+") as f:
+            current_user_feedback = f.read()
+            prompt = self.user_evergreen_feedback_prompt.format(user_request=user_request,
+                                                                preferences_summary=current_user_feedback)
+            response_content: dict = self.llm_wrapper.request(prompt, RequestType.EVERGREEN_FEEDBACK)
+            preferences_summary = response_content.get("preferences_summary", None)
+
+            if preferences_summary == None:
+                print_t("[ERROR in LongMemoryModule.change_feedback_prompt()] preferences_summary requested but None returned by LLM")
+                return
+            f.write(preferences_summary)
             
     def save_task_summary(self, task: Task, conf=0.3):
         '''
@@ -119,15 +135,37 @@ class LongMemoryModule:
             embeddings=[embedding.tolist()],
             ids=[f"task_{self.get_next_task_id()}"]
         )
+
+    def delete_task_user_feedback(self, user_feedback: str, similarity_threshold: float = 0.3):
+        """Delete old feedback similar to the given one."""
+        embedding = self.model.encode(user_feedback)
+        all_docs = self.interactions_collection.get()
+
+        if not all_docs['ids']:
+            return {"deleted_count": 0}
+        
+        results = self.interactions_collection.query(
+            query_embeddings=[embedding.tolist()],
+            n_results=len(all_docs["ids"])
+        )
+
+        to_delete = [
+            doc_id for doc_id, distance in zip(results["ids"][0], results["distances"][0])
+            if distance <= similarity_threshold
+        ]
+
+        if to_delete:
+            self.interactions_collection.delete(ids=to_delete)
+            print(f"Deleted {len(to_delete)} similar feedback(s), with ids: {to_delete}")
     
-    def retrieve_old_interactions(self, new_task: str, N : int = 5) -> list[str]:
+    def retrieve_old_interactions(self, new_task: str, N : int = 10, max_distance: float = 1.5) -> list[str]:
         '''Retrieve N old useful feedbacks, based on new task'''
 
         # Search for top N similar scenarios
         new_task_embedding = self.model.encode(new_task)
         results = self.interactions_collection.query(
             query_embeddings=[new_task_embedding.tolist()], 
-            n_results=N
+            n_results=10
         )
 
         # Collect results
@@ -135,10 +173,11 @@ class LongMemoryModule:
         if results:
             print("\n=== Retrieved Interactions ===")
             for idx, (doc, distance) in enumerate(zip(results["documents"][0], results["distances"][0])):
-                print(f"Result {idx+1}:")
-                print(f"  Distance: {distance:.4f}")
-                print(f"  Document: {doc[:200]}{'...' if len(doc) > 200 else ''}")  # Truncate if too long
-                retrieved_docs.append(doc)
+                if distance < max_distance:
+                    print(f"Result {idx+1}:")
+                    print(f"  Distance: {distance:.4f}")
+                    print(f"  Document: {doc[:200]}{'...' if len(doc) > 200 else ''}")  # Truncate if too long
+                    retrieved_docs.append(doc)
         
         return retrieved_docs
     

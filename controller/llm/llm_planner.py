@@ -5,7 +5,7 @@ from PIL import Image
 
 from controller.abs.skill_item import SkillItem
 from controller.middle_layer.flyzone_manager import FlyzoneManager
-from controller.utils.constants import ROBOT_NAME, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, X_BOUND, Y_BOUND
 from controller.task import Task
 
 from ..skillset import HighLevelSkillItem, SkillSet
@@ -75,6 +75,10 @@ class LLMPlanner():
         with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
             self.flyzone = f.read()
 
+        # Retrieve updated evergreen_preferences
+        with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
+            evergreen_preferences = f.read()
+
         if task.get_is_new(): # task is new, so not through shortcut
             task_description = task.get_task_description()
         else: # task is executed through shortcut, so we pass all the information already available
@@ -83,6 +87,7 @@ class LLMPlanner():
         prompt = self.prompt_plan.format(high_level_skills=self.high_level_skillset,
                                             low_level_skills=self.low_level_skillset,
                                             old_interactions_feedbacks = old_interactions_feedbacks,
+                                            evergreen_preferences=evergreen_preferences,
                                             objects_list=objects_list,
                                             task_description=task_description,
                                             execution_history=execution_history,
