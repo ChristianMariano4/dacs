@@ -132,7 +132,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "19"
+                        "version": "20"
                     },
                     input=input_payload,
                     stream=stream
