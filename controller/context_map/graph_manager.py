@@ -33,6 +33,10 @@ class GraphManager:
                 edges=[],
                 attrs={"coords": list(start_coords), "type": "region"},
             )
+
+    def update_graph_from_file(self):
+        self.graph_handler.update_graph_from_file()
+
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
         prompt = self.user_prompt.format(description=description)
         return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
@@ -44,6 +48,7 @@ class GraphManager:
         return self.current_region
     
     def get_graph(self):
+        self.write_graph_to_file()
         return self.graph_handler.to_json_str()
     
     def name_region(self, name:str):
@@ -85,6 +90,8 @@ class GraphManager:
         self.graph_handler.update_with_node_flexible(node=node_id, edges=[self.current_region], attrs=attrs)
         # prepare LLM-prompt diff
 
+
+    def write_graph_to_file(self):
         # ---------------------------------------------
         # Append graph snapshot to file
         # ---------------------------------------------

@@ -100,7 +100,7 @@ class LLMPlanner():
 
         response_json = self.llm.request(prompt, request_type=RequestType.PLAN, image=img_b64)
         response_plan = response_json["plan"]
-        is_new_task = response_json["is_new_task"]
+        requires_execution = response_json["requires_execution"]
 
         # # Clean up the content - remove markdown code blocks if present
         # if response_content.startswith("```json"):
@@ -114,7 +114,7 @@ class LLMPlanner():
         # reason = parsed.get("reason", None)
         # iteration_description = parsed.get("description", None)
         # iteration_description = "Description of the iteration: " + iteration_description
-        return response_plan, is_new_task, None
+        return response_plan, requires_execution, None
     
     def probe(self, question) -> MiniSpecValueType:
         if question is list:

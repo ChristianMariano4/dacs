@@ -28,7 +28,13 @@ def to_list(x):
 
 
 def to_float_list(x: str):
-    return [float(y) for y in to_list(x)]
+    result = []
+    for y in to_list(x):
+        try:
+            result.append(float(y))
+        except ValueError:
+            result.append(y)   # keep original value (e.g. "Unknown")
+    return result
 
 
 # parse coordinate
@@ -189,9 +195,13 @@ class GraphHandler:
         self.update_graph_from_file()
 
     def update_graph_from_file(self):
-        with open(GRAPH_TXT_PATH) as f:
+        data = ""
+        with open(GRAPH_TXT_PATH, "r") as f:
             data = json.load(f)
+        print(f"Data: {data}")
         self.graph, self.as_json_str, self.drone_position = parse_graph(data)
+        print(self.as_json_str)
+        print(self.graph)
         self.current_location = self.get_closest_region()
     
     def get_closest_region(self):

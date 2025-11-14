@@ -184,7 +184,7 @@ class LLMController():
                 common_skills = json.load(f)
                 for skill in common_skills:
                     self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
-
+        
         with open(self.user_high_level_skill_path, "w") as f:
             json.dump(common_skills+user_skills, f, indent=4)
 
@@ -214,7 +214,9 @@ class LLMController():
     def save_task_user_feedback(self, user_feedback: str) -> Tuple[None, False]:
         if self.last_task != None:
             self.last_task.set_user_feedback(user_feedback)
-            self.long_memory_module.save_task_summary(self.last_task)
+            self.long_memory_module.save_task_summary(self.last_task, 
+                                                      high_level_skills=self.high_level_skillset,
+                                                      low_level_skills=self.low_level_skillset)
         else:
             self.append_message("\nNo previous task saved.")
         return None, False
@@ -298,11 +300,14 @@ class LLMController():
         """
         Create neew graph based on given description and/or picture
         """
+        image = None
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
-        graph = self.graph_manager.request_new_graph(description, image).__str__()
+        graph = self.graph_manager.request_new_graph(description, image).get("context_graph")
+        print(graph)
         with open(GRAPH_TXT_PATH, "w") as f:
-            f.write(graph)
+            json.dump(graph, f, indent=4)
+        self.graph_manager.update_graph_from_file()
         return None, False
 
     def skill_take_picture(self) -> Tuple[None, bool]:
@@ -459,7 +464,7 @@ class LLMController():
         while True:
             # Request plan
             #TODO: define in system prompt to return is_new_task: bool
-            self.current_plan, is_new_task, iteration_description = self.planner.plan(self.current_task,
+            self.current_plan, requires_execution, iteration_description = self.planner.plan(self.current_task,
                                                                 img_b64 = img_b64,
                                                                 execution_history=self.current_task.get_execution_history(), 
                                                                 context_graph=self.graph_manager.get_graph(), 
@@ -469,7 +474,7 @@ class LLMController():
                                                                 )
             # If the task is new means that the task is neither a user feedback nor a shortcut definition.
             # Then, we need to update the last task to refer to for new feedback or shortcut.
-            if is_new_task == True:
+            if requires_execution == True:
                 self.last_task = self.current_task
 
             if not self.current_plan: # Resend the request

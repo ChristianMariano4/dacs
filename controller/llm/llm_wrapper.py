@@ -76,7 +76,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "19"
+                        "version": "28"
                     },
                     input=input_payload,
                     stream=stream
@@ -86,7 +86,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FEEDBACK_PROMPT_ID,
-                        "version": "1"
+                        "version": "3"
                     },
                     input=user_prompt,
                     stream=stream
@@ -96,7 +96,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": EVERGREEN_FEEDBACK_PROMPT_ID,
-                        "version": "4"
+                        "version": "8"
                     },
                     input=user_prompt,
                     stream=stream
@@ -132,7 +132,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "18"
+                        "version": "19"
                     },
                     input=input_payload,
                     stream=stream
@@ -214,7 +214,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": NEW_GRAPH_PROMPT_ID,
-                        "version": "3"
+                        "version": "4"
                     },
                     input=[
                         {
