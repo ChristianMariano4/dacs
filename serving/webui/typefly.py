@@ -463,8 +463,6 @@ class TypeFly:
                                 interactive=False,
                                 container=True
                             )
-                            # Add refresh button for flyzone
-                            refresh_flyzone_btn = gr.Button("🔄 Refresh Flyzone", size="sm")
                             
                             def refresh_flyzone_image():
                                 flyzone_path = "controller/assets/tello/flyzone/flyzone_plot.png"
@@ -473,8 +471,8 @@ class TypeFly:
                                     return flyzone_path
                                 return None
                             
-                            refresh_flyzone_btn.click(
-                                refresh_flyzone_image,
+                            gr.Timer(1.0).tick(
+                                fn=refresh_flyzone_image,
                                 outputs=flyzone_display
                             )
                     
