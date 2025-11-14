@@ -611,8 +611,15 @@ class TypeFly:
                     outputs=[chatbot, msg_input]
                 )
                 
-                with gr.TabItem("📊 Graph Visualization"):
+                with gr.TabItem("📊 Graph Visualization", id="graph_tab") as graph_tab:
                     self.setup_graph_tab()
+                    # Connect the tab select event to refresh the graph
+
+                graph_tab.select(
+                    fn=self.refresh_graph,
+                    inputs=None,
+                    outputs=[self.graph_component, self.graph_status]
+                )
     
 
     def change_username(self):
@@ -818,11 +825,6 @@ class TypeFly:
             graph_html = self.get_graph_html()
             self.graph_component = gr.HTML(graph_html)
             
-            # Controls
-            with gr.Row():
-                refresh_btn = gr.Button("🔄 Refresh Graph", variant="primary")
-                clear_btn = gr.Button("🗑️ Clear Graph Data", variant="secondary")
-                auto_refresh_btn = gr.Button("🔁 Auto Refresh", variant="secondary")
                 
             # Status
             self.graph_status = gr.Textbox(
@@ -831,22 +833,23 @@ class TypeFly:
                 interactive=False
             )
             
-            # Event handlers
-            refresh_btn.click(self.refresh_graph, outputs=[self.graph_component, self.graph_status])
-            clear_btn.click(self.clear_graph_data, outputs=[self.graph_status])
-            auto_refresh_btn.click(self.toggle_auto_refresh, outputs=[self.graph_status])
 
-    def get_graph_html(self):
+    def get_graph_html(self, timestamp=None):
         """Generate the HTML for the graph visualization"""
-        return """
+
+        # Add timestamp to force iframe reload
+        if timestamp is None:
+            timestamp = time.time()
+
+        return f"""
         <div style="width: 100%; height: 750px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-            <iframe src="http://localhost:50000/graph" 
+            <iframe src="http://localhost:50000/graph?t={timestamp}" 
                     style="width: 100%; height: 100%; border: none;"
                     sandbox="allow-scripts allow-same-origin">
             </iframe>
         </div>
         """
-    
+        
     def refresh_graph(self):
         """Refresh the graph visualization"""
         try:
@@ -857,9 +860,10 @@ class TypeFly:
             else:
                 status = "No graph data available. Start robot operations to generate data."
             
-            return self.get_graph_html(), status
+            # Pass current timestamp to force iframe reload
+            return self.get_graph_html(time.time()), status
         except Exception as e:
-            return self.get_graph_html(), f"Error refreshing graph: {str(e)}"
+            return self.get_graph_html(time.time()), f"Error refreshing graph: {str(e)}"
 
     def clear_graph_data(self):
         """Clear the graph log data"""
@@ -1162,6 +1166,10 @@ class TypeFly:
                     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
                 )
 
+                fig.update_yaxes(
+                    scaleanchor="x",  # Lock Y-axis scale to X-axis
+                    scaleratio=1,     # 1:1 ratio (equal scaling)
+                )
                 fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
                 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='LightGray')
                 fig.update_layout(dragmode='pan')  # default: panning mode
