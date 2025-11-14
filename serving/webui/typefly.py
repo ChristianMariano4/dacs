@@ -1051,17 +1051,30 @@ class TypeFly:
                 object_connections = graph_data.get("object_connections", [])
                 current_pos = graph_data.get("current_pos", {})
 
-                # --- AUTO OFFSET for clustered (0,0) objects ---
-                if objects and all((x == 0.0 and y == 0.0) for (_, (x, y)) in objects.items()):
-                    region_lookup = {reg: obj for reg, obj in graph_data.get("object_connections", []) if reg in regions}
-                    for name in objects:
-                        if name in region_lookup:
-                            rx, ry = regions[region_lookup[name]]
-                        else:
-                            rx, ry = 0, 0
-                        angle = random.uniform(0, 2 * np.pi)
-                        dist = random.uniform(10, 40)
-                        objects[name] = (rx + dist * np.cos(angle), ry + dist * np.sin(angle))
+                # --- Build object-to-region mapping and calculate display positions ---
+                object_to_region = {}
+                for a, b in object_connections:
+                    if a in regions and b in objects:
+                        object_to_region[b] = a # b (object) linked to a (region)
+                    elif a in objects and b in regions:
+                        object_to_region[a] = b  # a (object) linked to b (region)
+
+                # Calculate display positions for objects around their regions
+                object_display_positions = {}
+                for obj_name in objects:
+                    if obj_name in object_to_region:
+                        region_name = object_to_region[obj_name]
+                        if region_name in regions:
+                            rx, ry = regions[region_name]
+                            # Use hash for consistent positioning across refreshes
+                            seed_value = hash(obj_name) % 10000
+                            random.seed(seed_value)
+                            angle = random.uniform(0, 2 * np.pi)
+                            distance = random.uniform(15, 35)
+                            obj_x = rx + distance * np.cos(angle)
+                            obj_y = ry + distance * np.sin(angle)
+                            object_display_positions[obj_name] = (obj_x, obj_y)
+                            random.seed()  # Reset random seed
 
                 # --- Build interactive Plotly figure ---
                 fig = go.Figure()
@@ -1085,6 +1098,29 @@ class TypeFly:
                 except Exception as e:
                     print(f"[WARN] Could not plot flyzone: {e}")
 
+                # ⭕ Region circles (diameter 150, light gray)
+                if regions:
+                    radius = 75  # diameter 150 / 2
+                    theta = np.linspace(0, 2 * np.pi, 100)  # 100 points for smooth circle
+                    
+                    for region_name, (cx, cy) in regions.items():
+                        # Calculate circle points
+                        circle_x = cx + radius * np.cos(theta)
+                        circle_y = cy + radius * np.sin(theta)
+                        
+                        fig.add_trace(go.Scatter(
+                            x=circle_x,
+                            y=circle_y,
+                            mode='lines',
+                            line=dict(color='lightgray', width=1, dash='dash'),
+                            fill='toself',
+                            fillcolor='rgba(128,128,128,0.35)',  # Very light gray fill
+                            opacity=0.5,
+                            hoverinfo='skip',
+                            showlegend=False,
+                            name=f'{region_name} radius'
+                        ))
+                        
                 # ⚫ Region–Region links
                 for r1, r2 in region_connections:
                     if r1 in regions and r2 in regions:
@@ -1099,24 +1135,26 @@ class TypeFly:
                             showlegend=False
                         ))
 
-                # 🔵 Object–Region links
+                # 🔵 Object–Region links (using calculated positions)
                 for a, b in object_connections:
                     if a in regions and b in objects:
-                        x1, y1 = regions[a]
-                        x2, y2 = objects[b]
+                        region_name, obj_name = a, b
                     elif a in objects and b in regions:
-                        x1, y1 = objects[a]
-                        x2, y2 = regions[b]
+                        obj_name, region_name = a, b
                     else:
                         continue
-                    fig.add_trace(go.Scatter(
-                        x=[x1, x2], y=[y1, y2],
-                        mode='lines',
-                        line=dict(color='lightblue', dash='dot'),
-                        opacity=0.7,
-                        hoverinfo='none',
-                        showlegend=False
-                    ))
+                    
+                    if region_name in regions and obj_name in object_display_positions:
+                        x1, y1 = regions[region_name]
+                        x2, y2 = object_display_positions[obj_name]
+                        fig.add_trace(go.Scatter(
+                            x=[x1, x2], y=[y1, y2],
+                            mode='lines',
+                            line=dict(color='lightblue', dash='dot'),
+                            opacity=0.7,
+                            hoverinfo='none',
+                            showlegend=False
+                        ))
 
                 # 🔷 Regions (blue circles)
                 if regions:
@@ -1130,13 +1168,14 @@ class TypeFly:
                         name='Regions'
                     ))
 
-                # 🟢 Objects (green circles)
-                if objects:
+
+                # 🟢 Objects (green circles) - positioned around regions
+                if object_display_positions:
                     fig.add_trace(go.Scatter(
-                        x=[x for x, _ in objects.values()],
-                        y=[y for _, y in objects.values()],
+                        x=[x for x, _ in object_display_positions.values()],
+                        y=[y for _, y in object_display_positions.values()],
                         mode='markers+text',
-                        text=[n for n in objects.keys()],
+                        text=[n for n in object_display_positions.keys()],
                         textposition='top center',
                         marker=dict(size=9, color='lightgreen', line=dict(color='black', width=1)),
                         name='Objects'
