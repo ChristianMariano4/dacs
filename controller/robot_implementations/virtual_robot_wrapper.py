@@ -69,7 +69,7 @@ class VirtualRobotWrapper(RobotWrapper):
     # --- Stream control -----------------------------------------------------
     def start_stream(self):
         """Open the default webcam (device 0)."""
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(1)
         self.stream_on = True
 
     def stop_stream(self):
