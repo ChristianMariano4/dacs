@@ -52,6 +52,7 @@ class LongMemoryModule:
             self.user_evergreen_feedback_prompt = f.read()
 
         # Vector db section: retrieve the db of the specified user
+        self.openai_client = OpenAI()
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
@@ -88,26 +89,31 @@ class LongMemoryModule:
         return next_id
     
     def change_feedback_prompt(self, user_request: str):
-        with open(USER_EVERGREEN_FEEDBACK_PATH, "r+") as f:
+        with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
             current_user_feedback = f.read()
-            prompt = self.user_evergreen_feedback_prompt.format(user_request=user_request,
-                                                                preferences_summary=current_user_feedback)
-            response_content: dict = self.llm_wrapper.request(prompt, RequestType.EVERGREEN_FEEDBACK)
-            preferences_summary = response_content.get("preferences_summary", None)
+        prompt = self.user_evergreen_feedback_prompt.format(user_request=user_request,
+                                                            preferences_summary=current_user_feedback)
+        response_content: dict = self.llm_wrapper.request(prompt, RequestType.EVERGREEN_FEEDBACK)
+        preferences_summary = response_content.get("preferences_summary", None)
 
-            if preferences_summary == None:
-                print_t("[ERROR in LongMemoryModule.change_feedback_prompt()] preferences_summary requested but None returned by LLM")
-                return
+        if preferences_summary == None:
+            print_t("[ERROR in LongMemoryModule.change_feedback_prompt()] preferences_summary requested but None returned by LLM")
+            return
+        
+        with open(USER_EVERGREEN_FEEDBACK_PATH, "w") as f:
             f.write(preferences_summary)
             
-    def save_task_summary(self, task: Task, conf=0.3):
+    def save_task_summary(self, task: Task, high_level_skills, low_level_skills, conf=0.3):
         '''
         Save in memory a summary of the executed task, in order to keep some lessons learned.
         '''
-        
-        prompt = self.memory_prompt.format(task_text=task.get_task_description(), 
+
+        task_text = task.get_task_description()
+        prompt = self.memory_prompt.format(task_text=task_text, 
                                         execution_output=task.get_execution_history(), 
                                         feedback_text=task.get_user_feedback(),
+                                        high_level_skills=high_level_skills,
+                                        low_level_skills=low_level_skills
                                         )
         
         # Send the request to gpt5-nano, because we just need to summarize information
@@ -120,6 +126,7 @@ class LongMemoryModule:
         lessons_learned = response_content.get("lessons_learned", "No lessons_learned provided")
 
         doc_text = f"""
+        Task: {task_text}
         Task Summary: {task_summary}
         Execution Summary: {execution_summary}
         Feedback Summary: {feedback_summary}
@@ -128,24 +135,34 @@ class LongMemoryModule:
 
         print(f"Interaction summary saved:\n{doc_text}")
 
-        # Add summary to the vector db
-        embedding = self.model.encode(doc_text)
+        # Add summary to the vector db embeding only task_text, that will be the search key
+        # embedding = self.model.encode(doc_text)
+        embedding = self.openai_client.embeddings.create(
+            input=task_text,
+            model="text-embedding-3-large"
+        )
+        embedding_vector = embedding.data[0].embedding
         self.interactions_collection.add(
             documents=[doc_text],
-            embeddings=[embedding.tolist()],
+            embeddings=[embedding_vector],
             ids=[f"task_{self.get_next_task_id()}"]
         )
 
     def delete_task_user_feedback(self, user_feedback: str, similarity_threshold: float = 0.3):
         """Delete old feedback similar to the given one."""
-        embedding = self.model.encode(user_feedback)
+        # embedding = self.model.encode(user_feedback)
+        embedding = self.openai_client.embeddings.create(
+            input=user_feedback,
+            model="text-embedding-3-large"
+        )
+        embedding_vector = embedding.data[0].embedding
         all_docs = self.interactions_collection.get()
 
         if not all_docs['ids']:
             return {"deleted_count": 0}
         
         results = self.interactions_collection.query(
-            query_embeddings=[embedding.tolist()],
+            query_embeddings=[embedding_vector],
             n_results=len(all_docs["ids"])
         )
 
@@ -162,9 +179,14 @@ class LongMemoryModule:
         '''Retrieve N old useful feedbacks, based on new task'''
 
         # Search for top N similar scenarios
-        new_task_embedding = self.model.encode(new_task)
+        # new_task_embedding = self.model.encode(new_task)
+        new_task_embedding = self.openai_client.embeddings.create(
+            input=new_task,
+            model="text-embedding-3-large"
+        )
+        embedding_vector = new_task_embedding.data[0].embedding
         results = self.interactions_collection.query(
-            query_embeddings=[new_task_embedding.tolist()], 
+            query_embeddings=[embedding_vector], 
             n_results=10
         )
 
