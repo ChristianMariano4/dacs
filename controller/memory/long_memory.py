@@ -5,6 +5,7 @@ from typing import Optional
 from PIL import Image
 import numpy as np
 import base64
+import uuid
 from openai import OpenAI
 import os
 from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_PLAN_PROMPT_PATH, X_BOUND, Y_BOUND
@@ -145,7 +146,7 @@ class LongMemoryModule:
         self.interactions_collection.add(
             documents=[doc_text],
             embeddings=[embedding_vector],
-            ids=[f"task_{self.get_next_task_id()}"]
+            ids=[f"fb_{uuid.uuid4()}"]
         )
 
     def delete_task_user_feedback(self, user_feedback: str, similarity_threshold: float = 0.3):
