@@ -148,20 +148,18 @@ class SpeechToText:
             bio.name = "speech.wav"  # some SDK versions require a filename
             last_err = None
             # try a couple of current STT models; fall back to whisper-1 if needed
-            for model in ("gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"):
-                try:
-                    bio.seek(0)  # reset buffer 
-                    resp = self._client.audio.transcriptions.create(
-                        model=model,
-                        file=bio,
-                        **({"language": language} if language else {})
-                    )
-                    text = getattr(resp, "text", None) or (resp.get("text") if isinstance(resp, dict) else None)
-                    if text and text.strip():
-                        return text.strip()
-                except Exception as e:
-                    last_err = e
-                    continue
+            try:
+                bio.seek(0)  # reset buffer 
+                resp = self._client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=bio,
+                    **({"language": language} if language else {})
+                )
+                text = getattr(resp, "text", None) or (resp.get("text") if isinstance(resp, dict) else None)
+                if text and text.strip():
+                    return text.strip()
+            except Exception as e:
+                last_err = e
             raise RuntimeError(f"OpenAI transcription failed: {last_err}")
 
         # --- Local fallback (optional) ---
@@ -571,6 +569,11 @@ class TypeFly:
                                     gr.Textbox(interactive=True)
                                 )
 
+                    voice_btn.click(
+                            fn=toggle_recording,
+                            inputs=[recording_state],
+                            outputs=[recording_state, voice_btn, recording_status, msg_input]
+                        )
                     
                 def send_message(message, history, image_array):
                     """Send message and get response - generator for streaming"""
