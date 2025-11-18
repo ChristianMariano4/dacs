@@ -171,7 +171,7 @@ class LongMemoryModule:
                                  variables=(user_feedback, results))
 
         if ids_to_delete:
-            self.interactions_collection.delete(ids=ids_to_delete)
+            self.interactions_collection.delete(ids=ids_to_delete['relevant_ids'])
             print(f"Deleted {len(ids_to_delete)} similar feedback(s), with ids: {ids_to_delete}")
     
     def retrieve_old_interactions(self, new_task: str, N : int = 10, max_distance: float = 1.5) -> list[str]:

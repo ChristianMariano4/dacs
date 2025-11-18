@@ -99,7 +99,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": RETRIEVE_TASK_FEEDBACK_PROMPT_ID,
-                        "version": "2",
+                        "version": "4",
                         "variables": {
                             "user_request": variables[0],
                             "candidate_preferences_json": json.dumps(variables[1])
