@@ -167,14 +167,12 @@ class LongMemoryModule:
             n_results=len(all_docs["ids"])
         )
 
-        to_delete = [
-            doc_id for doc_id, distance in zip(results["ids"][0], results["distances"][0])
-            if distance <= similarity_threshold
-        ]
+        ids_to_delete = self.llm_wrapper.request(request_type=RequestType.RETRIEVE_TASK_FEEDBACK,
+                                 variables=(user_feedback, results))
 
-        if to_delete:
-            self.interactions_collection.delete(ids=to_delete)
-            print(f"Deleted {len(to_delete)} similar feedback(s), with ids: {to_delete}")
+        if ids_to_delete:
+            self.interactions_collection.delete(ids=ids_to_delete)
+            print(f"Deleted {len(ids_to_delete)} similar feedback(s), with ids: {ids_to_delete}")
     
     def retrieve_old_interactions(self, new_task: str, N : int = 10, max_distance: float = 1.5) -> list[str]:
         '''Retrieve N old useful feedbacks, based on new task'''

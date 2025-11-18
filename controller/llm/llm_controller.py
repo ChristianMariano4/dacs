@@ -137,10 +137,11 @@ class LLMController():
         self.low_level_skillset.add_skill(LowLevelSkillItem("set_username", self.set_username, "Set a new username", args=[SkillArg("username", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_task_user_feedback", self.save_task_user_feedback, "Save user feedback related to a specific type of tasks in persistent memory, so you can retrieve it later for similar tasks.", args=[SkillArg("user_feedback", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("delete_task_user_feedback", self.delete_task_user_feedback, "Delete instances of user feedback related to a specific type of tasks in persistent memory, so you will not retrieve it later for similar tasks.", args=[SkillArg("user_feedback", str)]))
-        self.low_level_skillset.add_skill(LowLevelSkillItem("change_evergreen_user_feedback", self.change_evergreen_user_feedback, "Save new or delete old user feedback valid for every tasks in persistent memory, so you can retrieve it later for every tasks.", args=[SkillArg("user_request", str)]))
+        self.low_level_skillset.add_skill(LowLevelSkillItem("change_evergreen_user_feedback", self.change_evergreen_user_feedback, "Save new or delete old user feedback valid for every tasks in persistent memory, so you can retrieve it later for every tasks. Do not use for specific type of tasks preferences.", args=[SkillArg("user_request", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("save_shortcut", self.save_shortcut, "Save previous task to a shortcut in persistent memory", args=[SkillArg("shortcut", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("execute_shortcut", self.execute_shortcut, "Execute a task previously mapped to a given shortcut", args=[SkillArg("shortcut", str)]))
         self.low_level_skillset.add_skill(LowLevelSkillItem("create_graph", self.create_graph, "Create through another LLM a new context graph based on the environment description you pass. Do not include other text. Set the `image_present` flag to True if the user also provides an image.", args=[SkillArg("user_description", str), SkillArg("image_present", bool)]))
+
         
         # self.low_level_skillset.add_skill(LowLevelSkillItem("re_plan", self.skill_re_plan, "Replanning"))
         # Instead of replanning, at the end of each iteration, the LLM decides if the task:
@@ -222,7 +223,7 @@ class LLMController():
         return None, False
     
     def delete_task_user_feedback(self, user_feedback: str) -> Tuple[None, False]:
-        self.long_memory_module.delete_task_user_feedback(self.last_task)
+        self.long_memory_module.delete_task_user_feedback(user_feedback)
         return None, False
     
     def change_evergreen_user_feedback(self, user_request: str) -> Tuple[None, False]:

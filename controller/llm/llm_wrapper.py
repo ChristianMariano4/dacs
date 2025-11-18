@@ -2,6 +2,7 @@ from enum import Enum
 import os
 import openai
 from openai import Stream, ChatCompletion, OpenAI
+import json
 
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 GPT3 = "gpt-3.5-turbo-16k"
@@ -20,6 +21,7 @@ DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
 NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
 EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
+RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +37,7 @@ class RequestType(Enum):
     FLYZONE = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
     NEW_GRAPH = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
     EVERGREEN_FEEDBACK = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
+    RETRIEVE_TASK_FEEDBACK = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
 
 class LLMWrapper:
     def __init__(self, temperature=1):
@@ -49,7 +52,7 @@ class LLMWrapper:
             api_key=os.environ.get("OPENAI_API_KEY"),
         )
 
-    def request(self, user_prompt, request_type: RequestType, image=None, images=None, model_name=GPT5, stream=False) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
+    def request(self, user_prompt: str = None, request_type: RequestType = RequestType.PLAN, image=None, images=None, model_name=GPT5, stream=False, variables: tuple = None) -> str | Stream[ChatCompletion.ChatCompletionChunk]:
         if model_name == LLAMA3:
             client = self.llama_client
         else:
@@ -76,7 +79,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "28"
+                        "version": "31"
                     },
                     input=input_payload,
                     stream=stream
@@ -91,6 +94,19 @@ class LLMWrapper:
                     input=user_prompt,
                     stream=stream
                 )
+
+            case RequestType.RETRIEVE_TASK_FEEDBACK:
+                response = client.responses.create(
+                    prompt={
+                        "id": RETRIEVE_TASK_FEEDBACK_PROMPT_ID,
+                        "version": "2",
+                        "variables": {
+                            "user_request": variables[0],
+                            "candidate_preferences_json": json.dumps(variables[1])
+                        }
+                    },
+                )
+
 
             case RequestType.EVERGREEN_FEEDBACK:
                 response = client.responses.create(
@@ -230,7 +246,8 @@ class LLMWrapper:
 
         # save the message in a txt
         with open(chat_log_path, "a") as f:
-            f.write(user_prompt + "\n---\n")
+            if user_prompt:
+                f.write(user_prompt + "\n---\n")
             if not stream:
                 f.write(response.model_dump_json(indent=2) + "\n---\n")
 
@@ -241,7 +258,6 @@ class LLMWrapper:
         # print("Raw text:", raw_text)
 
         # Parse it:
-        import json
         parsed = json.loads(raw_text)
 
         return parsed
