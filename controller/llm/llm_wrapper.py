@@ -40,7 +40,7 @@ class RequestType(Enum):
     RETRIEVE_TASK_FEEDBACK = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
 
 class LLMWrapper:
-    def __init__(self, temperature=1):
+    def __init__(self, temperature=0.7):
         self.temperature = temperature
         
         self.llama_client = OpenAI(

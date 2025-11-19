@@ -1,15 +1,13 @@
-import json
-import os, ast
-from typing import Optional, Sequence, Tuple
+import os
+from typing import Optional, Sequence, Tuple, List, Any
 from PIL import Image
 
-from controller.abs.skill_item import SkillItem
 from controller.middle_layer.flyzone_manager import FlyzoneManager
-from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH
 from controller.task import Task
 
-from ..skillset import HighLevelSkillItem, SkillSet
-from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT3, GPT4, GPT5, RequestType
+from ..skillset import SkillSet
+from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT5, RequestType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from ..utils.general_utils import encode_image, print_t
 from ..minispec_interpreter import MiniSpecValueType, evaluate_value
@@ -17,29 +15,41 @@ from ..abs.robot_wrapper import RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
+PROBE_PROMPT_PATH = os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/user_probe_prompt.txt")
+FLYZONE_PATH = os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt")
 
-class LLMPlanner():
-    def __init__(self, robot_type: RobotType, current_task: Task, latest_frame, flyzone_manager: FlyzoneManager):
+class LLMPlanner:
+    def __init__(self, robot_type: RobotType, current_task: Task, latest_frame, flyzone_manager: FlyzoneManager, cache_folder: str = None):
         self.llm = LLMWrapper()
         self.current_task = current_task
-
-        type_folder_name = 'tello'
-        if robot_type == RobotType.GEAR:
-            type_folder_name = 'gear'
-
-        # read prompt from txt    
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/user_probe_prompt.txt"), "r") as f:
-            self.prompt_probe = f.read()
-
-        with open(USER_PROMPT_PATH) as f:
-            self.prompt_plan = f.read()
-
+        self.latest_frame = latest_frame
         self.flyzone_manager = flyzone_manager
         self.flyzone = ""
-        self.latest_frame = latest_frame
-    
+        
+        # Handle cache path safely
+        self.cache_folder = cache_folder if cache_folder else os.path.join(CURRENT_DIR, "cache")
+        if not os.path.exists(self.cache_folder):
+            os.makedirs(self.cache_folder)
+
+        # Load prompts
+        try:
+            with open(PROBE_PROMPT_PATH, "r") as f:
+                self.prompt_probe = f.read()
+            
+            with open(USER_PROMPT_PATH, "r") as f:
+                self.prompt_plan = f.read()
+        except FileNotFoundError as e:
+            print_t(f"[Error] Could not load prompt files: {e}")
+            self.prompt_probe = ""
+            self.prompt_plan = ""
+
+        # Skillsets initialized via init()
+        self.high_level_skillset: Optional[SkillSet] = None
+        self.low_level_skillset: Optional[SkillSet] = None
+        self.vision_skill: Optional[VisionSkillWrapper] = None
 
     def init(self, high_level_skillset: SkillSet, low_level_skillset: SkillSet, vision_skill: VisionSkillWrapper):
+        """Dependency injection for skills."""
         self.high_level_skillset = high_level_skillset
         self.low_level_skillset = low_level_skillset
         self.vision_skill = vision_skill
@@ -47,102 +57,83 @@ class LLMPlanner():
     def update_latest_frame(self, latest_frame):
         self.latest_frame = latest_frame
 
-    def plan(self, task: Task, img_b64, context_graph: str, current_position: Sequence[float], current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[list[str]] = None, model_name: Optional[str] = GPT5):
-        # by default, the task_description is an action
-        if not task.get_task_description().startswith("["):
-            task_description = "[A] " + task.get_task_description()
+    def plan(self, task: Task, img_b64: str, context_graph: str, current_position: Sequence[float], 
+             current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, 
+             execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[List[str]] = None, 
+             model_name: Optional[str] = GPT5):
+        
+        # Format task description
+        task_description = task.get_task_description()
+        if not task_description.startswith("["):
+            task_description = "[A] " + task_description
 
-        if objects_list is None:
+        if objects_list is None and self.vision_skill:
             objects_list = self.vision_skill.get_obj_list()
 
-        type_folder_name = 'tello'
-        # self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
-        # SkillItem.abbr_dict = {}
-        #TODO: fix high level skill updating
-        # with open(os.path.join(CURRENT_DIR, f"assets/{type_folder_name}/high_level_skills.json"), "r") as f:
-        #     json_data = json.load(f)
-        #     for skill in json_data:
-        #         if skill['skill_name'] not in SkillItem.abbr_dict.keys():
-        #             self.high_level_skillset.add_skill(HighLevelSkillItem.load_from_dict(skill))
-
-
-        # - top-left: [{x_top_left}, {y_top_left}]
-        # - top-right: [{x_top_right}, {y_top_right}]
-        # - bottom-right: [{x_bottom_right}, {y_bottom_right}]
-        # - bottom-left: [{x_bottom_left}, {y_bottom_left}]
-
         # Retrieve updated flyzone
-        with open(os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt"), "r") as f:
-            self.flyzone = f.read()
+        if os.path.exists(FLYZONE_PATH):
+            with open(FLYZONE_PATH, "r") as f:
+                self.flyzone = f.read()
 
         # Retrieve updated evergreen_preferences
-        with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
-            evergreen_preferences = f.read()
+        evergreen_preferences = ""
+        if os.path.exists(USER_EVERGREEN_FEEDBACK_PATH):
+            with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
+                evergreen_preferences = f.read()
 
-        if task.get_is_new(): # task is new, so not through shortcut
-            task_description = task.get_task_description()
-        else: # task is executed through shortcut, so we pass all the information already available
+        # Handle Shortcut formatting
+        if not task.get_is_new():
             task_description = task.to_prompt()
                 
-        prompt = self.prompt_plan.format(high_level_skills=self.high_level_skillset,
-                                            low_level_skills=self.low_level_skillset,
-                                            old_interactions_feedbacks = old_interactions_feedbacks,
-                                            evergreen_preferences=evergreen_preferences,
-                                            objects_list=objects_list,
-                                            task_description=task_description,
-                                            execution_history=execution_history,
-                                            context_graph=context_graph,
-                                            flyzone=self.flyzone,
-                                            )
+        prompt = self.prompt_plan.format(
+            high_level_skills=self.high_level_skillset,
+            low_level_skills=self.low_level_skillset,
+            old_interactions_feedbacks=old_interactions_feedbacks,
+            evergreen_preferences=evergreen_preferences,
+            objects_list=objects_list,
+            task_description=task_description,
+            execution_history=execution_history,
+            context_graph=context_graph,
+            flyzone=self.flyzone,
+        )
         
-        #print(prompt)
         print_t(f"[P] Planning request: {task_description}")
 
         response_json = self.llm.request(prompt, request_type=RequestType.PLAN, image=img_b64)
-        response_plan = response_json["plan"]
-        requires_execution = response_json["requires_execution"]
+        response_plan = response_json.get("plan")
+        requires_execution = response_json.get("requires_execution", True)
 
-        # # Clean up the content - remove markdown code blocks if present
-        # if response_content.startswith("```json"):
-        #     response_content = response_content.replace("```json", "").replace("```", "").strip()
-
-        # if not response_content: # resend the request
-        #     return None, None
-        
-        # parsed = json.loads(response_content)
-        # plan = parsed.get("plan", None)
-        # reason = parsed.get("reason", None)
-        # iteration_description = parsed.get("description", None)
-        # iteration_description = "Description of the iteration: " + iteration_description
         return response_plan, requires_execution, None
     
-    def probe(self, question) -> MiniSpecValueType:
-        if question is list:
-            question: str = question[0]
-        objects_list = self.vision_skill.get_obj_list()
-        image = self.vision_skill # returns an image in a format accepted by the LLM (e.g. PIL.Image or file path or bytes)
-        # image = None # for now image is not passed to LLM because it is not working
+    def probe(self, question) -> Tuple[MiniSpecValueType, bool]:
+        # Fix: Use isinstance instead of 'is' for type checking
+        if isinstance(question, list):
+            question = question[0]
+            
+        objects_list = self.vision_skill.get_obj_list() if self.vision_skill else []
         prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
+        
         print_t(f"[P] Probing question: {question}")
-        self.image_path = "serving/webui/cache/probe.jpg"
-        Image.fromarray(self.latest_frame).save(self.image_path)
-        image = encode_image(Image.open(self.image_path))
-        return evaluate_value(self.llm.request(user_prompt=prompt, image=image, model_name=GPT5_MINI, request_type=RequestType.PROBE)["answer"]), False
+        
+        # Fix: Save to the centralized cache folder instead of hardcoded path
+        image_path = os.path.join(self.cache_folder, "probe.jpg")
+        
+        if self.latest_frame is not None:
+            Image.fromarray(self.latest_frame).save(image_path)
+            image = encode_image(Image.open(image_path))
+            
+            answer = self.llm.request(
+                user_prompt=prompt, 
+                image=image, 
+                model_name=GPT5_MINI, 
+                request_type=RequestType.PROBE
+            )["answer"]
+            
+            return evaluate_value(answer), False
+        else:
+            print_t("[Error] No frame available for probing")
+            return evaluate_value("I cannot see anything right now."), False
     
     def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> Tuple[None, bool]:
         self.flyzone_manager.request_new_flyzone(user_instructions, image_present)
         return None, False
-    
-    # TODO: at the end of the iteration, the llm has to reason if the task has endend, still in progress or can be ended because not feasible
-    # def probe_end_iteration(self, model_name: Optional[str] = GPT5):
-    #     task_description = self.current_task.get_task_description()
-    #     execution_history = self.current_task.get_execution_history()
-    #     achievements_summary = self.current_task.get_last_achievements()
-    #     drone_position = self.current_task.get_drone_position()
-    #     battery_percent = self.current_task.get_battery_percent()
-    #     objects_list = self.current_task.get_objects_list() #TODO: probably this should be handle in a different way
-    #     graph_json = self.current_task.get_graph_json()
-    #     prompt = self.prompt_probe_end_iteration.format(task_description=task_description, execution_history=execution_history, achievements_summary=achievements_summary, drone_position=drone_position, battery_percent=battery_percent, objects_list=objects_list, graph_json=graph_json)
-    #     decision_json = self.llm.request(prompt=prompt, model_name=model_name)
-    #     decision = json.load(decision_json)
-    #     return decision
