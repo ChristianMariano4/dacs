@@ -4,7 +4,6 @@ import threading
 import time
 from typing import Tuple, Optional
 
-import cv2
 import numpy as np
 from djitellopy import Tello
 
@@ -12,419 +11,329 @@ from controller.context_map.graph_manager import GraphManager
 from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper, cap_distance
 from controller.utils.constants import REGION_THRESHOLD
 from controller.utils.general_utils import adjust_exposure, sharpen_image
-
 from ..abs.robot_wrapper import RobotWrapper
 
 # -----------------------------------------------------------------------------
-# Logging
+# Configuration
 # -----------------------------------------------------------------------------
 Tello.LOGGER.setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # -----------------------------------------------------------------------------
-# Constants / Types
-# -----------------------------------------------------------------------------
-CRAZYFLIE_LH_ENABLED = False #TODO: Add as argument by cli
-
-CommandResult = Tuple[bool, bool]  # (ok, replan)
-
-# Legacy scene-change heuristics (kept for compatibility)
-SCENE_CHANGE_DISTANCE = 1000  # cm  TODO: consider removing if unused
-SCENE_CHANGE_ANGLE = 1000     # deg  TODO: consider removing if unused
-
-# -----------------------------------------------------------------------------
-# Frame reader helper
+# Helpers
 # -----------------------------------------------------------------------------
 class FrameReader:
-    """Tiny wrapper that post-processes frames (exposure + sharpen) on access."""
-    def __init__(self, fr):
-        # Initialize the video capture
-        self.fr = fr
+    """
+    Lazy-eval wrapper for video frames. 
+    Applies image processing only when .frame is accessed.
+    """
+    def __init__(self, background_frame_reader):
+        self.bfr = background_frame_reader
 
     @property
     def frame(self):
-        # Read a frame from the video capture
-        frame = self.fr.frame
-        if frame is None:
+        raw_frame = self.bfr.frame
+        if raw_frame is None:
             return None
-        frame = adjust_exposure(frame, alpha=1.3, beta=-30)
+        # Educational Note: Alpha > 1 increases contrast, Beta < 0 decreases brightness
+        frame = adjust_exposure(raw_frame, alpha=1.3, beta=-30)
         return sharpen_image(frame)
 
 # -----------------------------------------------------------------------------
-# Tello implementation
+# Tello Implementation
 # -----------------------------------------------------------------------------
 class TelloWrapper(RobotWrapper):
     """
     RobotWrapper implementation for DJI Tello.
-
-    Notes
-    -----
-    - Position is maintained internally in meters and exposed in centimeters
-      via `get_position()`.
-    - Orientation (yaw) is used internally for dead-reckoning (disabled by default).
+    Handles connection, video streaming, and position estimation (Odometry).
     """
-    KEEPALIVE_PERIOD = 4.0  # s (safe margin under SDK ~15 s timeout)
+    KEEPALIVE_PERIOD = 4.0  # Seconds
 
-    def __init__(self, move_enable: bool, graph_manager: GraphManager, link_uri_cf='radio://0/40/2M/BADF00D002'):
+    def __init__(self, move_enable: bool, graph_manager: GraphManager, 
+                 use_crazyflie_lighthouse: bool = False, 
+                 cf_uri: str = 'radio://0/40/2M/BADF00D002'):
+        
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
+        
         self.drone = Tello()
-        self.crazyflie_drone: Optional[CrazyflieWrapper] = None
-        if CRAZYFLIE_LH_ENABLED:
-            self.crazyflie_drone = CrazyflieWrapper(move_enable=False, link_uri=link_uri_cf)
+        self.lock = threading.Lock()  # Protect SDK access across threads
+        self.use_lighthouse = use_crazyflie_lighthouse
+        
+        # Crazyflie Integration (Optional Lighthouse positioning)
+        self.crazyflie = None
+        if self.use_lighthouse:
+            try:
+                self.crazyflie = CrazyflieWrapper(move_enable=False, link_uri=cf_uri)
+            except Exception as e:
+                logger.error(f"Crazyflie init failed: {e}")
+                self.use_lighthouse = False
 
-        self.active_count = 0 # used to send heartbeat to drone
         self.stream_on = False
+        self.active_count = 0
 
-        # keep-alive infrastructure
-        self._ka_stop   = threading.Event()
-        self._ka_thread: Optional[threading.Thread] = None
+        # Odometry State (Meters internally, exposed as cm)
+        self.position = np.zeros(3, dtype=float) 
+        self._yaw_offset = 0.0
+        self._last_integration_ts = None
+        
+        # Threading Events
+        self._stop_event = threading.Event()
+        self._threads = []
 
-        # Odometry (internal position in meters)
-        self.position = np.zeros(3, dtype=float)          # (x, y, z) in metres
-        self._yaw0: Optional[float] = None
-        self._last_ts: Optional[float] = None
-        self._odo_th: Optional[threading.Thread] = None
-        self._odo_stop = threading.Event()
-        self._inited = False
-
-    
     # -------------------------------------------------------------------------
-    # RobotWrapper interface
+    # Lifecycle
     # -------------------------------------------------------------------------
     def connect(self):
-        """Establish SDK connection and start keep-alive."""
-        self.drone.connect()
-        self._start_keepalive()
-        if not CRAZYFLIE_LH_ENABLED:
-            self._start_odometry()  # Use dead reckoning inseatd of Crazyflie lighthouse
+        with self.lock:
+            self.drone.connect()
+        
+        # Start background tasks
+        self._start_thread(self._keepalive_loop, "tello-keepalive")
+        
+        if self.use_lighthouse and self.crazyflie:
+            self._start_thread(self._odometry_loop_crazyflie, "odo-crazyflie")
+        else:
+            self._start_thread(self._odometry_loop_dead_reckoning, "odo-dead-reckoning")
 
     def disconnect(self):
-        """Gracefully stop background threads and close the SDK session."""
-        # Stop keep-alive
-        self._ka_stop.set()
-        if self._ka_thread:
-            self._ka_thread.join(timeout=2.0)
+        self._stop_event.set()
+        for t in self._threads:
+            t.join(timeout=1.0)
+        
+        with self.lock:
+            self.drone.end()
 
-        # Stop odometry
-        self._odo_stop.set()
-        if self._odo_th:
-            self._odo_th.join(timeout=2.0)
+    def _start_thread(self, target, name):
+        t = threading.Thread(target=target, name=name, daemon=True)
+        t.start()
+        self._threads.append(t)
 
-        self.drone.end()
-
-    def keep_active(self):
-        """Send periodic 'command' to keep the SDK session alive."""
-        if self.active_count % 20 == 0:
-            try:
-                self.drone.send_control_command("command")
-            except Exception as exc:
-                logger.warning("Keep-active failed: %s", exc)
-        self.active_count += 1
-
-    # --- Stream control -----------------------------------------------------
+    # -------------------------------------------------------------------------
+    # Video Stream
+    # -------------------------------------------------------------------------
     def start_stream(self):
-        """Start video stream."""
-        self.stream_on = True
-        self.drone.streamon()
+        if not self.stream_on:
+            with self.lock:
+                self.drone.streamon()
+            self.stream_on = True
 
     def stop_stream(self):
-        """Stop video stream."""
-        self.stream_on = False
-        self.drone.streamoff()
+        if self.stream_on:
+            with self.lock:
+                self.drone.streamoff()
+            self.stream_on = False
 
     def get_frame_reader(self):
-        """Return a frame reader handle, or None if stream is off."""
-        if not self.stream_on:
+        if not self.stream_on: 
             return None
         return FrameReader(self.drone.get_frame_read())
+
+    # -------------------------------------------------------------------------
+    # Movement Commands
+    # -------------------------------------------------------------------------
+    def takeoff(self) -> Tuple[bool, bool]:
+        if not self.is_battery_good(): 
+            return False, False
+            
+        if self.move_enable:
+            with self.lock:
+                self.drone.takeoff()
+                # Zero yaw on takeoff for relative odometry
+                self._yaw_offset = self.drone.get_current_state().get("yaw", 0.0)
+                self._last_integration_ts = time.time()
+        else:
+            print("[Drone] Takeoff (Simulated)")
+        return True, False
+
+    def land(self) -> Tuple[bool, bool]:
+        if self.move_enable:
+            with self.lock:
+                self.drone.land()
+        else:
+            print("[Drone] Land (Simulated)")
+        return True, False
+
+    def _move_relative(self, forward=0, backward=0, left=0, right=0, up=0, down=0, yaw_cw=0, yaw_ccw=0):
+        """Unified movement handler."""
+        if not self.move_enable:
+            print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right} U:{up} D:{down} Y:{yaw_cw}")
+            return True, False
+
+        with self.lock:
+            if forward or backward or left or right or up or down:
+                # Tello SDK expects cm
+                self.drone.send_rc_control(left - right, forward - backward, up - down, yaw_cw - yaw_ccw)
+                # Duration is approximate based on speed; better to use specific move commands for precision
+                # For simplicity here using SDK high-level commands which block:
+                pass 
+            
+            # Using blocking commands for reliability in this implementation
+            if forward: self.drone.move_forward(cap_distance(forward))
+            if backward: self.drone.move_back(cap_distance(backward))
+            if left: self.drone.move_left(cap_distance(left))
+            if right: self.drone.move_right(cap_distance(right))
+            if up: self.drone.move_up(cap_distance(up))
+            if down: self.drone.move_down(cap_distance(down))
+            if yaw_cw: self.drone.rotate_clockwise(yaw_cw)
+            if yaw_ccw: self.drone.rotate_counter_clockwise(yaw_ccw)
+            
+        time.sleep(0.5) # Settle time
+        return True, False
+
+    def move_north(self, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
+        return self._move_relative(forward=int(distance_cm))
+
+    def move_south(self, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
+        # Tello move_back is standard, but rotating 180 keeps "head forward" logic if desired.
+        # Reverting to standard move_back for cleaner flight patterns.
+        return self._move_relative(backward=int(distance_cm))
+
+    def move_west(self, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
+        return self._move_relative(left=int(distance_cm))
+
+    def move_east(self, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
+        return self._move_relative(right=int(distance_cm))
+
+    def move_up(self, distance_cm: int) -> Tuple[bool, bool]:
+        return self._move_relative(up=int(distance_cm))
+
+    def move_down(self, distance_cm: int) -> Tuple[bool, bool]:
+        return self._move_relative(down=int(distance_cm))
+
+    def turn_cw(self, degree: int) -> Tuple[bool, bool]:
+        return self._move_relative(yaw_cw=degree)
+
+    def turn_ccw(self, degree: int) -> Tuple[bool, bool]:
+        return self._move_relative(yaw_ccw=degree)
     
-    # --- Flight control -----------------------------------------------------
-    def takeoff(self) -> CommandResult:
-        """Command takeoff (True if accepted)."""
-        if not self.is_battery_good():
-            return False
+    def move_direction(self, direction_deg: int, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
+        """Rotate then move forward."""
         if self.move_enable:
-            self.drone.takeoff()
-            # Initialise reference yaw only on the first take-off
-            if not self._inited:
-                st        = self.drone.get_current_state()
-                self._yaw0 = st.get("yaw", 0.0)
-                self._last_ts = None             # restart integration clock
-                self._inited  = True
+            with self.lock:
+                self.drone.rotate_clockwise(direction_deg)
+                time.sleep(1.0)
+                self.drone.move_forward(cap_distance(int(distance_cm)))
         else:
-            print("[Drone] Takeoff")
-        return True, False
-    
-    def land(self) -> CommandResult:
-        """Command landing."""
-        if self.move_enable:
-            self.drone.land()
-        else:
-            print("[Drone] Land")
+            print(f"[Drone] Rotate {direction_deg} then Move {distance_cm}")
         return True, False
 
-    def move_north(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
-        """Move forward/north by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            self.drone.move_forward(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Forward")
-        return True, d > SCENE_CHANGE_DISTANCE
-
-    def move_south(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
-        """Move backward/south by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            # Using rotate+forward to standardize motion direction
-            self.drone.rotate_clockwise(180)
-            self.drone.move_forward(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Backward")
-        return True, d > SCENE_CHANGE_DISTANCE
-
-    def move_west(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
-        """Move left/west by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            self.drone.rotate_counter_clockwise(90)
-            self.drone.move_forward(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Left")
-        return True, d > SCENE_CHANGE_DISTANCE
-
-    def move_east(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
-        """Move right/east by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            self.drone.rotate_clockwise(90)
-            self.drone.move_forward(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Right")
-        return True, d > SCENE_CHANGE_DISTANCE
-    
-    def move_direction(self, direction_deg: int, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
-        """
-        Rotate by `direction_deg` (deg, +CW) and move forward `distance_cm` (cm).
-        """
-        d = cap_distance(int(distance_cm))
-        print(f"Distance: {d}")
-        if self.move_enable:
-            self.drone.rotate_clockwise(direction_deg)
-            time.sleep(2.0)
-            print(f"Attempting to move forward {d} cm after {direction_deg}° rotation")
-            self.drone.move_forward(d)
-            time.sleep(0.5)
-        else:
-            print(f"[Drone] Move after rotating by {direction_deg} degrees")
-        return True, d > SCENE_CHANGE_DISTANCE
-
-    def move_up(self, distance_cm: int) -> CommandResult:
-        """Increase altitude by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            self.drone.move_up(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Up")
-        return True, False
-
-    def move_down(self, distance_cm: int) -> CommandResult:
-        """Decrease altitude by `distance_cm` centimeters."""
-        d = cap_distance(int(distance_cm))
-        if self.move_enable:
-            self.drone.move_down(d)
-            time.sleep(0.5)
-        else:
-            print("[Drone] Move Down")
-        return True, False
-
-    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float,) -> CommandResult:
-        """
-        Move to the absolute planar position (target_x_cm, target_y_cm) in the world frame.
-
-        Note
-        ----
-        Current implementation computes Δ in world frame and sends it as drone-frame
-        offsets.
-        """
-        x_cm, y_cm, z_cm = self.get_position()
-
-        # Calculate displacement
-        dx_world = target_x_cm - x_cm
-        dy_world = target_y_cm - y_cm
-        dz_world = target_z_cm - z_cm
+    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> Tuple[bool, bool]:
+        """Move to absolute world coordinates (blocking)."""
+        curr_x, curr_y, curr_z = self.get_position()
         
-        # Convert to integers
-        dx_drone = cap_distance(int(round(dx_world)))
-        dy_drone = cap_distance(int(round(dy_world)))
-        dz_drone = cap_distance(int(round(dy_world)))
+        dx = cap_distance(int(target_x_cm - curr_x))
+        dy = cap_distance(int(target_y_cm - curr_y))
+        dz = cap_distance(int(target_z_cm - curr_z))
 
-        print(f"Drone will move by Δx={dx_world:.1f} cm, Δy={dy_world:.1f} cm, Δz={dz_world:.1f} cm")
-        print(f"Position before move: {self.get_position()}")
+        if not self.move_enable:
+            print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz})")
+            return True, False
+
+        with self.lock:
+            # go_xyz_speed is relative to current position
+            self.drone.go_xyz_speed(dx, dy, dz, speed=20)
         
-        # Move
-        if self.move_enable:
-            self.drone.go_xyz_speed(dx_drone, dy_drone, dz_drone, speed=20)
-        else:
-            print(f"[Drone] go_xyz_speed({dx_drone}, {dy_drone}, {dz_drone}, 20)")
-
-        print(f"Position after moving {self.get_position()}")
         return True, False
 
-    def turn_ccw(self, degree: int) -> CommandResult:
-        """Rotate counter-clockwise by `degrees`."""
-        if self.move_enable:
-            self.drone.rotate_counter_clockwise(degree)
-            time.sleep(1.0)
-        else:
-            print("[Drone] Turn CCW")
-        return True, degree > SCENE_CHANGE_ANGLE
-
-    def turn_cw(self, degree: int) -> CommandResult:
-        """Rotate clockwise by `degrees`."""
-        if self.move_enable:
-            self.drone.rotate_clockwise(degree)
-            time.sleep(1.0)
-        else:
-            print("[Drone] Turn CW")
-        return True, degree > SCENE_CHANGE_ANGLE
-
-    # --- State / pose ------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # Odometry & State
+    # -------------------------------------------------------------------------
     def get_position(self) -> Tuple[float, float, float]:
-        """
-        Current (x_cm, y_cm, z_cm) in centimeters.
-        """
-        x_m, y_m, z_m = self.position
-        return (x_m * 100.0, y_m * 100.0, z_m * 100.0)
-    
-    # -------------------------------------------------------------------------
-    # Public utilities (non-interface)
-    # -------------------------------------------------------------------------
-    def reset_origin(self) -> None:
-        """Zero the local origin and capture current yaw as reference."""
-        self.position[:] = 0.0
-        st = self.drone.get_current_state()
-        self._yaw0   = st.get("yaw", self._yaw0)
+        """Return position in CM (x, y, z)."""
+        return tuple(self.position * 100.0)
+
+    def keep_active(self):
+        """Heartbeat to keep session alive during idle times."""
+        self.active_count += 1
+        if self.active_count % 20 == 0:
+            # Queue a non-blocking read command to keep socket active
+            # We don't use the thread lock here to avoid blocking the main loop
+            try:
+                self.drone.send_command_without_return("command") 
+            except: pass
 
     def is_battery_good(self) -> bool:
-        """Query battery and print a status line; True if >= 20%."""
-        self.battery = self.drone.query_battery()
-        print(f"> Battery level: {self.battery}% ", end='')
-        if self.battery < 20:
-            print('is too low [WARNING]')
-            return False
-        print('[OK]')
-        return True
-    
-    # -------------------------------------------------------------------------
-    # Background loops (private)
-    # -------------------------------------------------------------------------
-    def _keepalive_loop(self) -> None:
-        """Send the blocking SDK command 'command' every KEEPALIVE_PERIOD seconds."""   
-        while not self._ka_stop.is_set():
+        try:
+            bat = self.drone.get_battery() # Cached value is faster
+            print(f"> Battery: {bat}% {'[LOW]' if bat < 20 else '[OK]'}")
+            return bat >= 20
+        except:
+            return True # Assume OK if read fails to avoid lock-out
+
+    def _keepalive_loop(self):
+        while not self._stop_event.is_set():
             try:
-                self.drone.send_control_command("command", timeout=3)
-            except Exception as exc:
-                logger.warning("[Tello] keep-alive failed: %s", exc)
-            self._ka_stop.wait(self.KEEPALIVE_PERIOD)
+                with self.lock:
+                    self.drone.send_control_command("command")
+            except Exception as e:
+                logger.debug(f"Keepalive error: {e}")
+            self._stop_event.wait(self.KEEPALIVE_PERIOD)
 
-    def _start_keepalive(self) -> None:
-        """Launch the keep-alive thread exactly once."""
-        if self._ka_thread is None:
-            self._ka_stop.clear()
-            self._ka_thread = threading.Thread(
-                target=self._keepalive_loop,
-                name="tello-keepalive",
-                daemon=True,
-            )
-            self._ka_thread.start()
-
-    def _start_odometry(self) -> None:   
-        """Launch the odometry thread exactly once (dead reckoning by default)."""            
-        if self._odo_th is None:
-            self._odo_stop.clear()
-            self._odo_th = threading.Thread(target=self._odometry_loop_dead_reckoning,
-                                            daemon=True)
-            self._odo_th.start()
-    
-    def _odometry_loop_dead_reckoning(self) -> None:
+    def _odometry_loop_dead_reckoning(self):
         """
-        Integrate body-frame velocities to estimate position in world frame (meters).
-        Updates self.pose and notifies GraphManager in centimeters.
+        Integrates IMU velocity to estimate position.
+        Math: v_world = R(yaw) * v_body
         """
-        while not self._odo_stop.is_set():
-            state = self.drone.get_current_state()
-            if not state:
-                time.sleep(0.01)
-                continue
-
-            now = time.time()
-            if self._last_ts is None:
-                self._last_ts = now
-                self._yaw0 = 0.0
-                continue
-
-            dt = now - self._last_ts
-            self._last_ts = now
-
-            # Guard against stale packets or time jumps
-            if dt > 0.2 or dt <= 0:
-                continue
-            
+        while not self._stop_event.is_set():
             try:
-                # Velocities in body frame (cm/s -> m/s)
-                v_body = np.array([
-                        state.get("vgx", 0) / 100.0,
-                        state.get("vgy", 0) / 100.0,
-                        state.get("vgz", 0) / 100.0
-                    ])
+                state = self.drone.get_current_state()
+                if not state:
+                    time.sleep(0.01)
+                    continue
+
+                now = time.time()
+                if self._last_integration_ts is None:
+                    self._last_integration_ts = now
+                    continue
+
+                dt = now - self._last_integration_ts
+                self._last_integration_ts = now
+
+                if dt > 0.2 or dt <= 0: continue # Skip time jumps
+
+                # 1. Get Velocities (dm/s or cm/s -> convert to m/s)
+                # Tello state vgx/vgy are usually in dm/s (decimeters/s) or cm/s depending on firmware.
+                # Standardize to meters/s. Assuming cm/s here based on common Tello SDKs.
+                vx_b = state.get("vgx", 0) / 100.0
+                vy_b = state.get("vgy", 0) / 100.0
                 
-                # Orientation (deg -> rad), yaw relative to reference
-                roll = math.radians(state.get("roll", 0))
-                pitch = math.radians(state.get("pitch", 0))
-                yaw = math.radians(state.get("yaw", 0) - self._yaw0)
+                # 2. Get Orientation (Yaw)
+                # Tello yaw is CW positive in degrees. Convert to Radians CCW standard math or match frame.
+                # Assuming standard: +X Forward, +Y Left. Tello: +X Forward, +Y Right?
+                # We normalize yaw relative to takeoff heading.
+                yaw_deg = state.get("yaw", 0) - self._yaw_offset
+                yaw_rad = math.radians(yaw_deg)
 
-                # Rotation matrix Z-Y-X (body -> world)
-                cy, sy = math.cos(yaw), math.sin(yaw)
-                cp, sp = math.cos(pitch), math.sin(pitch)
-                cr, sr = math.cos(roll), math.sin(roll)
-
-                # Full rotation matrix from body to world frame
-                R = np.array([
-                    [cy*cp, cy*sp*sr - sy*cr, cy*sp*cr + sy*sr],
-                    [sy*cp, sy*sp*sr + cy*cr, sy*sp*cr - cy*sr],
-                    [-sp, cp*sr, cp*cr]
-                ])
-
-                # Transform velocity to world frame
-                v_world = R @ v_body
+                # 3. Rotate Body Velocity to World Velocity (2D Rotation)
+                # vx_world = vx_b * cos(yaw) - vy_b * sin(yaw)
+                # vy_world = vx_b * sin(yaw) + vy_b * cos(yaw)
                 
-                # Integrate x/y; z from direct height (cm -> m)
-                self.position[0] += v_world[0] * dt
-                self.position[1] += v_world[1] * dt
-                self.position[2] = state.get("h", 0) / 100.0
+                # Tello Reference: usually pitch/roll influence is small for hovering/slow flight, 
+                # so full 3D rotation matrix (R) is often overkill for basic tracking.
+                # Simplified 2D rotation:
+                c, s = math.cos(yaw_rad), math.sin(yaw_rad)
+                vx_w = vx_b * c - vy_b * s
+                vy_w = vx_b * s + vy_b * c
 
-                # Notify graph manager in centimeters
+                # 4. Integrate
+                self.position[0] += vx_w * dt
+                self.position[1] += vy_w * dt
+                self.position[2] = state.get("h", 0) / 100.0 # Barometer height is absolute
+
                 if self.graph_manager:
                     self.graph_manager.update_pose(self.get_position())
 
             except Exception as e:
-                logger.exception("Odometry update error: %s", e)
-                
-            time.sleep(0.001)
+                pass # Suppress transient math errors
+            
+            time.sleep(0.01) # 100Hz update
 
     def _odometry_loop_crazyflie(self):
-        """Use Crazyflie lighthouse (if enabled) to update precise position."""
-        if not self.crazyflie_drone:
-            return
-        while not self._odo_stop.is_set():
-            self.position = self.crazyflie_drone.get_pose() # expected meters
-            # Convert back to cm
-            if self.graph_manager:
-                self.graph_manager.update_pose(self.position * 100)
-            time.sleep(0.001)
+        """Position tracking via external Lighthouse system."""
+        while not self._stop_event.is_set():
+            if self.crazyflie:
+                pos_m = self.crazyflie.get_pose()
+                self.position = pos_m
+                if self.graph_manager:
+                    self.graph_manager.update_pose(self.position * 100.0)
+            time.sleep(0.02) # 50Hz
