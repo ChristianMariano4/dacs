@@ -1,9 +1,10 @@
 import os
+import sys
 import json
 import time
 import queue
 import asyncio
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from PIL import Image
@@ -42,12 +43,13 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
 
 class LLMController:
-    def __init__(self, robot_type, use_http=False, message_queue: Optional[queue.Queue]=None, 
+    def __init__(self, robot_type, graph_manager: GraphManager, use_http=False, message_queue: Optional[queue.Queue]=None, 
                  user_answer_queue: Optional[queue.Queue]=None, username: str = "Christian"):
         
         # --- 1. Infrastructure Setup ---
         self.message_queue = message_queue
         self.user_answer_queue = user_answer_queue
+        self.graph_manager = graph_manager
         
         if message_queue is None:
             self.cache_folder = os.path.join(CURRENT_DIR, 'cache')
@@ -70,9 +72,8 @@ class LLMController:
         else:
             self.yolo_client = YoloGRPCClient(shared_frame=self.shared_frame)
             
-        self.vision = VisionSkillWrapper(self.shared_frame)
+        self.vision = VisionSkillWrapper(self.shared_frame, self.graph_manager)
         self.latest_frame = None
-        self.graph_manager: GraphManager = None
         self.env_analysis_module = EnvironmentalAnalysisModule(middle_layer=self.middle_layer)
         
         # --- 4. Robot Initialization ---
@@ -84,7 +85,7 @@ class LLMController:
         self.last_task = None
         self.current_plan = None
         self.execution_time = time.time()
-        self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame, self.flyzone_manager)
+        self.planner = LLMPlanner(robot_type, self.current_task, self.latest_frame, self.flyzone_manager, cache_folder=self.cache_folder)
         
         # Register Skills
         self._register_skills()
@@ -115,24 +116,24 @@ class LLMController:
                 return VirtualRobotWrapper(graph_manager=self.graph_manager, move_enable=True)
 
     def _register_skills(self):
-            """Registers all low-level and high-level skills."""
-            
-            # 1. Initialize Low-Level SkillSet
-            self.low_level_skillset = SkillSet(level="low")
+        """Registers all low-level and high-level skills."""
+        
+        # 1. Initialize Low-Level SkillSet
+        self.low_level_skillset = SkillSet(level="low")
 
-            # --- DYNAMIC LOADING FROM JSON ---
-            self._load_low_level_skills_from_json()
-            
-            # 2. Initialize High-Level SkillSet
-            self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
-            self._load_high_level_skills()
+        # --- DYNAMIC LOADING FROM JSON ---
+        self._load_low_level_skills_from_json()
+        
+        # 2. Initialize High-Level SkillSet
+        self.high_level_skillset = SkillSet(level="high", lower_level_skillset=self.low_level_skillset)
+        self._load_high_level_skills()
 
-            # 3. Link Planner
-            Statement.low_level_skillset = self.low_level_skillset
-            Statement.high_level_skillset = self.high_level_skillset
-            self.planner.init(high_level_skillset=self.high_level_skillset, 
-                            low_level_skillset=self.low_level_skillset, 
-                            vision_skill=self.vision)
+        # 3. Link Planner
+        Statement.low_level_skillset = self.low_level_skillset
+        Statement.high_level_skillset = self.high_level_skillset
+        self.planner.init(high_level_skillset=self.high_level_skillset, 
+                          low_level_skillset=self.low_level_skillset, 
+                          vision_skill=self.vision)
 
     def _load_low_level_skills_from_json(self):
         """
@@ -157,14 +158,12 @@ class LLMController:
                 "bool": bool,
                 "list": list,
                 "dict": dict,
-                "Optional[str]": Optional[str] # You might need custom logic for complex types
+                "Optional[str]": Optional[str]
             }
 
             for skill_def in skills_data:
                 try:
                     # 1. Resolve the handler function
-                    # Example: "drone.move_north" -> self.drone.move_north
-                    # Example: "explore_new_region" -> self.explore_new_region
                     handler_path = skill_def["handler"]
                     handler_parts = handler_path.split('.')
                     
@@ -178,23 +177,22 @@ class LLMController:
                     skill_args = []
                     for arg in skill_def.get("args", []):
                         arg_type_str = arg["type"]
-                        # Default to str if type not found
                         py_type = type_map.get(arg_type_str, str) 
                         skill_args.append(SkillArg(arg["name"], py_type))
 
                     # 3. Register Skill
+                    # Instantiates LowLevelSkillItem with correct keyword args found in skillset.py
                     self.low_level_skillset.add_skill(
                         LowLevelSkillItem(
-                            name=skill_def["name"],
-                            func=handler_func,
-                            description=skill_def["description"],
+                            skill_name=skill_def["name"],
+                            skill_callable=handler_func,
+                            skill_description=skill_def["description"],
                             args=skill_args
                         )
                     )
-                    # print_t(f"[System] Loaded low-level skill: {skill_def['name']}")
 
                 except AttributeError as e:
-                    print_t(f"[Warning] Could not load skill '{skill_def['name']}': Handler '{skill_def['handler']}' not found. {e}")
+                    print_t(f"[Warning] Could not load skill '{skill_def.get('name')}': Handler '{skill_def.get('handler')}' not found. {e}")
                 except Exception as e:
                     print_t(f"[Error] Failed to load skill '{skill_def.get('name', 'Unknown')}': {e}")
 
@@ -267,14 +265,7 @@ class LLMController:
     def execute_shortcut(self, shortcut: str) -> Tuple[None, False]:
         self.execute_task_description(is_shortcut=True, shortcut=shortcut)
         return None, False
-
-    def set_graph_manager(self, graph_manager):
-        self.graph_manager = graph_manager
-        self.vision.set_graph_manager(graph_manager)
-        # Update drone reference as well if needed
-        if hasattr(self.drone, 'graph_manager'):
-            self.drone.graph_manager = graph_manager
-
+    
     def get_drone(self) -> RobotWrapper:
         return self.drone
     
@@ -318,7 +309,6 @@ class LLMController:
         self.graph_manager.name_region(region_name)        
 
     def create_graph(self, description: Optional[str], image_present: bool = False) -> Tuple[None, bool]:
-        """Create new graph based on given description and/or picture"""
         image = None
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
@@ -373,10 +363,8 @@ class LLMController:
         """Convert text to speech using gTTS and play via system audio (server-side)."""
         try:
             tts = gTTS(text, lang="en")
-            # Use safe path construction
             speech_path = os.path.join(self.cache_folder, "speech.mp3")
             tts.save(speech_path)
-            # Use system command compatible with spaces in paths
             os.system(f"mpg123 {speech_path}") 
         except Exception as e:
             print_t(f"[C] TTS Error: {e}")
@@ -400,7 +388,6 @@ class LLMController:
         minispec_def = minispec_def.strip('\'"').replace('\\;', ';')
         print(f"Skill added: {skill_name}")
 
-        # Load existing skills
         skills = []
         if os.path.exists(self.user_high_level_skill_path):
             with open(self.user_high_level_skill_path, "r") as f:
@@ -410,10 +397,8 @@ class LLMController:
                 except:
                     skills = []
 
-        # Remove old skill with same name if it exists
         skills = [s for s in skills if s.get("skill_name") != skill_name]
 
-        # Add new skill
         skills.append({
             "skill_name": skill_name,
             "skill_description": description,
@@ -438,7 +423,6 @@ class LLMController:
         return None, False
 
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
-        '''Log to the user a question made by LLM and attach question-answer pair in plan history'''
         self.append_message(f"[Q] {question}")
         self.text_to_speech(question)
         print_t(f"[Q] {question}")
@@ -490,7 +474,6 @@ class LLMController:
         ret_val = None
         
         while True:
-            # Request plan
             self.current_plan, requires_execution, iteration_description = self.planner.plan(
                 self.current_task,
                 img_b64=img_b64,
@@ -563,7 +546,6 @@ class LLMController:
             self.latest_frame = frame_reader.frame
             self.planner.update_latest_frame(self.latest_frame)
             
-            # Create a shared frame object
             frame = Frame(
                 frame_reader.frame,
                 frame_reader.depth if hasattr(frame_reader, 'depth') else None
@@ -576,7 +558,6 @@ class LLMController:
                 
             time.sleep(0.10)
 
-        # Cleanup
         for task in asyncio.all_tasks(asyncio_loop):
             task.cancel()
         self.drone.stop_stream()

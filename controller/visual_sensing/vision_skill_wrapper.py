@@ -83,8 +83,9 @@ class ObjectTracker:
 
 class VisionSkillWrapper():
 
-    def __init__(self, shared_frame: SharedFrame):
+    def __init__(self, shared_frame: SharedFrame, graph_manager: GraphManager):
         self.shared_frame = shared_frame
+        self.graph_manager = graph_manager
         self.last_update = 0
         self.object_trackers: dict[str, ObjectTracker] = {}
         self.objects_list = []
@@ -93,7 +94,6 @@ class VisionSkillWrapper():
             cv2.aruco.DetectorParameters())
         self.env_analysis_module = EnvironmentalAnalysisModule()
         self.scene_description = ""
-        self.graph_manager = None
         self.fx = 920  # pixels
         self.fy = 920  # pixels
         self.cx = 480  # image width / 2
@@ -106,9 +106,6 @@ class VisionSkillWrapper():
         self.cam_T_world = np.eye(4) 
         self.IMG_W  = 960                # tello width  (px)
         self.IMG_H  = 720                # tello height (px)
-
-    def set_graph_manager(self, graph_manager):
-        self.graph_manager: GraphManager = graph_manager
         
     def update_obj_list(self):
         if self.shared_frame.timestamp == self.last_update:

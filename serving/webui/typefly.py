@@ -156,13 +156,9 @@ class TypeFly:
         self.message_queue.put(self.cache_folder)
         self.user_answer_queue = queue.Queue()
         self.user_question_answer = [] # list of last question-answer pair between LLM and user
-        self.llm_controller = LLMController(robot_type, use_http, self.message_queue, self.user_answer_queue)
+        self.graph_manager = GraphManager()
+        self.llm_controller = LLMController(robot_type, self.graph_manager, use_http, self.message_queue, self.user_answer_queue)
 
-        # Initialize GraphManager with the sample data
-        self.graph_manager = GraphManager(
-            llm_controller=self.llm_controller, 
-        )
-        self.llm_controller.set_graph_manager(self.graph_manager)
         self.system_stop = False
         self.ui = gr.Blocks(title="TypeFly")
         self.asyncio_loop = asyncio.get_event_loop()

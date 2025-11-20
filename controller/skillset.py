@@ -34,9 +34,9 @@ class SkillSet():
 
     def add_skill(self, skill_item: SkillItem):
         """Adds a SkillItem to the set."""
-        if skill_item.skill_name in self.skills:
-            return
-            raise ValueError(f"A skill with the name '{skill_item.skill_name}' already exists.")
+        # if skill_item.skill_name in self.skills:
+        #     return
+        #     raise ValueError(f"A skill with the name '{skill_item.skill_name}' already exists.")
         # Set the low-level skillset for high-level skills
         if self.level == SkillSetLevel.HIGH and isinstance(skill_item, HighLevelSkillItem):
             if self.lower_level_skillset is not None:
