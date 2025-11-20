@@ -444,7 +444,7 @@ class LLMController:
     
     def execute_minispec(self, minispec: str, iteration_description: str):
         interpreter = MiniSpecInterpreter(self.message_queue)
-        ret_val = interpreter.execute(minispec)
+        ret_val = interpreter.execute([minispec])
         self.current_task.update_execution_history(interpreter.execution_history, iteration_description)
         return ret_val
 
@@ -491,7 +491,7 @@ class LLMController:
                 continue
 
             self.current_task.set_current_plan(self.current_plan)
-            self.append_message(f'[Plan]: \\\\')
+            self.append_message(f'[Plan]: {self.current_plan}')
             print_t("Message appended")
             
             try:

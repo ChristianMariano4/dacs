@@ -54,7 +54,7 @@ class LongMemoryModule:
 
         # Vector db section: retrieve the db of the specified user
         self.openai_client = OpenAI()
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        # self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
 
