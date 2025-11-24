@@ -14,7 +14,7 @@ ROOT_PATH = os.environ.get("ROOT_PATH", PARENT_DIR)
 SERVICE_PORT = os.environ.get("YOLO_SERVICE_PORT", "50050, 50051").split(",")
 
 MODEL_PATH = os.path.join(ROOT_PATH, "./serving/yolo/models/")
-MODEL_TYPE = "yolov8x.pt"
+MODEL_TYPE = "yolo11l.pt"
 
 sys.path.append(ROOT_PATH)
 sys.path.append(os.path.join(ROOT_PATH, "proto/generated"))
