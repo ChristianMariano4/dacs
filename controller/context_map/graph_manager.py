@@ -6,6 +6,7 @@ import numpy as np
 
 from controller.context_map.graph_handler import GraphHandler
 from controller.llm.llm_wrapper import LLMWrapper, RequestType
+from controller.utils.general_utils import print_debug
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 MEMORY_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "../assets/tello/memory"))
@@ -33,6 +34,11 @@ class GraphManager:
         
         # Initialize starting region
         start_region = self.graph_handler.get_closest_region()
+        
+        # Handle empty graph case
+        if start_region is None:
+            start_region = "region_0"
+
         self.graph_handler.update_location(start_region)
         self.current_region = start_region
 
@@ -83,7 +89,7 @@ class GraphManager:
         xy is in *world* centimetres.
         """
         self.drone_pose = np.asarray(pose)[:3]
-        # print(f"[DEBUG] Drone pose update: {self.drone_pose}")
+        print_debug(f"Drone pose update: {self.drone_pose}")
         
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
         if result[1]: # If region changed or created
@@ -91,19 +97,26 @@ class GraphManager:
 
     # --- Objects
     def add_object_detection(self, label: str, xy: Sequence[float] = None) -> None:
-        # Normalize label
-        node_id = label.split("_")[0]
-        
-        # Avoid duplicates in current region
-        if self.graph_handler.is_node_in_current_region(label): 
-            return
-
-        if xy is not None:
-            attrs = {"coords": list(map(float, xy)), "type": "object"}
-        else:
-            attrs = {"type": "object"}
+            # Normalize label (e.g., remove unique IDs like "cup_01" -> "cup")
+            # or keep it unique depending on your needs.
+            node_id = label.split("_")[0] 
             
-        self.graph_handler.update_with_node_flexible(node=node_id, edges=[self.current_region], attrs=attrs)
+            # 1. Avoid duplicates in current region
+            # (This relies on the topological check we added to GraphHandler)
+            if self.graph_handler.is_node_in_current_region(node_id): 
+                return
+
+            # 2. Enforce Topological-Only Objects
+            # We explicitly ignore 'xy' here.
+            attrs = {"type": "object"}
+                
+            # 3. Update Graph
+            # Connects purely based on current_region (Topology)
+            self.graph_handler.update_with_node_flexible(
+                node=node_id, 
+                edges=[self.current_region], 
+                attrs=attrs
+            )
 
     def write_graph_to_file(self):
         """Persist graph to disk for visualization or debugging."""

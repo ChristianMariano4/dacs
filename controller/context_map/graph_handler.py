@@ -145,63 +145,58 @@ class GraphHandler:
         self.update_node_description(self.current_location, display_name=name)
 
     def to_json_str(self) -> str:
-        """Serializes the networkx graph to a JSON string matching the prompt format."""
-        graph_dict = {
-            "objects": [],
-            "regions": [],
-            "object_connections": [],
-            "region_connections": [],
-            "current_position": {}
-        }
-        
-        # Track added edges to avoid duplicates (A-B and B-A)
-        added_edges = set()
-        
-        for node, attrs in self.graph.nodes(data=True):
-            node_type = attrs.get("type", "object") # default to object
-            key = "regions" if node_type == "region" else "objects"
-            
-            display_name = attrs.get("display_name", node)
-            coords = attrs.get("coords", [0, 0])
-            
-            graph_dict[key].append({"name": display_name, "coords": coords})
-
-            # Process edges
-            for neighbor in self.graph.neighbors(node):
-                edge_pair = tuple(sorted((node, neighbor)))
-                if edge_pair in added_edges:
-                    continue
-                
-                neighbor_attrs = self.graph.nodes[neighbor]
-                
-                # Resolve display names
-                n1_name = display_name
-                n2_name = neighbor_attrs.get("display_name", neighbor)
-                
-                conn_key = f"{node_type}_connections"
-                # If types mismatch, usually we store it in object connections or handle specifically
-                # Current logic assumes mostly homogenous edges or object->region
-                
-                graph_dict[conn_key].append(sorted([n1_name, n2_name]))
-                added_edges.add(edge_pair)
-
-        # Update current position
-        # SAFETY CHECK: Ensure current_location still exists in the graph
-        if self.current_location and self.current_location in self.graph.nodes:
-            current_loc_name = self.graph.nodes[self.current_location].get("display_name", self.current_location)
-            graph_dict["current_position"] = {
-                "coords": self.drone_position.tolist(), 
-                "region": current_loc_name
+            """Serializes to JSON. Objects strictly exclude coordinates."""
+            graph_dict = {
+                "objects": [],
+                "regions": [],
+                "object_connections": [],
+                "region_connections": [],
+                "current_position": {}
             }
-        elif self.current_location:
-            # Fallback if validation failed earlier (Defensive Coding)
-            print(f"[GraphHandler] Warning: Current location '{self.current_location}' is invalid during serialization.")
-            graph_dict["current_position"] = {
-                "coords": self.drone_position.tolist(),
-                "region": "unknown"
-            }
+            
+            added_edges = set()
+            
+            for node, attrs in self.graph.nodes(data=True):
+                node_type = attrs.get("type", "object")
+                display_name = attrs.get("display_name", node)
+                
+                if node_type == "region":
+                    # Regions act as spatial anchors
+                    coords = attrs.get("coords", [0, 0])
+                    graph_dict["regions"].append({"name": display_name, "coords": coords})
+                else:
+                    # Objects are purely topological now
+                    graph_dict["objects"].append({"name": display_name})
 
-        return json.dumps(graph_dict, indent=2)
+                # Process edges
+                for neighbor in self.graph.neighbors(node):
+                    edge_pair = tuple(sorted((node, neighbor)))
+                    if edge_pair in added_edges:
+                        continue
+                    
+                    neighbor_attrs = self.graph.nodes[neighbor]
+                    n1_name = display_name
+                    n2_name = neighbor_attrs.get("display_name", neighbor)
+                    
+                    # specific key logic can remain, or simplify to generic connections
+                    conn_key = f"{node_type}_connections" 
+                    graph_dict[conn_key].append(sorted([n1_name, n2_name]))
+                    added_edges.add(edge_pair)
+
+            # Update current position (remains unchanged)
+            if self.current_location and self.current_location in self.graph.nodes:
+                current_loc_name = self.graph.nodes[self.current_location].get("display_name", self.current_location)
+                graph_dict["current_position"] = {
+                    "coords": self.drone_position.tolist(), 
+                    "region": current_loc_name
+                }
+            else:
+                graph_dict["current_position"] = {
+                    "coords": self.drone_position.tolist(),
+                    "region": "unknown"
+                }
+
+            return json.dumps(graph_dict, indent=2)
 
     def update_location(self, new_location: str) -> bool:
         if new_location not in self.graph.nodes:
@@ -210,35 +205,46 @@ class GraphHandler:
         return True
 
     def update_with_node_flexible(
-        self,
-        node: str,
-        edges: Optional[List[str]] = None,
-        attrs: Dict[str, Any] = {},
-    ) -> None:
-        """Adds a node and optionally connects it to a list of other nodes."""
-        self.graph.add_node(node, **attrs)
+            self,
+            node: str,
+            edges: Optional[List[str]] = None,
+            attrs: Dict[str, Any] = {},
+        ) -> None:
+            """
+            Adds a node. Handles Metric weighting for Regions and Topological weighting for Objects.
+            """
+            self.graph.add_node(node, **attrs)
 
-        if edges is None and self.current_location:
-            edges = [self.current_location]
-        elif edges is None:
-            edges = []
+            if edges is None:
+                edges = [self.current_location] if self.current_location else []
 
-        node_coords = np.array(attrs.get("coords", [0,0]))
+            # Determine if the new node has spatial data
+            has_coords = "coords" in attrs
+            node_coords = np.array(attrs["coords"]) if has_coords else None
 
-        for target in edges:
-            if target not in self.graph.nodes:
-                continue
+            for target in edges:
+                if target not in self.graph.nodes:
+                    continue
                 
-            target_coords = np.array(self.graph.nodes[target].get("coords", [0,0]))
-            dist = np.linalg.norm(node_coords - target_coords)
+                target_attrs = self.graph.nodes[target]
+                target_has_coords = "coords" in target_attrs
+                
+                # Calculate Edge Weight
+                # 1. If both have coordinates (Region <-> Region), use Euclidean distance
+                if has_coords and target_has_coords:
+                    target_coords = np.array(target_attrs["coords"])
+                    weight = np.linalg.norm(node_coords - target_coords)
+                # 2. If object is linked to a region, weight is symbolic (e.g., 1.0 or 0.0)
+                else:
+                    weight = 1.0
 
-            self.graph.add_edge(
-                node,
-                target,
-                type=attrs.get("type", "object"),
-                weight=dist,
-            )
-
+                self.graph.add_edge(
+                    node,
+                    target,
+                    type=attrs.get("type", "object"),
+                    weight=weight,
+                )
+                
     def update_with_edge(self, edge: Tuple[str, str], attrs: Dict[str, Any] = {}):
         self.graph.add_edge(edge[0], edge[1], **attrs)
 
@@ -306,37 +312,42 @@ def parse_graph(
     utm_origin: Optional[np.ndarray] = None,
 ) -> Tuple[nx.Graph, str, np.ndarray]:
     """
-    Reconstructs a NetworkX graph from the dictionary format.
+    Reconstructs graph. Objects are parsed without coordinates.
     """
     origin = utm_origin if utm_origin is not None else np.array([0, 0])
-    
     G = nx.Graph()
     
-    # Add Objects
+    # 1. Add Objects (Topology only)
     for node in data.get("objects", []):
-        coords = parse_graph_coord(node.get("coords", [0,0]), origin=origin, rotation=rotation)
-        G.add_node(node["name"], coords=coords, type="object")
+        # distinct from regions: we do not parse/store coords
+        G.add_node(node["name"], type="object")
 
-    # Add Regions
+    # 2. Add Regions (Topology + Metric)
     for node in data.get("regions", []):
         coords = parse_graph_coord(node.get("coords", [0,0]), origin=origin, rotation=rotation)
         G.add_node(node["name"], coords=coords, type="region")
 
-    # Add Edges (Connections)
+    # 3. Add Edges
     for conn_type in ["object_connections", "region_connections"]:
         type_label = "object" if "object" in conn_type else "region"
         for edge in data.get(conn_type, []):
             if len(edge) < 2: continue
             u, v = edge[0], edge[1]
             
-            # Calculate distance weight if nodes exist
             if G.has_node(u) and G.has_node(v):
-                c1 = np.array(G.nodes[u]["coords"])
-                c2 = np.array(G.nodes[v]["coords"])
-                dist = np.linalg.norm(c1 - c2)
-                G.add_edge(u, v, type=type_label, weight=dist)
+                # Check if both nodes have coordinates for metric distance
+                u_attr, v_attr = G.nodes[u], G.nodes[v]
+                
+                if "coords" in u_attr and "coords" in v_attr:
+                    c1 = np.array(u_attr["coords"])
+                    c2 = np.array(v_attr["coords"])
+                    w = np.linalg.norm(c1 - c2)
+                else:
+                    # Topological connection (Object -> Region)
+                    w = 1.0
+                    
+                G.add_edge(u, v, type=type_label, weight=w)
 
-    # Extract Drone Position
     drone_pos_data = data.get("current_position", {}).get("coords", [0,0,0])
     drone_position = np.array(drone_pos_data)
 

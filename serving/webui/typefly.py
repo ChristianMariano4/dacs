@@ -563,141 +563,170 @@ class TypeFly:
             time.sleep(1.0 / 30.0)
 
     def _create_graph_figure(self):
-        """
-        Helper: Generates the Plotly Figure object based on current graph state.
-        """
-        import plotly.graph_objects as go
-        from shapely import Polygon
+            """
+            Helper: Generates the Plotly Figure. 
+            Calculates object positions dynamically relative to their parent regions.
+            """
+            import plotly.graph_objects as go
+            from shapely import Polygon
 
-        graph_json_str = self.graph_manager.get_graph()
-        if not graph_json_str:
-            return go.Figure() # Return empty figure
+            graph_json_str = self.graph_manager.get_graph()
+            if not graph_json_str:
+                return go.Figure()
 
-        graph_data: dict = json.loads(graph_json_str)
+            graph_data: dict = json.loads(graph_json_str)
 
-        # --- Helper to safely parse XY ---
-        def parse_xy(v):
-            if isinstance(v, str):
-                try: return json.loads(v)
-                except: return (0.0, 0.0)
-            if isinstance(v, (list, tuple)) and len(v) >= 2:
-                return float(v[0]), float(v[1])
-            return (0.0, 0.0)
+            # --- Helper to safely parse XY ---
+            def parse_xy(v):
+                if isinstance(v, str):
+                    try: return json.loads(v)
+                    except: return (0.0, 0.0)
+                if isinstance(v, (list, tuple)) and len(v) >= 2:
+                    return float(v[0]), float(v[1])
+                return (0.0, 0.0)
 
-        regions = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("regions", [])}
-        objects = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("objects", [])}
-        region_connections = graph_data.get("region_connections", [])
-        object_connections = graph_data.get("object_connections", [])
-        current_pos = graph_data.get("current_pos", {})
+            # 1. Parse Regions (Metric: they have coords)
+            regions = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("regions", [])}
+            
+            # 2. Parse Objects (Topological: we just need their names)
+            # Note: We no longer look for 'coords' here to prevent KeyErrors
+            object_names = {o["name"] for o in graph_data.get("objects", [])}
 
-        # --- Position Calculations (Same as before) ---
-        object_to_region = {}
-        for a, b in object_connections:
-            if a in regions and b in objects: object_to_region[b] = a
-            elif a in objects and b in regions: object_to_region[a] = b
+            region_connections = graph_data.get("region_connections", [])
+            object_connections = graph_data.get("object_connections", [])
+            current_pos = graph_data.get("current_position", {}) # Note: JSON key is usually "current_position"
 
-        object_display_positions = {}
-        for obj_name in objects:
-            if obj_name in object_to_region:
-                region_name = object_to_region[obj_name]
-                if region_name in regions:
-                    rx, ry = regions[region_name]
-                    seed_value = hash(obj_name) % 10000
+            # --- Calculate Visual Positions for Objects ---
+            object_display_positions = {}
+            
+            # Find which region acts as the anchor for each object
+            for a, b in object_connections:
+                # Determine which node is the region and which is the object
+                if a in regions and b in object_names:
+                    region_node, obj_node = a, b
+                elif b in regions and a in object_names:
+                    region_node, obj_node = b, a
+                else:
+                    continue # Skip object-object or region-region links in this loop
+
+                # Generate a stable pseudo-random position around the region
+                if region_node in regions:
+                    rx, ry = regions[region_node]
+                    
+                    # Use hash of name to ensure the object stays in the same place 
+                    # every time the graph refreshes
+                    seed_value = hash(obj_node) % 10000
                     random.seed(seed_value)
+                    
                     angle = random.uniform(0, 2 * np.pi)
-                    distance = random.uniform(15, 35)
-                    object_display_positions[obj_name] = (rx + distance * np.cos(angle), 
-                                                        ry + distance * np.sin(angle))
-                    random.seed()
+                    distance = random.uniform(20, 40) # Distance from region center (cm)
+                    
+                    object_display_positions[obj_node] = (
+                        rx + distance * np.cos(angle), 
+                        ry + distance * np.sin(angle)
+                    )
+                    random.seed() # Reset seed
 
-        # --- Build Figure ---
-        fig = go.Figure()
+            # --- Build Figure ---
+            fig = go.Figure()
 
-        # 1. Flyzones
-        try:
-            flyzones = self.llm_controller.middle_layer.get_flyzone_polygon()
-            for idx, poly in enumerate(flyzones):
-                if isinstance(poly, Polygon):
-                    x, y = poly.exterior.xy
-                    fig.add_trace(go.Scatter(
-                        x=list(x), y=list(y), fill='toself', fillcolor='rgba(255,165,0,0.1)',
-                        line=dict(color='orange', width=2), name=f"Flyzone {idx+1}", hoverinfo='skip'
-                    ))
-        except Exception as e:
-            print(f"[WARN] Could not plot flyzone: {e}")
+            # 1. Flyzones (Polygon)
+            try:
+                flyzones = self.llm_controller.middle_layer.get_flyzone_polygon()
+                for idx, poly in enumerate(flyzones):
+                    if isinstance(poly, Polygon):
+                        x, y = poly.exterior.xy
+                        fig.add_trace(go.Scatter(
+                            x=list(x), y=list(y), fill='toself', fillcolor='rgba(255,165,0,0.1)',
+                            line=dict(color='orange', width=2), name=f"Flyzone {idx+1}", hoverinfo='skip'
+                        ))
+            except Exception as e:
+                print(f"[WARN] Could not plot flyzone: {e}")
 
-        # 2. Region Circles (Visuals only)
-        radius = 75
-        theta = np.linspace(0, 2 * np.pi, 50) # Reduced points for performance
-        for region_name, (cx, cy) in regions.items():
-            fig.add_trace(go.Scatter(
-                x=cx + radius * np.cos(theta), y=cy + radius * np.sin(theta),
-                mode='lines', line=dict(color='lightgray', width=1, dash='dash'),
-                fill='toself', fillcolor='rgba(128,128,128,0.35)', opacity=0.5,
-                hoverinfo='skip', showlegend=False
-            ))
+            # 2. Region Circles (Visual anchor zones)
+            radius = 75
+            theta = np.linspace(0, 2 * np.pi, 30)
+            for region_name, (cx, cy) in regions.items():
+                fig.add_trace(go.Scatter(
+                    x=cx + radius * np.cos(theta), y=cy + radius * np.sin(theta),
+                    mode='lines', line=dict(color='lightgray', width=1, dash='dash'),
+                    fill='toself', fillcolor='rgba(128,128,128,0.35)', opacity=0.5,
+                    hoverinfo='skip', showlegend=False
+                ))
 
-        # 3. Connections
-        for r1, r2 in region_connections:
-            if r1 in regions and r2 in regions:
-                x1, y1 = regions[r1]
-                x2, y2 = regions[r2]
-                fig.add_trace(go.Scatter(x=[x1, x2], y=[y1, y2], mode='lines',
-                    line=dict(color='gray', dash='dot'), opacity=0.5, showlegend=False))
+            # 3. Region-Region Connections
+            for r1, r2 in region_connections:
+                if r1 in regions and r2 in regions:
+                    x1, y1 = regions[r1]
+                    x2, y2 = regions[r2]
+                    fig.add_trace(go.Scatter(x=[x1, x2], y=[y1, y2], mode='lines',
+                        line=dict(color='gray', dash='dot'), opacity=0.5, showlegend=False))
 
-        for a, b in object_connections:
-            # Resolve names
-            region_name, obj_name = (a, b) if a in regions else (b, a)
-            if region_name in regions and obj_name in object_display_positions:
-                x1, y1 = regions[region_name]
-                x2, y2 = object_display_positions[obj_name]
-                fig.add_trace(go.Scatter(x=[x1, x2], y=[y1, y2], mode='lines',
-                    line=dict(color='lightblue', dash='dot'), opacity=0.7, showlegend=False))
+            # 4. Object-Region Connections (Visual lines)
+            for obj_name, (ox, oy) in object_display_positions.items():
+                # Find parent region again to draw line
+                # (In a real app, you might optimize by storing parent in the loop above)
+                parent_region = None
+                for r_name, r_coords in regions.items():
+                    # This is a visual heuristic; strictly we should check edges again, 
+                    # but drawing to the nearest is usually visually sufficient or 
+                    # you can re-iterate object_connections if strictness is needed.
+                    pass 
+                
+                # Re-find the connected region for drawing the line
+                for a, b in object_connections:
+                    other = a if b == obj_name else (b if a == obj_name else None)
+                    if other and other in regions:
+                        rx, ry = regions[other]
+                        fig.add_trace(go.Scatter(x=[rx, ox], y=[ry, oy], mode='lines',
+                            line=dict(color='lightblue', dash='solid', width=1), opacity=0.6, showlegend=False))
+                        break
 
-        # 4. Markers (Regions, Objects, User)
-        if regions:
-            fig.add_trace(go.Scatter(
-                x=[x for x, _ in regions.values()], y=[y for _, y in regions.values()],
-                mode='markers+text', text=list(regions.keys()), textposition='top center',
-                marker=dict(size=14, color='skyblue', line=dict(color='black', width=1)), name='Regions'
-            ))
+            # 5. Markers: Regions
+            if regions:
+                fig.add_trace(go.Scatter(
+                    x=[x for x, _ in regions.values()], y=[y for _, y in regions.values()],
+                    mode='markers+text', text=list(regions.keys()), textposition='top center',
+                    marker=dict(size=14, color='skyblue', line=dict(color='black', width=1)), name='Regions'
+                ))
 
-        if object_display_positions:
-            fig.add_trace(go.Scatter(
-                x=[x for x, _ in object_display_positions.values()], y=[y for _, y in object_display_positions.values()],
-                mode='markers+text', text=list(object_display_positions.keys()), textposition='top center',
-                marker=dict(size=9, color='lightgreen', line=dict(color='black', width=1)), name='Objects'
-            ))
+            # 6. Markers: Objects
+            if object_display_positions:
+                fig.add_trace(go.Scatter(
+                    x=[x for x, _ in object_display_positions.values()], 
+                    y=[y for _, y in object_display_positions.values()],
+                    mode='markers+text', 
+                    text=list(object_display_positions.keys()), 
+                    textposition='top center',
+                    marker=dict(size=9, color='lightgreen', line=dict(color='black', width=1)), 
+                    name='Objects'
+                ))
 
-        if "coords" in current_pos and current_pos["coords"]:
-            x, y, *_ = current_pos["coords"]
-            fig.add_trace(go.Scatter(
-                x=[x], y=[y], mode='markers+text', text=[f"you"], textposition='top right',
-                marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)), name='You'
-            ))
+            # 7. Marker: Drone
+            if "coords" in current_pos and current_pos["coords"]:
+                x, y, *_ = current_pos["coords"]
+                fig.add_trace(go.Scatter(
+                    x=[x], y=[y], mode='markers+text', text=[f"Drone"], textposition='top right',
+                    marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)), name='You'
+                ))
 
-        # --- Layout ---
-        fig.update_layout(
-            autosize=True,   
-            height=None,     # <--- Let the iframe/CSS control the height
-            margin=dict(l=20, r=20, t=40, b=20),
-            xaxis_title="X", 
-            yaxis_title="Y", 
-            template="plotly_white",
-            showlegend=True,
-            dragmode='pan',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
-        )
-        
-        # Lock aspect ratio to 1:1 so the map doesn't skew
-        fig.update_yaxes(
-            scaleanchor="x", 
-            scaleratio=1,
-            autorange=True  # Allow auto-range initially
-        )
-        
-        return fig
-    
+            # --- Layout ---
+            fig.update_layout(
+                autosize=True,   
+                height=None,
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis_title="X (cm)", 
+                yaxis_title="Y (cm)", 
+                template="plotly_white",
+                showlegend=True,
+                dragmode='pan',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
+            )
+            
+            fig.update_yaxes(scaleanchor="x", scaleratio=1, autorange=True)
+            
+            return fig
+
     def setup_graph_server(self, app):
         import plotly
         

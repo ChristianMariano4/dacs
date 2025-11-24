@@ -9,6 +9,8 @@ import csv
 import datetime
 import subprocess
 
+from controller.utils.constants import DEBUG
+
 def split_args(s: str) -> list[str]:
     args, cur, depth = [], '', 0
     in_single = in_double = False
@@ -127,6 +129,12 @@ def import_csv(filename):
     return header, data
 
 # ───── Logging with Timestamps ─────
+
+
+def print_debug(*args, **kwargs):
+    """Print only if debug active"""
+    if DEBUG:
+        print_t("[DEBUG]", *args, **kwargs)
 
 def print_t(*args, **kwargs):
     """Print with timestamp prefix."""
