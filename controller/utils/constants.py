@@ -5,6 +5,7 @@ REGION_THRESHOLD: int = 100 # How distant in centimeters are the regions. After 
 
 ROBOT_NAME = "tello"
 USERNAME = "Christian"
+DEBUG = False
 
 
 # Used paths

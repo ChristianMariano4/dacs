@@ -10,7 +10,7 @@ from djitellopy import Tello
 from controller.context_map.graph_manager import GraphManager
 from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper, cap_distance
 from controller.utils.constants import REGION_THRESHOLD
-from controller.utils.general_utils import adjust_exposure, sharpen_image
+from controller.utils.general_utils import adjust_exposure, print_debug, sharpen_image
 from ..abs.robot_wrapper import RobotWrapper
 
 # -----------------------------------------------------------------------------
@@ -330,6 +330,7 @@ class TelloWrapper(RobotWrapper):
 
     def _odometry_loop_crazyflie(self):
         """Position tracking via external Lighthouse system."""
+        print_debug("_odometry_loop_crazyflie started")
         while not self._stop_event.is_set():
             if self.crazyflie:
                 pos_m = self.crazyflie.get_pose()
