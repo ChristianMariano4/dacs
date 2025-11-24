@@ -8,7 +8,7 @@ import base64
 import uuid
 from openai import OpenAI
 import os
-from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_PLAN_PROMPT_PATH, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_MEMORY_PATH, USER_PLAN_PROMPT_PATH, X_BOUND, Y_BOUND
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
@@ -54,16 +54,15 @@ class LongMemoryModule:
 
         # Vector db section: retrieve the db of the specified user
         self.openai_client = OpenAI()
-        # self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
 
         # Shortcuts: tasks associated to keywords
-        self.shortcuts_file = Path(shortcuts_file)
-        self.user_shortcut_tasks = self._load_shortcuts() # each username is a key, whose value is another dict of shortcuts of that user
+        self.user_shortcut_tasks = self._load_shortcuts()
 
     def change_username(self, username):
         self.username = username
+        self.user_shortcut_tasks = self._load_shortcuts()
         self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
     
@@ -203,116 +202,30 @@ class LongMemoryModule:
         return retrieved_docs
     
     def _load_shortcuts(self):
-        if self.shortcuts_file.exists():
-            with open(self.shortcuts_file, "r", encoding="utf-8") as f:
+        if os.path.exists(USER_MEMORY_PATH):
+            with open(os.path.join(USER_MEMORY_PATH), "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
     
-    def _save_shortcuts(self):
-        with open(self.shortcuts_file, "w", encoding="utf-8") as f:
+    def _write_file_shortcuts(self):
+        with open(USER_MEMORY_PATH, "w", encoding="utf-8") as f:
             json.dump(self.user_shortcut_tasks, f, indent=4)
 
-    def save_shortcut_task(self, username: str, keywords: str, task: Task):
+    def save_shortcut_task(self, shortcut: str, task: Task):
         '''
         Save in memory (a dictionary) shortcuts of the user.
         '''
-        username = username.lower()
-        if username not in self.user_shortcut_tasks:
-            self.user_shortcut_tasks[username] = {}
-        self.user_shortcut_tasks[username][keywords.lower()] = task.to_dict()
-        self._save_shortcuts()
+        self.user_shortcut_tasks[shortcut.lower()] = task.to_dict()
+        self._write_file_shortcuts()
 
-    def get_shortcut_task(self, username: str, shortcut: str) -> dict | None:
+    def get_shortcut_task(self, shortcut: str) -> dict | None:
         '''
         Return the task correspondent to given keyword
         '''
-        username = username.lower()
-        if username not in self.user_shortcut_tasks:
-            return None
-        return self.user_shortcut_tasks[username][shortcut.lower()]
-
-if __name__ == "__main__":
-    # python -m controller.llm.memory.long_memory
-    # Minimal test for LongMemoryModule with example-style histories
+        return self.user_shortcut_tasks[shortcut.lower()]
     
-    class MockTask:
-        def __init__(self, desc, history, feedback):
-            self._desc = desc
-            self._history = history
-            self._feedback = feedback
-
-        def get_task_description(self):
-            return self._desc
-        
-        def get_execution_history(self):
-            return self._history
-        
-        def get_user_feedback(self):
-            return self._feedback
-
-    memory_module = LongMemoryModule()
-
-    # Example-like interaction histories with positive & negative feedbacks
-    examples = [
-        MockTask(
-            "Find an apple in the environment.",
-            """Iteration 1: Task - I need an apple. 
-Scene: [] 
-Response: as("search_object", "Scan for an object and explore a new region if not visible", 
-"?s($1)==True{l($1 + ' found');->True};ed();rp();"); search_object(["apple"]);""",
-            "Positive: Good reasoning, I like the reusable skill definition."
-        ),
-        MockTask(
-            "Return home to region_0.",
-            """Iteration 5: Task - Come back to region_0
-Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
-Response: as("return_home", "Return to the home region (0,0)", 
-"gx(0, 0); l('Returned to region_0 at [0,0].')"); return_home();""",
-            "Positive: Worked correctly, drone returned to base."
-        ),
-        MockTask(
-            "Move safely to a coordinate inside flyzone.",
-            """Iteration 7: Task - Move from region_2 at [150, 150] to [600, 500].
-Reason: Direct path exits flyzone, rerouting required.
-Response: gx(300, 150); gx(300, 300); gx(600, 300); 
-l("Stopped at [600, 300] because the requested [600, 500] is outside the flyzone.");""",
-            "Positive: Correctly detected flyzone violation."
-        ),
-        MockTask(
-            "Search for an orange.",
-            """Iteration 12: Task - Where can I find an orange?
-Response: fruit_hunt(["orange"]);
-If already in graph (region_2 at [150, 150]): 
-l("orange found in region_2 at [150, 150]");""",
-            "Positive: Very efficient reuse of fruit_hunt skill."
-        ),
-        # --- Negative feedback examples ---
-        MockTask(
-            "Explore for bananas.",
-            """Iteration X: Task - I need a banana.
-Response: gx(600, 500); l("Moved outside flyzone.");""",
-            "Negative: Unsafe execution, drone went outside flyzone."
-        ),
-        MockTask(
-            "Return to base with invalid command.",
-            """Iteration Y: Task - Return to region_0
-Response: ed(); rp(); l('Trying to replan endlessly.');""",
-            "Negative: The plan was incorrect, drone never attempted to return home."
-        ),
-        MockTask(
-            "Find an apple but ignored scene info.",
-            """Iteration Z: Task - I need an apple. 
-Scene: [apple_1 x:0.52 y:0.53 width:0.18 height:0.27]
-Response: ed(); rp(); l('No apple found, exploring...');""",
-            "Negative: Wrong, an apple was already visible but ignored."
-        )
-    ]
-
-    print("=== Saving interactions ===")
-    for task in examples:
-        memory_module.save_task_summary(task)
-
-    # Query with a new task
-    query = "Where can I find a banana?"
-    print("\n=== Retrieving interactions for:", query, "===")
-    memory_module.retrieve_old_interactions(query)
+    def delete_shortcut_task(self, shortcut: str):
+        '''
+        Delete from memory task mapped by key 'shortcut'.
+        '''
+        del self.user_shortcut_tasks[shortcut]

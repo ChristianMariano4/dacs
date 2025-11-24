@@ -257,9 +257,13 @@ class LLMController:
     
     def save_shortcut(self, shortcut: str) -> Tuple[None, False]:
         if self.last_task is not None:
-            self.long_memory_module.save_shortcut_task(self.username, shortcut, self.last_task)
+            self.long_memory_module.save_shortcut_task(shortcut, self.last_task)
         else:
             self.append_message("\nNo previous task saved.")
+        return None, False
+    
+    def delete_shortcut(self, shortcut: str) -> Tuple[None, False]:
+        self.long_memory_module.delete_shortcut_task(shortcut)
         return None, False
     
     def execute_shortcut(self, shortcut: str) -> Tuple[None, False]:
@@ -455,7 +459,7 @@ class LLMController:
             
         if is_shortcut:
             assert shortcut != "", "shortcut should be not empty"
-            current_task_dict = self.long_memory_module.get_shortcut_task(username=self.username, shortcut=shortcut)
+            current_task_dict = self.long_memory_module.get_shortcut_task(shortcut=shortcut)
             self.current_task = Task(
                 task_description=current_task_dict['task_description'], 
                 execution_history=current_task_dict['execution_history'],
