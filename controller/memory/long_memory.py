@@ -31,6 +31,7 @@ load_dotenv()
 type_folder_name = 'tello'
 TASK_ID_FILE = "task_id.json"
 MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/memory"
+SHORTCUTS_PATH = os.path.join(USER_MEMORY_PATH, "shortcuts.json")
 
 class LongMemoryModule:
     '''
@@ -202,13 +203,13 @@ class LongMemoryModule:
         return retrieved_docs
     
     def _load_shortcuts(self):
-        if os.path.exists(USER_MEMORY_PATH):
+        if os.path.exists(SHORTCUTS_PATH):
             with open(os.path.join(USER_MEMORY_PATH), "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
     
     def _write_file_shortcuts(self):
-        with open(USER_MEMORY_PATH, "w", encoding="utf-8") as f:
+        with open(SHORTCUTS_PATH, "w", encoding="utf-8") as f:
             json.dump(self.user_shortcut_tasks, f, indent=4)
 
     def save_shortcut_task(self, shortcut: str, task: Task):
