@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import time
@@ -375,8 +376,31 @@ class LLMController:
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
         text = str(text)
-        self.append_message(f"[LOG] {text}")
-        self.text_to_speech(text)
+
+        # --- 1. HANDLE UI DISPLAY ---
+        # Convert newlines to HTML breaks for the Gradio Chatbot
+        display_text = text.replace('\n', '<br>')
+        self.append_message(display_text)
+
+        # --- 2. HANDLE AUDIO (CLEANING) ---
+        # Create a separate version just for the TTS engine
+        audio_text = text
+
+        # Fix A: Replace actual newlines with a pause (comma or space)
+        # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
+        audio_text = audio_text.replace('\n', ', ')
+        
+        # Fix B: Remove literal "1n" or "\n" string artifacts if they exist
+        # If your TTS literally says "One N", this cleans it.
+        audio_text = audio_text.replace('\\n', ' ')
+
+        # Fix C: Remove Markdown/Special chars (so it doesn't say "Star Star Hello Star Star")
+        # This regex removes special characters but keeps text, numbers, and basic punctuation
+        audio_text = re.sub(r'[*_#`]', '', audio_text)
+
+        # Send the CLEAN text to the robot
+        # self.text_to_speech(audio_text)
+
         return None, False
     
     def skill_re_plan(self) -> Tuple[None, bool]:
@@ -427,7 +451,7 @@ class LLMController:
         return None, False
 
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
-        self.append_message(f"[Q] {question}")
+        self.append_message(f"{question}")
         self.text_to_speech(question)
         print_t(f"[Q] {question}")
         return None, True, True
@@ -474,7 +498,7 @@ class LLMController:
             assert task_description != "", "task_description should be not empty"
             self.current_task = Task(task_description)
 
-        self.append_message('[TASK]: ' + task_description)
+        # self.append_message('[TASK]: ' + task_description)
         ret_val = None
         
         while True:
@@ -495,7 +519,7 @@ class LLMController:
                 continue
 
             self.current_task.set_current_plan(self.current_plan)
-            self.append_message(f'[Plan]: {self.current_plan}')
+            # self.append_message(f'[Plan]: {self.current_plan}')
             print_t("Message appended")
             
             try:
