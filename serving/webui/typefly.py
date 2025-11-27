@@ -539,13 +539,7 @@ class TypeFly:
                         return
 
             except _QEmpty:
-                # C. Handle Timeout / Keep-alive
-                if time.time() - start_time > timeout:
-                    yield complete_response + "\n⏱️ Operation timed out."
-                    return
-                
-                # Optional: Yield a "thinking" indicator if buffer is empty for a while
-                # yield complete_response 
+
                 continue
 
     def generate_mjpeg_stream(self):
