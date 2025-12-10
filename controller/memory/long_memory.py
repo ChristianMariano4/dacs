@@ -8,7 +8,7 @@ import base64
 import uuid
 from openai import OpenAI
 import os
-from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_MEMORY_PATH, USER_PLAN_PROMPT_PATH, X_BOUND, Y_BOUND
+from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_MEMORY_PATH, USER_PLAN_PROMPT_PATH
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
