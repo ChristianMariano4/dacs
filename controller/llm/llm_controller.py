@@ -366,13 +366,15 @@ class LLMController:
     
     def text_to_speech(self, text: str):
         """Convert text to speech using gTTS and play via system audio (server-side)."""
-        try:
-            tts = gTTS(text, lang="en")
-            speech_path = os.path.join(self.cache_folder, "speech.mp3")
-            tts.save(speech_path)
-            os.system(f"mpg123 {speech_path}") 
-        except Exception as e:
-            print_t(f"[C] TTS Error: {e}")
+        # Uncomment to enable tts
+        # try:
+        #     tts = gTTS(text, lang="en")
+        #     speech_path = os.path.join(self.cache_folder, "speech.mp3")
+        #     tts.save(speech_path)
+        #     os.system(f"mpg123 {speech_path}") 
+        # except Exception as e:
+        #     print_t(f"[C] TTS Error: {e}")
+        pass
 
     def skill_log(self, text: str) -> Tuple[None, bool]:
         text = str(text)
@@ -399,7 +401,7 @@ class LLMController:
         audio_text = re.sub(r'[*_#`]', '', audio_text)
 
         # Send the CLEAN text to the robot
-        # self.text_to_speech(audio_text)
+        self.text_to_speech(audio_text)
 
         return None, False
     
@@ -451,7 +453,7 @@ class LLMController:
         return None, False
 
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
-        self.append_message(f"{question}")
+        self.append_message(f"[Q] {question}")
         self.text_to_speech(question)
         print_t(f"[Q] {question}")
         return None, True, True
