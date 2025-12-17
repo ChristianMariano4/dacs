@@ -181,7 +181,7 @@ class LongMemoryModule:
         # new_task_embedding = self.model.encode(new_task)
         new_task_embedding = self.openai_client.embeddings.create(
             input=new_task,
-            model="text-embedding-3-large"
+            model="text-embedding-3-small"
         )
         embedding_vector = new_task_embedding.data[0].embedding
         results = self.interactions_collection.query(
