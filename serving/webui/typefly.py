@@ -18,6 +18,7 @@ import wave
 from openai import OpenAI
 from queue import Empty as _QEmpty
 from PIL import Image
+import logging
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -801,6 +802,7 @@ class TypeFly:
 
         app = Flask(__name__)
         CORS(app)  # allow all origins
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
         @app.route('/drone-pov/')
         def video_feed():
