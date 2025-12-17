@@ -40,8 +40,7 @@ class RequestType(Enum):
     RETRIEVE_TASK_FEEDBACK = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
 
 class LLMWrapper:
-    def __init__(self, temperature=0.7):
-        self.temperature = temperature
+    def __init__(self):
         
         self.llama_client = OpenAI(
             # base_url="http://10.66.41.78:8000/v1",
@@ -79,7 +78,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "36"
+                        "version": "92"
                     },
                     input=input_payload,
                     stream=stream
@@ -112,7 +111,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": EVERGREEN_FEEDBACK_PROMPT_ID,
-                        "version": "8"
+                        "version": "9"
                     },
                     input=user_prompt,
                     stream=stream
@@ -122,7 +121,7 @@ class LLMWrapper:
                     response = client.responses.create(
                     prompt={
                         "id": SHORT_MEMORY_PROMPT_ID,
-                        "version": "6"
+                        "version": "7"
                     },
                     input=user_prompt,
                     stream=stream
@@ -148,7 +147,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "20"
+                        "version": "21"
                     },
                     input=input_payload,
                     stream=stream
@@ -159,7 +158,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PROBE_PROMPT_ID,
-                        "version": "2"
+                        "version": "3"
                     },
                     input=[
                         {
@@ -203,7 +202,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": DIRECTION_PROMPT_ID,
-                        "version": "3"
+                        "version": "4"
                     },
                     input=input_payload,
                     stream=stream,
@@ -230,7 +229,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": NEW_GRAPH_PROMPT_ID,
-                        "version": "4"
+                        "version": "5"
                     },
                     input=[
                         {
