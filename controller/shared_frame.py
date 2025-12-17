@@ -52,15 +52,15 @@ from PIL import Image
 class SharedFrame:
     def __init__(self):
         # Load MiDaS model + transforms
-        self.midas = torch.hub.load("intel-isl/MiDaS", "DPT_Hybrid", trust_repo=True)
-        midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+        # self.midas = torch.hub.load("intel-isl/MiDaS", "DPT_Hybrid", trust_repo=True)
+        # midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.midas.to(self.device)
-        self.midas.eval()
+        # self.midas.to(self.device)
+        # self.midas.eval()
 
         # Transform must match model
-        self.transform = midas_transforms.dpt_transform  
+        # self.transform = midas_transforms.dpt_transform  
 
         self.lock = threading.Lock()
 
@@ -79,25 +79,25 @@ class SharedFrame:
 
     def set(self, frame: Frame, yolo_result: dict):
         # Convert to RGB
-        img_np = np.array(frame.image)
-        img_rgb = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB) if img_np.shape[2] == 3 else img_np
+        # img_np = np.array(frame.image)
+        # img_rgb = cv2.cvtColor(img_np, cv2.COLOR_BGR2RGB) if img_np.shape[2] == 3 else img_np
 
         # Apply transform + move to device
-        input_batch = self.transform(img_rgb).to(self.device)
+        # input_batch = self.transform(img_rgb).to(self.device)
 
-        with torch.no_grad():
-            prediction = self.midas(input_batch)
-            prediction = torch.nn.functional.interpolate(
-                prediction.unsqueeze(1),
-                size=img_rgb.shape[:2],
-                mode="bicubic",
-                align_corners=False,
-            ).squeeze()
+        # with torch.no_grad():
+        #     prediction = self.midas(input_batch)
+        #     prediction = torch.nn.functional.interpolate(
+        #         prediction.unsqueeze(1),
+        #         size=img_rgb.shape[:2],
+        #         mode="bicubic",
+        #         align_corners=False,
+        #     ).squeeze()
 
-        depth_map = prediction.cpu().numpy().astype(np.int16)
+        # depth_map = prediction.cpu().numpy().astype(np.int16)
 
-        # Save both RGB and depth into Frame
-        frame.depth = depth_map
+        # # Save both RGB and depth into Frame
+        # frame.depth = depth_map
 
         with self.lock:
             self.frame = frame
