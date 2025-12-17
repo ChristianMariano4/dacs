@@ -98,7 +98,7 @@ class MiniSpecProgram:
             if not code:
                 continue
             if self.mq:
-                self.mq.put(code + '\\\\')
+                self.mq.put(code + '\n')
 
             for c in code:
                 if self.current_statement.parse(c, exec):
