@@ -386,22 +386,19 @@ class LLMController:
 
         # --- 2. HANDLE AUDIO (CLEANING) ---
         # Create a separate version just for the TTS engine
-        audio_text = text
+        # audio_text = text
 
-        # Fix A: Replace actual newlines with a pause (comma or space)
-        # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
-        audio_text = audio_text.replace('\n', ', ')
+        # # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
+        # audio_text = audio_text.replace('\n', ', ')
         
-        # Fix B: Remove literal "1n" or "\n" string artifacts if they exist
-        # If your TTS literally says "One N", this cleans it.
-        audio_text = audio_text.replace('\\n', ' ')
+        # # If your TTS literally says "One N", this cleans it.
+        # audio_text = audio_text.replace('\\n', ' ')
 
-        # Fix C: Remove Markdown/Special chars (so it doesn't say "Star Star Hello Star Star")
-        # This regex removes special characters but keeps text, numbers, and basic punctuation
-        audio_text = re.sub(r'[*_#`]', '', audio_text)
+        # # This regex removes special characters but keeps text, numbers, and basic punctuation
+        # audio_text = re.sub(r'[*_#`]', '', audio_text)
 
-        # Send the CLEAN text to the robot
-        self.text_to_speech(audio_text)
+        # # Send the CLEAN text to the robot
+        # self.text_to_speech(audio_text)
 
         return None, False
     
