@@ -165,14 +165,15 @@ class VirtualRobotWrapper(RobotWrapper):
         time.sleep(0.2)
         return True, False
     
-    def go_to_position(self, target_x_cm: float, target_y_cm: float) -> CommandResult:
+    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """
         Teleport-style move to an absolute planar position (x, y) in centimeters.
         Z is unchanged.
         """
-        print(f"-> Go to position ({target_x_cm:.1f}, {target_y_cm:.1f}) cm")
+        print(f"-> Go to position ({target_x_cm:.1f}, {target_y_cm:.1f}, {target_z_cm:.1f}) cm")
         self._pos_cm[0] = float(target_x_cm)
         self._pos_cm[1] = float(target_y_cm)
+        self._pos_cm[2] = float(target_z_cm)
         time.sleep(0.2)
         return True, False
     
