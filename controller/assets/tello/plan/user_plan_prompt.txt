@@ -3,8 +3,10 @@
 
 "low_level_skills": 
 {low_level_skills}
+
 "old_interactions_feedbacks": 
 {old_interactions_feedbacks}
+{evergreen_preferences}
 
 "objects_list": 
 {objects_list}
