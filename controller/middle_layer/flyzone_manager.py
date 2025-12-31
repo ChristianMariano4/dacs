@@ -29,9 +29,16 @@ class FlyzoneManager:
         for poly in self.middle_layer.get_flyzone_txt():
             x, y = poly.exterior.xy
             plt.fill(x, y, alpha=0.5)
+
         plt.gca().set_aspect('equal')
+
+        # Add axis labels with units
+        plt.xlabel("x (cm)")
+        plt.ylabel("y (cm)")
+
         plt.savefig("controller/assets/tello/flyzone/flyzone_plot.png")
         print("Saved flyzone plot to 'flyzone_plot.png'")
+
 
     def parse_current_flyzone(self):
         with open("controller/assets/tello/flyzone/flyzone.txt", "w") as f:
