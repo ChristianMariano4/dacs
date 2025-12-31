@@ -111,7 +111,7 @@ class LongMemoryModule:
 
         task_text = task.get_task_description()
         prompt = self.memory_prompt.format(task_text=task_text, 
-                                        execution_output=task.get_execution_history(), 
+                                        execution_output=task.get_execution_plan_summary_prompt(), 
                                         feedback_text=task.get_user_feedback(),
                                         high_level_skills=high_level_skills,
                                         low_level_skills=low_level_skills

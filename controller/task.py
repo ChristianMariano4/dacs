@@ -1,4 +1,6 @@
-from typing import Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple
+
+import numpy as np
 from controller.minispec_interpreter import MiniSpecReturnValue, Statement
 
 class Task():
@@ -20,43 +22,118 @@ class Task():
         
         self.task_summary = ""
         self.last_achievements = ""
-        self.drone_position = None
+        self.current_drone_position = np.zeros(3)
+        self.current_region = "studio_room"
+        self.previous_drone_position = self.current_drone_position
+        self.previous_region = self.current_region
         self.user_feedback = user_feedback
         self.is_new = is_new
     
     def get_task_description(self) -> str:
         return self.task_description
     
+    def update_drone_position(self, position, region):
+        if (self.current_drone_position != position):
+            self.previous_drone_position = self.current_drone_position
+            self.current_drone_position = position
+        if (self.current_region != region):
+            self.previous_region = self.current_region
+            self.current_region = region
+    
     def update_execution_history(self, *new_statements: Statement | str):
-        """Add statements to the last iteration's action list"""
+        """Add statements to the last iteration's action list.
+        Ensures drone position and region are prepended once per iteration.
+        """
         if not self.execution_history_list:
-            # If no history exists, create a new entry
-            self.execution_history_list.append(["", [], ""])
-        
-        # Get the last iteration
+            self.execution_history_list.append("")
+
         last_iteration = self.execution_history_list[-1]
-        
-        # Ensure it's a list with at least 3 elements
+
+        # Normalize old formats
         if not isinstance(last_iteration, list):
-            # If it's a string (old format), convert it
             self.execution_history_list[-1] = ["", [], str(last_iteration)]
             last_iteration = self.execution_history_list[-1]
-        
+
         while len(last_iteration) < 3:
             if len(last_iteration) == 0:
-                last_iteration.append("")  # plan
+                last_iteration.append("")      # plan
             elif len(last_iteration) == 1:
-                last_iteration.append([])  # actions
+                last_iteration.append([])      # actions
             else:
-                last_iteration.append("")  # summary
-        
-        # Add the new statements to the actions list (index 1)
+                last_iteration.append("")      # summary
+
+        actions = last_iteration[1]
+
+        # Insert drone state at the beginning only once
+        if not actions or not (
+            isinstance(actions[0], dict)
+            and "drone_position" in actions[0]
+            and "region" in actions[0]
+        ):
+            actions.insert(
+                0,
+                {
+                    "drone_position": self.previous_drone_position.tolist()
+                    if hasattr(self.previous_drone_position, "tolist")
+                    else list(self.previous_drone_position),
+                    "region": self.previous_region,
+                },
+            )
+
+        # Append new action statements
         for stmt in new_statements:
-            last_iteration[1].append(str(stmt))
-    
+            actions.append(str(stmt))
+
     def get_execution_history(self):
         return self.execution_history_list
     
+    def get_execution_plan_summaries(self) -> List[Dict[str, str]]:
+        """
+        Return a list of dicts with plan and summary for each execution iteration.
+        Low-level actions are intentionally excluded.
+        """
+        result: List[Dict[str, str]] = []
+
+        for item in self.execution_history_list:
+            # Old legacy format (string-only)
+            if isinstance(item, str):
+                result.append({
+                    "plan": "",
+                    "summary": str(item),
+                })
+                continue
+
+            if not isinstance(item, list):
+                continue
+
+            plan = ""
+            summary = ""
+
+            if len(item) >= 1:
+                plan = str(item[0])
+
+            if len(item) >= 3:
+                summary = str(item[2])
+
+            result.append({
+                "plan": plan,
+                "summary": summary,
+            })
+
+        return result
+
+    def get_execution_plan_summary_prompt(self) -> str:
+        entries = self.get_execution_plan_summaries()
+
+        lines = []
+        for i, entry in enumerate(entries, start=1):
+            if entry["plan"]:
+                lines.append(f"Iteration {i} plan: {entry['plan']}")
+            if entry["summary"]:
+                lines.append(f"Iteration {i} summary: {entry['summary']}")
+
+        return "\n".join(lines)
+
     def set_current_plan(self, new_plan):
         self.current_plan = new_plan
         self.execution_history_list.append([self.current_plan, [], ""])  # [plan, actions, summary]

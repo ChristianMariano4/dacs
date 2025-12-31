@@ -26,16 +26,21 @@ class ShortMemoryModule:
         with open(os.path.join(MEMORY_PATH, "user_short_memory_prompt.txt"), "r") as f:
             self.short_memory_prompt = f.read()
             
-    def generate_interaction_summary(self, task: Task, conf=0.3):
+    def generate_interaction_summary(self, task: Task, context_graph, low_level_skills, high_level_skills):
         '''
         Save in memory a summary of the last iteraction of current task, in order to keep task status.
         '''
         
         prompt = self.short_memory_prompt.format(last_iteration=task.get_last_iteration(),
-                                                 previously_iterations=task.get_execution_history()[:-1])
+                                                 previously_iterations=task.get_execution_plan_summary_prompt()[:-1],
+                                                 context_graph= context_graph,
+                                                 low_level_skills=low_level_skills,
+                                                 high_level_skills=high_level_skills)
         
         # Send the request to gpt5-nano, because we just need to summarize information
-        response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.SHORT_MEMORY, model_name=GPT5_NANO)
+        response_content = self.llm_wrapper.request(user_prompt=prompt, 
+                                                    request_type=RequestType.SHORT_MEMORY, 
+                                                    model_name=GPT5_NANO)
 
         # Parse the response
         # response_parsed = json.loads(response_content)
