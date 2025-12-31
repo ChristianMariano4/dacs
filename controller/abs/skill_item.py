@@ -63,11 +63,6 @@ class SkillItem(ABC):
         required_args = 0
         for arg in self.args:
             arg_type = arg.arg_type
-            # Check if it's an Optional type
-            if hasattr(arg_type, '__origin__') and arg_type.__origin__ is Union:
-                # Check if None is in the args (which makes it Optional)
-                if type(None) in arg_type.__args__:
-                    continue # This is optional
             required_args += 1
         
         # Check if we have at least the required arguments
