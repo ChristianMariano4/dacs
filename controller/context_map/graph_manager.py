@@ -6,6 +6,7 @@ import numpy as np
 
 from controller.context_map.graph_handler import GraphHandler
 from controller.llm.llm_wrapper import LLMWrapper, RequestType
+from controller.task import Task
 from controller.utils.general_utils import print_debug
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +55,12 @@ class GraphManager:
         if not os.path.exists(MEMORY_DIR):
             os.makedirs(MEMORY_DIR)
 
+        # Set current task, then used to update drone position
+        self.current_task: Task = None
+
+    def set_current_task(self, task: Task):
+        self.current_task = task
+
     def update_graph_from_file(self):
         self.graph_handler.update_graph_from_file()
 
@@ -91,17 +98,20 @@ class GraphManager:
             # if graph_handler.name_region doesn't handle the pointer update implicitly via ID change
     
     # --- Pose
-    def update_pose(self, pose: Sequence[float]) -> None:
+    def update_pose(self, pose: Sequence[float], yaw: float) -> None:
         """
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres.
         """
         self.drone_pose = np.asarray(pose)[:3]
+        self.drone_pose[3] = yaw
         print_debug(f"Drone pose update: {self.drone_pose}")
         
-        result = self.graph_handler.ensure_region_for_pose(self.drone_pose)
+        result = self.graph_handler.ensure_region_for_pose(self.drone_pose[:3])
         if result[1]: # If region changed or created
             self.current_region = result[0]
+        
+        self.current_task.update_drone_position(self.drone_pose, self.current_region)
 
     # --- Objects
     def add_object_detection(self, label: str, xy: Sequence[float] = None) -> None:

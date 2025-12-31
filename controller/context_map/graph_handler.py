@@ -184,7 +184,7 @@ class GraphHandler:
                     graph_dict[conn_key].append(sorted([n1_name, n2_name]))
                     added_edges.add(edge_pair)
 
-            # Update current position (remains unchanged)
+            # Update current position
             if self.current_location and self.current_location in self.graph.nodes:
                 current_loc_name = self.graph.nodes[self.current_location].get("display_name", self.current_location)
                 graph_dict["current_position"] = {
