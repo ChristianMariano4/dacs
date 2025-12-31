@@ -101,6 +101,10 @@ def cap_distance(distance):
     elif distance > MOVEMENT_MAX:
         return MOVEMENT_MAX
     return distance
+
+def normalize_angle_deg(angle: float) -> float:
+    """Normalize angle to [-180, 180) degrees."""
+    return (angle + 180) % 360 - 180
     
 # ───── CSV Utilities ─────
 
@@ -170,3 +174,5 @@ def run_command(command):
         print(e.stderr)
         print("Full command output:")
         print(e.output)
+
+
