@@ -222,10 +222,13 @@ class CrazyflieWrapper():
         x = data['stateEstimate.x']
         y = data['stateEstimate.y']
         z = data['stateEstimate.z']
+        yaw = data['stateEstimate.yaw']
+        
         self.pose[0] = x
         self.pose[1] = y
         self.pose[2] = z
-        # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}")
+        self.pose[3] = yaw
+        # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}, yaw={yaw:.2f}")
 
     def _track_position(self):
         '''Continuosly track drone position through lighthouse'''
@@ -236,6 +239,7 @@ class CrazyflieWrapper():
         logconf.add_variable('stateEstimate.x', 'float')
         logconf.add_variable('stateEstimate.y', 'float')
         logconf.add_variable('stateEstimate.z', 'float')
+        logconf.add_variable('stateEstimate.yaw', 'float')
 
         self.cf.log.add_config(logconf)
         logconf.data_received_cb.add_callback(self._log_stab_callback)

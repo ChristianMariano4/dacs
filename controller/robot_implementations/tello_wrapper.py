@@ -336,5 +336,5 @@ class TelloWrapper(RobotWrapper):
                 pos_m = self.crazyflie.get_pose()
                 self.position = pos_m
                 if self.graph_manager:
-                    self.graph_manager.update_pose(self.position * 100.0)
+                    self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
             time.sleep(0.02) # 50Hz
