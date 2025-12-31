@@ -41,13 +41,21 @@ class FlyzoneManager:
 
 
     def parse_current_flyzone(self):
-        with open("controller/assets/tello/flyzone/flyzone.txt", "w") as f:
+        """Saves the current flyzone polygons in a dense, scannable format."""
+        file_path = "controller/assets/tello/flyzone/flyzone.txt"
+        
+        with open(file_path, "w") as f:
             for idx, poly in enumerate(self.middle_layer.get_flyzone_txt()):
+                # Get exterior coordinates; shapely polygons repeat the first point at the end
                 coords = list(poly.exterior.coords)
-                f.write(f"Flyzone Polygon {idx+1}:\n")
-                for point in coords:
-                    f.write(f"  - {point}\n")
-        print("Saved flyzone text to 'flyzone.txt'")
+                
+                # Create a dense string: (x,y; x,y; x,y)
+                # We round to 1 decimal place to keep it compact but precise
+                dense_coords = "; ".join([f"{round(p[0], 1)},{round(p[1], 1)}" for p in coords])
+                
+                f.write(f"P{idx+1}: [{dense_coords}]\n")
+                
+        print(f"Saved dense flyzone to '{file_path}'")
 
     def format_flyzone_for_prompt(self) -> str:
         descriptions = []
