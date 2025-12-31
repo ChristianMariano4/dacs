@@ -2,6 +2,7 @@ import json
 import math
 import os
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from collections import defaultdict
 
 import networkx as nx
 import numpy as np
@@ -197,6 +198,53 @@ class GraphHandler:
                 }
 
             return json.dumps(graph_dict, indent=2)
+
+    def to_adjacency_list_str(self) -> str:
+        """
+        Serializes the graph into a dense Adjacency List format.
+        Format: Region(x,y): obj1, obj2 | Current: [x,y,z] @ Region
+        """
+        adj = defaultdict(list)
+        region_info = {}
+        
+        # 1. Map Regions and their coordinates
+        for node, attrs in self.graph.nodes(data=True):
+            name = attrs.get("display_name", node)
+            if attrs.get("type") == "region":
+                coords = attrs.get("coords", [0, 0])
+                region_info[name] = f"({coords[0]},{coords[1]})"
+                
+        # 2. Build Adjacency: Group neighbors under their parent region
+        for u, v in self.graph.edges():
+            u_attr = self.graph.nodes[u]
+            v_attr = self.graph.nodes[v]
+            u_name = u_attr.get("display_name", u)
+            v_name = v_attr.get("display_name", v)
+            
+            # If one is a region, treat it as the 'key' for the adjacency list
+            if u_attr.get("type") == "region":
+                adj[u_name].append(v_name)
+            elif v_attr.get("type") == "region":
+                adj[v_name].append(u_name)
+            else:
+                # For object-to-object edges (if any)
+                adj[u_name].append(v_name)
+
+        # 3. Serialize into a compact string
+        lines = []
+        for region, neighbors in adj.items():
+            coord_str = region_info.get(region, "")
+            neighbors_str = ", ".join(neighbors)
+            lines.append(f"{region}{coord_str}: {neighbors_str}")
+
+        # 4. Current Position
+        curr_reg = "unknown"
+        if self.current_location in self.graph.nodes:
+            curr_reg = self.graph.nodes[self.current_location].get("display_name", self.current_location)
+        
+        pos_str = f"POS: {self.drone_position.tolist()} @ {curr_reg}"
+        
+        return " | ".join(lines) + " | " + pos_str
 
     def update_location(self, new_location: str) -> bool:
         if new_location not in self.graph.nodes:

@@ -74,6 +74,14 @@ class GraphManager:
         self.write_graph_to_file()
         return self.graph_handler.to_json_str()
     
+
+    def get_dense_graph(self):
+        """
+        Returns the current graph state as an adiency list string representation and persists it to disk.
+        """
+        self.write_graph_to_file()
+        return self.graph_handler.to_adjacency_list_str()
+    
     def name_region(self, name: str):
         """Renames the current region if it hasn't been named yet (starts with 'region')."""
         if self.current_region.startswith("region"):

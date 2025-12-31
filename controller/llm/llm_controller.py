@@ -505,7 +505,7 @@ class LLMController:
                 self.current_task,
                 img_b64=img_b64,
                 execution_history=self.current_task.get_execution_history(), 
-                context_graph=self.graph_manager.get_graph(), 
+                context_graph=self.graph_manager.get_dense_graph(), 
                 current_position=self.graph_manager.get_drone_pose(), 
                 current_region=self.graph_manager.get_current_region(),
                 old_interactions_feedbacks=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
