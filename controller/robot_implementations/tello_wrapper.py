@@ -207,14 +207,31 @@ class TelloWrapper(RobotWrapper):
         return self._move_relative(yaw_ccw=degree)
     
     def move_direction(self, direction_deg: int, distance_cm: int = REGION_THRESHOLD) -> Tuple[bool, bool]:
-        """Rotate then move forward."""
-        if self.move_enable:
-            with self.lock:
-                self.drone.rotate_clockwise(direction_deg)
-                time.sleep(1.0)
-                self.drone.move_forward(cap_distance(int(distance_cm)))
-        else:
-            print(f"[Drone] Rotate {direction_deg} then Move {distance_cm}")
+        """Rotate to target yaw (shortest path), then move forward."""
+
+        if not self.move_enable:
+            print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
+            return True, False
+
+        with self.lock:
+            # Read and normalize current yaw
+            current_yaw = self.drone.get_position()[3] % 360
+            target_yaw = direction_deg % 360
+
+            # Compute shortest signed delta in range [-180, 180]
+            delta = (target_yaw - current_yaw + 180) % 360 - 180
+
+            # Rotate in correct direction
+            if delta > 0:
+                self.drone.rotate_clockwise(abs(int(delta)))
+            elif delta < 0:
+                self.drone.rotate_counter_clockwise(abs(int(delta)))
+
+            time.sleep(1.0)
+
+            # Move forward
+            self.drone.move_forward(cap_distance(int(distance_cm)))
+
         return True, False
 
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> Tuple[bool, bool]:
@@ -238,9 +255,13 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     # Odometry & State
     # -------------------------------------------------------------------------
-    def get_position(self) -> Tuple[float, float, float]:
-        """Return position in CM (x, y, z)."""
-        return tuple(self.position * 100.0)
+    def get_position(self) -> Tuple[float, float, float, float]:
+        """Return position in cm and yaw in degrees (x, y, z. yaw)."""
+        return tuple(self.position[0] * 100.0, 
+                     self.position[1] * 100.0,
+                     self.position[2] * 100.0,
+                     self.position[3])
+        
 
     def keep_active(self):
         """Heartbeat to keep session alive during idle times."""
@@ -335,6 +356,9 @@ class TelloWrapper(RobotWrapper):
             if self.crazyflie:
                 pos_m = self.crazyflie.get_pose()
                 self.position = pos_m
+                self.position[3] = math.degrees(self.position[3])
+                if self.position[3] < 0:
+                    self.position[3] = self.position[3] + 360
                 if self.graph_manager:
                     self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
             time.sleep(0.02) # 50Hz
