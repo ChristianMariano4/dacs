@@ -46,18 +46,6 @@ load_dotenv()
 
 DIRECTION_STEP_DEG = 45
 
-DIRECTIONS = {
-    0: "north",
-    1: "north-east",
-    2: "east",
-    3: "south-east",
-    4: "south",
-    5: "south-west",
-    6: "west",
-    7: "north-west",
-}
-
-
 class LLMController:
     def __init__(self, robot_type, graph_manager: GraphManager, use_http=False, message_queue: Optional[queue.Queue]=None, 
                  user_answer_queue: Optional[queue.Queue]=None, username: str = "Christian"):
@@ -109,7 +97,7 @@ class LLMController:
         # --- 6. State Flags ---
         self.controller_active = True
         self.controller_wait_takeoff = True
-        self.body_direction_index = 0
+        self.images_counter = 0
         self.directions = {0: "north", 1: "north-east", 2: "east", 3: "south-east", 
                            4: "south", 5: "south-west", 6: "west", 7: "north-west"}
 
@@ -316,32 +304,13 @@ class LLMController:
         self.drone.move_north(110)
         return None, False
         
-    def _body_to_world_direction(self, direction_body_deg: float) -> float:
-        yaw_deg = math.degrees(self.current_yaw)  # store yaw from logging
-        return normalize_angle_deg(direction_body_deg + yaw_deg)
-    
-    def explore_new_region(
-        self,
-        direction: int,
-        distance: int = REGION_THRESHOLD
-    ) -> Tuple[None, bool]:
-
-        # Convert from drone frame to world frame
-        world_direction = self._body_to_world_direction(direction)
-
-        match round(world_direction):
-            case 0:
-                self.drone.move_north(distance_cm=distance)
-            case 180 | -180:
-                self.drone.move_south(distance_cm=distance)
-            case -90:
-                self.drone.move_west(distance_cm=distance)
-            case 90:
-                self.drone.move_east(distance_cm=distance)
-            case _:
-                # fallback for non-cardinal angles
-                self.drone.move_direction(world_direction, distance)
-
+    def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> Tuple[None, bool]:
+        match direction:
+            case 0: self.drone.move_north(distance_cm=distance)
+            case 180: self.drone.move_south(distance_cm=distance)
+            case -90: self.drone.move_west(distance_cm=distance)
+            case 90: self.drone.move_east(distance_cm=distance)
+            case _: self.drone.move_direction(direction, distance)
         return None, False
 
     def _name_region(self, region_name: str) -> Tuple[None, bool]:
@@ -359,55 +328,43 @@ class LLMController:
         self.graph_manager.update_graph_from_file()
         return None, False
     
-    def _body_index_to_world_index(self, body_index: int) -> int:
-        """
-        Convert a body-frame direction index (0–7) to a world-frame index,
-        compensating for drone yaw.
-        """
-        # Body-frame angle
-        body_angle_deg = body_index * DIRECTION_STEP_DEG
+    def align_direction(self):
+        yaw = self.drone.get_position()[3]
 
-        # Yaw from estimator (rad → deg)
-        yaw_deg = math.degrees(self.current_yaw)
+        # Snap to nearest 45-degree increment
+        snapped = round(yaw / 45) * 45
 
-        # World-frame angle
-        world_angle_deg = body_angle_deg + yaw_deg
+        # Convert 360 back to 0
+        snapped = snapped % 360
 
-        # Normalize to [0, 360)
-        world_angle_deg = world_angle_deg % 360
-
-        # Quantize back to 8 bins
-        world_index = int(round(world_angle_deg / DIRECTION_STEP_DEG)) % 8
-
-        return world_index
+        if snapped > 0:
+            self.drone.turn_cw(snapped)
+        else:
+            self.drone.turn_ccw(snapped)
 
 
-    def skill_take_picture(self) -> Tuple[None, bool]:
+    def skill_take_picture(self, yaw_direction: float) -> Tuple[None, bool]:
         time.sleep(0.1)
 
-        if self.body_direction_index == 0:
+        if self.images_counter == 0:
             self.env_analysis_module.reset_updated_directions()
 
-        # Body-frame direction index
-        body_index = self.body_direction_index
-
-        # Convert to world-frame index
-        world_index = self._body_index_to_world_index(body_index)
-
-        direction_name = DIRECTIONS[world_index]
-        img_path = os.path.join(self.cache_folder, f"{direction_name}.jpg")
-
-        self.env_analysis_module.set_updated_directions(direction_name)
-
-        self.body_direction_index = (self.body_direction_index + 1) % 8
-
+        # Convert yaw to nearest 45-degree direction index (0–7)
+        direction_index = self.images_counter + round(self.drone.get_position()[3] / DIRECTION_STEP_DEG) % 8
+            
+        direction = self.directions.get(direction_index)
+        img_path = os.path.join(self.cache_folder, f"{direction}.jpg")
+        
+        self.env_analysis_module.set_updated_directions(direction)
+        self.images_counter = (self.images_counter + 1) % 8
+        
         if self.latest_frame is not None:
             Image.fromarray(self.latest_frame).save(img_path)
             print_t(f"[C] Picture saved to {img_path}")
             self.append_message((img_path,))
         else:
             print_t("[C] Error: No frame available to take picture")
-
+            
         return None, False
     
     def skill_explore_direction(self, hint: Optional[str]) -> Tuple[None, bool]:
