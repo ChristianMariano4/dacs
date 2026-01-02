@@ -25,14 +25,14 @@ RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e4460048716
 
 
 PLAN_PROMPT_VERSION = "93"
-FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
-SHORT_MEMORY_PROMPT_ID = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
-PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
+FEEDBACK_PROMPT_VERSION = "4"
+SHORT_MEMORY_PROMPT_VERSION = "8"
+PROBE_PROMPT_VERSION = "4"
 DIRECTION_PROMPT_VERSION = "5"
-FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
-NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
-EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
-RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
+FLYZONE_PROMPT_VERSION = "22"
+NEW_GRAPH_PROMPT_VERSION = "6"
+EVERGREEN_FEEDBACK_PROMPT_VERSION = "10"
+RETRIEVE_TASK_FEEDBACK_PROMPT_VERSION = "5"
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -99,7 +99,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FEEDBACK_PROMPT_ID,
-                        "version": "3"
+                        "version": FEEDBACK_PROMPT_VERSION
                     },
                     input=user_prompt,
                     stream=stream
@@ -109,7 +109,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": RETRIEVE_TASK_FEEDBACK_PROMPT_ID,
-                        "version": "4",
+                        "version": RETRIEVE_TASK_FEEDBACK_PROMPT_VERSION,
                         "variables": {
                             "user_request": variables[0],
                             "candidate_preferences_json": json.dumps(variables[1])
@@ -122,7 +122,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": EVERGREEN_FEEDBACK_PROMPT_ID,
-                        "version": "9"
+                        "version": EVERGREEN_FEEDBACK_PROMPT_VERSION
                     },
                     input=user_prompt,
                     stream=stream
@@ -132,7 +132,7 @@ class LLMWrapper:
                     response = client.responses.create(
                     prompt={
                         "id": SHORT_MEMORY_PROMPT_ID,
-                        "version": "7"
+                        "version": SHORT_MEMORY_PROMPT_VERSION
                     },
                     input=user_prompt,
                     stream=stream
@@ -158,7 +158,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": FLYZONE_PROMPT_ID,
-                        "version": "21"
+                        "version": FLYZONE_PROMPT_VERSION
                     },
                     input=input_payload,
                     stream=stream
@@ -169,7 +169,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PROBE_PROMPT_ID,
-                        "version": "3"
+                        "version": PROBE_PROMPT_VERSION
                     },
                     input=[
                         {
@@ -240,7 +240,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": NEW_GRAPH_PROMPT_ID,
-                        "version": "5"
+                        "version": NEW_GRAPH_PROMPT_VERSION
                     },
                     input=[
                         {
