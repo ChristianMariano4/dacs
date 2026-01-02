@@ -24,6 +24,17 @@ EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9
 RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
 
 
+PLAN_PROMPT_VERSION = "93"
+FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
+SHORT_MEMORY_PROMPT_ID = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
+PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
+DIRECTION_PROMPT_VERSION = "5"
+FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
+NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
+EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
+RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
+
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 chat_log_path = os.path.join(CURRENT_DIR, "../assets/chat_log.txt")
 
@@ -202,7 +213,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": DIRECTION_PROMPT_ID,
-                        "version": "4"
+                        "version": DIRECTION_PROMPT_VERSION
                     },
                     input=input_payload,
                     stream=stream,
