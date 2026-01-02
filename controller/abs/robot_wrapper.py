@@ -164,7 +164,7 @@ class RobotWrapper(ABC):
 
     # --- State / pose -------------------------------------------------------------
     @abstractmethod
-    def get_position(self) -> Tuple[float, float, float]:
+    def get_position(self) -> Tuple[float, float, float, float]:
         """
         Get the robot's current pose (position + orientation).
 
