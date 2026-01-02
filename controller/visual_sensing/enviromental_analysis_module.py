@@ -53,7 +53,7 @@ class EnvironmentalAnalysisModule:
     def set_updated_directions(self, direction: str):
         self.updated_directions[direction] = True
             
-    def choose_direction(self, current_task, base_path, current_position, hint: Optional[str]):
+    def choose_direction(self, current_task, base_path, current_position):
         try:
             # Read and encode updated directional images
             images = {}
@@ -65,7 +65,6 @@ class EnvironmentalAnalysisModule:
             total_size = sum(len(images.get(dir)) for dir in images)
             print(f"Total base64 size: {total_size / 1024 / 1024:.2f} MB")
             prompt = self.direction_prompt.format(task=current_task, 
-                                                  hint=hint, 
                                                   flyzone=self.flyzone,
                                                   current_position=current_position,
                                                   )

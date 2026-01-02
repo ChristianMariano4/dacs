@@ -367,12 +367,11 @@ class LLMController:
             
         return None, False
     
-    def skill_explore_direction(self, hint: Optional[str]) -> Tuple[None, bool]:
+    def skill_explore_direction(self) -> Tuple[None, bool]:
         (direction, distance, region_name) = self.env_analysis_module.choose_direction(
             self.current_task.get_task_description(), 
             self.cache_folder, 
-            self.get_drone_pose(), 
-            hint
+            self.get_drone_pose()
         )
         self._name_region(region_name)
         valid_directions = ["north", "east", "south", "west", "north-east", "north-west", "south-east", "south-west"]

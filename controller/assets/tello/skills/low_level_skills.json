@@ -1,0 +1,253 @@
+[
+    {
+        "name": "take_off",
+        "handler": "drone.takeoff",
+        "description": "Take off",
+        "args": []
+    },
+    {
+        "name": "land",
+        "handler": "drone.land",
+        "description": "Land",
+        "args": []
+    },
+    {
+        "name": "move_forward",
+        "handler": "drone.move_north",
+        "description": "Move forward by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "move_backward",
+        "handler": "drone.move_south",
+        "description": "Move backward by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "move_left",
+        "handler": "drone.move_west",
+        "description": "Move left by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "move_right",
+        "handler": "drone.move_east",
+        "description": "Move right by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "move_up",
+        "handler": "drone.move_up",
+        "description": "Move up by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "move_down",
+        "handler": "drone.move_down",
+        "description": "Move down by a distance",
+        "args": [{"name": "distance", "type": "float"}]
+    },
+    {
+        "name": "go_position",
+        "handler": "drone.go_to_position",
+        "description": "Move to x,y,z absolute position.",
+        "args": [
+            {"name": "x", "type": "int"},
+            {"name": "y", "type": "int"},
+            {"name": "z", "type": "int"}
+        ]
+    },
+    {
+        "name": "explore_new_region",
+        "handler": "explore_new_region",
+        "description": "Explore a new region (forward, backward, left, right) by a given distance in cm.",
+        "args": [
+            {"name": "direction", "type": "str"},
+            {"name": "distance", "type": "float"}
+        ]
+    },
+    {
+        "name": "turn_cw",
+        "handler": "drone.turn_cw",
+        "description": "Rotate clockwise/right by certain degrees",
+        "args": [{"name": "degrees", "type": "int"}]
+    },
+    {
+        "name": "turn_ccw",
+        "handler": "drone.turn_ccw",
+        "description": "Rotate counterclockwise/left by certain degrees",
+        "args": [{"name": "degrees", "type": "int"}]
+    },
+    {
+        "name": "delay",
+        "handler": "skill_delay",
+        "description": "Wait for specified seconds",
+        "args": [{"name": "seconds", "type": "float"}]
+    },
+    {
+        "name": "is_visible",
+        "handler": "vision.is_visible",
+        "description": "Check the visibility of target YOLO-detectable objects. Use only YOLO-detectable objects. Returns False or the name of the object found",
+        "args": [{"name": "objects_name", "type": "list"}]
+    },
+    {
+        "name": "object_x",
+        "handler": "vision.object_x",
+        "description": "Get the object’s center X in normalized image coordinates (0,1) (left=0, right=1).",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "object_y",
+        "handler": "vision.object_y",
+        "description": "Get the object’s center Y in normalized image coordinates (0,1) (top=0, bottom=1).",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "object_width",
+        "handler": "vision.object_width",
+        "description": "Get object's width in (0,1)",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "object_height",
+        "handler": "vision.object_height",
+        "description": "Get object's height in (0,1)",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "object_dis",
+        "handler": "vision.object_distance",
+        "description": "Get object's distance in cm",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "probe",
+        "handler": "planner.probe",
+        "description": "Probe the LLM for reasoning. Add also what do you expect as returned value type. It automatically take the image in front of the robot",
+        "args": [{"name": "question", "type": "str"}]
+    },
+    {
+        "name": "log_user",
+        "handler": "skill_log",
+        "description": "Output text to console",
+        "args": [{"name": "text", "type": "str"}]
+    },
+    {
+        "name": "take_picture",
+        "handler": "skill_take_picture",
+        "description": "Take a picture",
+        "args": []
+    },
+    {
+        "name": "explore_direction",
+        "handler": "skill_explore_direction",
+        "description": "Explore through a direction based on video streaming, graph and current task.",
+        "args": []
+    },
+    {
+        "name": "add_skill",
+        "handler": "skill_add_skill",
+        "description": "Define a new high-level skill through already existing low and high-level ones",
+        "args": [
+            {"name": "name", "type": "str"},
+            {"name": "description", "type": "str"},
+            {"name": "definition", "type": "str"}
+        ]
+    },
+    {
+        "name": "delete_skill",
+        "handler": "delete_skill",
+        "description": "Delete the specified high-level skill",
+        "args": [{"name": "skill_name", "type": "str"}]
+    },
+    {
+        "name": "ask_user",
+        "handler": "skill_ask_user",
+        "description": "Ask user a question in order to retrieve some missing information about his task. Then automatically replan, so dont add a replan skill",
+        "args": [{"name": "question", "type": "str"}]
+    },
+    {
+        "name": "create_flyzone",
+        "handler": "planner.skill_create_flyzone",
+        "description": "Create through another LLM a new flyzone, passing only the user description that you had without adding anything. Set the `image_present` flag to True if the user also provides an image.",
+        "args": [
+            {"name": "user_description", "type": "str"},
+            {"name": "image_present", "type": "bool"}
+        ]
+    },
+    {
+        "name": "set_username",
+        "handler": "set_username",
+        "description": "Set a new username",
+        "args": [{"name": "username", "type": "str"}]
+    },
+    {
+        "name": "save_task_user_feedback",
+        "handler": "save_task_user_feedback",
+        "description": "Save user feedback related to a specific type of tasks in persistent memory, so you can retrieve it later for similar tasks.",
+        "args": [{"name": "user_feedback", "type": "str"}]
+    },
+    {
+        "name": "delete_task_user_feedback",
+        "handler": "delete_task_user_feedback",
+        "description": "Delete instances of user feedback related to a specific type of tasks in persistent memory, so you will not retrieve it later for similar tasks.",
+        "args": [{"name": "user_feedback", "type": "str"}]
+    },
+    {
+        "name": "change_evergreen_user_feedback",
+        "handler": "change_evergreen_user_feedback",
+        "description": "Save new or delete old user feedback valid for every tasks in persistent memory, so you can retrieve it later for every tasks. Do not use for specific type of tasks preferences.",
+        "args": [{"name": "user_request", "type": "str"}]
+    },
+    {
+        "name": "save_shortcut",
+        "handler": "save_shortcut",
+        "description": "Save previous task to a shortcut in persistent memory",
+        "args": [{"name": "shortcut", "type": "str"}]
+    },
+    {
+        "name": "delete_shortcut",
+        "handler": "delete_shortcut",
+        "description": "Delete given shortcut from persistent memory",
+        "args": [{"name": "shortcut", "type": "str"}]
+    },
+    {
+        "name": "execute_shortcut",
+        "handler": "execute_shortcut",
+        "description": "Execute a task previously mapped to a given shortcut",
+        "args": [{"name": "shortcut", "type": "str"}]
+    },
+    {
+        "name": "create_graph",
+        "handler": "create_graph",
+        "description": "Create through another LLM a new context graph based on the environment description you pass. Do not include other text. Set the `image_present` flag to True if the user also provides an image.",
+        "args": [
+            {"name": "user_description", "type": "str"},
+            {"name": "image_present", "type": "bool"}
+        ]
+    },
+    {
+        "name": "re_plan",
+        "handler": "skill_re_plan",
+        "description": "Replanning. After this skill do not put other code.",
+        "args": []
+    },
+    {
+        "name": "goto",
+        "handler": "skill_goto",
+        "description": "goto the object",
+        "args": [{"name": "object_name", "type": "str"}]
+    },
+    {
+        "name": "time",
+        "handler": "skill_time",
+        "description": "Get current execution time",
+        "args": []
+    },
+        {
+        "name": "align_direction",
+        "handler": "align_direction",
+        "description": "Snaps drone yaw to nearest 45-degree compass direction.",
+        "args": []
+    }
+]

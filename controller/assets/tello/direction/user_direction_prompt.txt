@@ -1,7 +1,5 @@
 Task: {task}
 
-Hint: {hint}
-
 Flyzone: {flyzone}
 
 Context Graph: {context_graph}
