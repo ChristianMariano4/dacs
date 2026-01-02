@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, NamedTuple, Tuple
 from enum import Enum
-from typing import Any, Tuple
 
 from controller.context_map.graph_manager import GraphManager
 
 # Common return type for motion/actuation commands
-CommandResult = Tuple[bool, bool]  # (ok, replan)
+
+@dataclass(frozen=True)
+class CommandResult(NamedTuple):
+    ok: bool
+    replan: bool
 
 class RobotType(Enum):
     """Supported robot backends."""
@@ -23,7 +28,7 @@ class RobotWrapper(ABC):
 
     Notes
     -----
-    - All movement and action methods return a tuple `(ok, replan)`:
+    - All movement and action methods return a CommandResultCommandResult(ok, replan):
         ok   : bool -> whether the command was accepted/executed without error
         replan : bool -> whether a replan is required to fulfill the user's task
     """
@@ -44,65 +49,52 @@ class RobotWrapper(ABC):
     @abstractmethod
     def connect(self) -> None:
         """Establish a connection to the robot (pairing, links, SDK init, etc.)."""
-        pass
 
     @abstractmethod
     def disconnect(self) -> None:
         """Close connection to the robot and eventually stop threads."""
-        pass
 
     @abstractmethod
     def keep_active(self) -> None:
         """Optionally send heartbeats to prevent robot timeout or sleep."""
-        pass
 
     # --- Stream control --------------------------------------------------
     @abstractmethod
     def start_stream(self) -> None:
         """Start any available telemetry/video stream."""
-        pass
 
     @abstractmethod
     def stop_stream(self) -> None:
         """Stop any active telemetry/video stream."""
-        pass
 
     @abstractmethod
     def get_frame_reader(self) -> Any:
         """Return a frame reader handle (implementation-defined)."""
-        pass
-
 
     # --- Flight control --------------------------------------------------
     @abstractmethod
-    def takeoff(self) -> bool:
-        """Command the robot to take off. Returns True if accepted."""
-        pass
+    def takeoff(self) -> CommandResult:
+        """Command the robot to take off. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
-    def land(self) -> bool:
-        """Command the robot to land. Returns True if accepted."""
-        pass
+    def land(self) -> CommandResult:
+        """Command the robot to land. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
     def move_north(self, distance_cm: int) -> CommandResult:
-        """Move forward/north by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Move forward/north by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
     
     @abstractmethod
     def move_south(self, distance_cm: int) -> CommandResult:
-        """Move backward/south by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Move backward/south by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
     
     @abstractmethod
     def move_west(self, distance_cm: int) -> CommandResult:
-        """Move left/west by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Move left/west by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
     def move_east(self, distance_cm: int) -> CommandResult:
-        """Move right/east by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Move right/east by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
     def move_direction(self, direction_deg: int, distance_cm: int) -> CommandResult:
@@ -119,24 +111,21 @@ class RobotWrapper(ABC):
 
         Returns
         -------
-        (ok, replan) : Tuple[bool, bool]
+        CommandResult(ok, replan)
         """
-        pass
 
     @abstractmethod
     def move_up(self, distance_cm: int) -> CommandResult:
-        """Increase altitude by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Increase altitude by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
     
     @abstractmethod
     def move_down(self, distance_cm: int) -> CommandResult:
-        """Decrease altitude by `distance_cm` centimeters. Returns (ok, replan)."""
-        pass
+        """Decrease altitude by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """
-        Navigate the robot to the absolute planar position (target_x_cm, target_y_cm, target_z_cm).
+        Navigate the robot to the absolute 3D position (target_x_cm, target_y_cm, target_z_cm).
 
         Parameters
         ----------
@@ -148,19 +137,16 @@ class RobotWrapper(ABC):
             Target Z coordinate (cm) in the world/map frame.
         Returns
         -------
-        (ok, replan) : Tuple[bool, bool]
+        CommandResult(ok, replan)
         """
-        pass
 
     @abstractmethod
     def turn_ccw(self, degree: int) -> CommandResult:
-        """Rotate counter-clockwise by `degree`. Returns (ok, replan)."""
-        pass
+        """Rotate counter-clockwise by `degree`. Returns CommandResult(ok, replan)."""
 
     @abstractmethod
     def turn_cw(self, degree: int) -> CommandResult:
-        """Rotate clockwise by `degree`. Returns (ok, replan)."""
-        pass
+        """Rotate clockwise by `degree`. Returns CommandResult(ok, replan)."""
 
     # --- State / pose -------------------------------------------------------------
     @abstractmethod
@@ -170,7 +156,7 @@ class RobotWrapper(ABC):
 
         Returns
         -------
-        Tuple[float, float, float]
-            (x, y, z) in centimeters; 
+        Tuple[float, float, float, float]
+            (x, y, z) in centimeters;
+            yaw in degrees;
         """
-        pass
