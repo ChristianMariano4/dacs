@@ -11,7 +11,7 @@ from .llm_wrapper import GPT5_MINI, LLMWrapper, GPT5, RequestType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from ..utils.general_utils import encode_image, print_t
 from ..minispec_interpreter import MiniSpecValueType, evaluate_value
-from ..abs.robot_wrapper import RobotType
+from ..abs.robot_wrapper import CommandResult, RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
@@ -57,10 +57,9 @@ class LLMPlanner:
     def update_latest_frame(self, latest_frame):
         self.latest_frame = latest_frame
 
-    def plan(self, task: Task, img_b64: str, context_graph: str, current_position: Sequence[float], 
-             current_region: str, objects_list: Optional[str] = None, error_message: Optional[str] = None, 
-             execution_history: Optional[str] = None, old_interactions_feedbacks: Optional[List[str]] = None, 
-             model_name: Optional[str] = GPT5):
+    def plan(self, task: Task, img_b64: str, context_graph: str,
+             objects_list: Optional[str] = None, execution_history: Optional[str] = None,
+             old_interactions_feedbacks: Optional[List[str]] = None):
         
         # Format task description
         task_description = task.get_task_description()
@@ -103,7 +102,7 @@ class LLMPlanner:
         response_plan = response_json.get("plan")
         requires_execution = response_json.get("requires_execution", True)
 
-        return response_plan, requires_execution, None
+        return response_plan, requires_execution
     
     def probe(self, question) -> Tuple[MiniSpecValueType, bool]:
         # Fix: Use isinstance instead of 'is' for type checking
@@ -129,11 +128,11 @@ class LLMPlanner:
                 request_type=RequestType.PROBE
             )["answer"]
             
-            return evaluate_value(answer), False
+            return CommandResult(value=answer, replan=False)
         else:
             print_t("[Error] No frame available for probing")
-            return evaluate_value("I cannot see anything right now."), False
+            return CommandResult(value=evaluate_value("I cannot see anything right now."), replan=False)
     
-    def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> Tuple[None, bool]:
+    def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> CommandResult:
         self.flyzone_manager.request_new_flyzone(user_instructions, image_present)
-        return None, False
+        return CommandResult(value=True, replan=False)

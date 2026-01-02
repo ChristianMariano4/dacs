@@ -522,7 +522,7 @@ class LLMController:
         ret_val = None
         
         while True:
-            self.current_plan, requires_execution, iteration_description = self.planner.plan(
+            self.current_plan, requires_execution= self.planner.plan(
                 self.current_task,
                 img_b64=img_b64,
                 execution_history=self.current_task.get_execution_plan_summary_prompt(), 
