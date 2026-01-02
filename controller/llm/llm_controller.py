@@ -1,14 +1,11 @@
-import math
 import os
 import re
-import sys
 import json
 import time
 import queue
 import asyncio
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
-import numpy as np
 from PIL import Image
 from gtts import gTTS
 from dotenv import load_dotenv
@@ -34,7 +31,7 @@ from ..yolo_client import YoloClient
 from ..yolo_grpc_client import YoloGRPCClient
 from ..robot_implementations.tello_wrapper import TelloWrapper
 from ..robot_implementations.virtual_robot_wrapper import VirtualRobotWrapper
-from ..abs.robot_wrapper import RobotWrapper, RobotType
+from ..abs.robot_wrapper import CommandResult, RobotWrapper, RobotType
 from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from ..skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
@@ -45,6 +42,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
 
 DIRECTION_STEP_DEG = 45
+ENABLE_SPEECH = False
 
 class LLMController:
     def __init__(self, robot_type, graph_manager: GraphManager, use_http=False, message_queue: Optional[queue.Queue]=None, 
@@ -231,17 +229,17 @@ class LLMController:
         with open(self.user_high_level_skill_path, "w") as f:
             json.dump(common_skills + user_skills, f, indent=4)
 
-    def set_username(self, username, long_memory_flag: bool = True) -> Tuple[None, False]:
+    def set_username(self, username, long_memory_flag: bool = True) -> CommandResult:
         self.username = username
         self.user_high_level_skill_path = os.path.join(SKILL_PATH, self.username, "user_high_level_skills.json")
         if long_memory_flag:
             self.long_memory_module.change_username(username)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
     def get_username(self) -> str:
         return self.username 
 
-    def save_task_user_feedback(self, user_feedback: str) -> Tuple[None, False]:
+    def save_task_user_feedback(self, user_feedback: str) -> CommandResult:
         if self.last_task is not None:
             self.last_task.set_user_feedback(user_feedback)
             self.long_memory_module.save_task_summary(self.last_task, 
@@ -249,30 +247,30 @@ class LLMController:
                                                       low_level_skills=self.low_level_skillset)
         else:
             self.append_message("\nNo previous task saved.")
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def delete_task_user_feedback(self, user_feedback: str) -> Tuple[None, False]:
+    def delete_task_user_feedback(self, user_feedback: str) -> CommandResult:
         self.long_memory_module.delete_task_user_feedback(user_feedback)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def change_evergreen_user_feedback(self, user_request: str) -> Tuple[None, False]:
+    def change_evergreen_user_feedback(self, user_request: str) -> CommandResult:
         self.long_memory_module.change_feedback_prompt(user_request)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def save_shortcut(self, shortcut: str) -> Tuple[None, False]:
+    def save_shortcut(self, shortcut: str) -> CommandResult:
         if self.last_task is not None:
             self.long_memory_module.save_shortcut_task(shortcut, self.last_task)
         else:
             self.append_message("\nNo previous task saved.")
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def delete_shortcut(self, shortcut: str) -> Tuple[None, False]:
+    def delete_shortcut(self, shortcut: str) -> CommandResult:
         self.long_memory_module.delete_shortcut_task(shortcut)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def execute_shortcut(self, shortcut: str) -> Tuple[None, False]:
+    def execute_shortcut(self, shortcut: str) -> CommandResult:
         self.execute_task_description(is_shortcut=True, shortcut=shortcut)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
     def get_drone(self) -> RobotWrapper:
         return self.drone
@@ -284,9 +282,9 @@ class LLMController:
         return self.drone.get_position()
 
     def skill_time(self) -> Tuple[float, bool]:
-        return time.time() - self.execution_time, False
+        return CommandResult(value = time.time() - self.execution_time, replan= False)
 
-    def skill_goto(self, object_name: str) -> Tuple[None, bool]:
+    def skill_goto(self, object_name: str) -> CommandResult:
         # TODO: improve this skill to not be fixed of 110 cm moving forward
         print(f'Goto {object_name}')
         if '[' in object_name:
@@ -302,21 +300,22 @@ class LLMController:
                 self.drone.turn_ccw(int((0.5 - x) * 70))
 
         self.drone.move_north(110)
-        return None, False
+        return CommandResult(value=True, replan=False)
         
-    def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> Tuple[None, bool]:
+    def explore_new_region(self, direction: int, distance: int = REGION_THRESHOLD) -> CommandResult:
         match direction:
             case 0: self.drone.move_north(distance_cm=distance)
             case 180: self.drone.move_south(distance_cm=distance)
             case -90: self.drone.move_west(distance_cm=distance)
             case 90: self.drone.move_east(distance_cm=distance)
             case _: self.drone.move_direction(direction, distance)
-        return None, False
+        return CommandResult(value=True, replan=False)
 
-    def _name_region(self, region_name: str) -> Tuple[None, bool]:
-        self.graph_manager.name_region(region_name)        
+    def _name_region(self, region_name: str) -> CommandResult:
+        self.graph_manager.name_region(region_name)
+        return CommandResult(value=True, replan=False)       
 
-    def create_graph(self, description: Optional[str], image_present: bool = False) -> Tuple[None, bool]:
+    def create_graph(self, description: Optional[str], image_present: bool = False) -> CommandResult:
         image = None
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
@@ -326,7 +325,7 @@ class LLMController:
         with open(GRAPH_TXT_PATH, "w") as f:
             json.dump(graph, f, indent=4)
         self.graph_manager.update_graph_from_file()
-        return None, False
+        return CommandResult(value=True, replan=False)
     
     def align_direction(self):
         yaw = self.drone.get_position()[3]
@@ -341,9 +340,9 @@ class LLMController:
             self.drone.turn_cw(snapped)
         else:
             self.drone.turn_ccw(snapped)
+        return CommandResult(value=True, replan=False)
 
-
-    def skill_take_picture(self, yaw_direction: float) -> Tuple[None, bool]:
+    def skill_take_picture(self) -> CommandResult:
         time.sleep(0.1)
 
         if self.images_counter == 0:
@@ -365,9 +364,9 @@ class LLMController:
         else:
             print_t("[C] Error: No frame available to take picture")
             
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def skill_explore_direction(self) -> Tuple[None, bool]:
+    def skill_explore_direction(self) -> CommandResult:
         (direction, distance, region_name) = self.env_analysis_module.choose_direction(
             self.current_task.get_task_description(), 
             self.cache_folder, 
@@ -383,21 +382,20 @@ class LLMController:
             }[direction]
             print(f"Next yaw {next_yaw}")
             self.drone.move_direction(next_yaw, distance)
-        return 0, False
+            return CommandResult(value=True, replan=False)
+        return CommandResult(value=False, replan=False)
     
     def text_to_speech(self, text: str):
         """Convert text to speech using gTTS and play via system audio (server-side)."""
-        # Uncomment to enable tts
-        # try:
-        #     tts = gTTS(text, lang="en")
-        #     speech_path = os.path.join(self.cache_folder, "speech.mp3")
-        #     tts.save(speech_path)
-        #     os.system(f"mpg123 {speech_path}") 
-        # except Exception as e:
-        #     print_t(f"[C] TTS Error: {e}")
-        pass
+        try:
+            tts = gTTS(text, lang="en")
+            speech_path = os.path.join(self.cache_folder, "speech.mp3")
+            tts.save(speech_path)
+            os.system(f"mpg123 {speech_path}") 
+        except Exception as e:
+            print_t(f"[C] TTS Error: {e}")
 
-    def skill_log(self, text: str) -> Tuple[None, bool]:
+    def skill_log(self, text: str) -> CommandResult:
         text = str(text)
 
         # --- 1. HANDLE UI DISPLAY ---
@@ -406,30 +404,32 @@ class LLMController:
         self.append_message(display_text)
 
         # --- 2. HANDLE AUDIO (CLEANING) ---
-        # Create a separate version just for the TTS engine
-        # audio_text = text
+        if ENABLE_SPEECH:
+            # Create a separate version just for the TTS engine
+            audio_text = text
 
-        # # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
-        # audio_text = audio_text.replace('\n', ', ')
-        
-        # # If your TTS literally says "One N", this cleans it.
-        # audio_text = audio_text.replace('\\n', ' ')
+            # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
+            audio_text = audio_text.replace('\n', ', ')
+            
+            # If your TTS literally says "One N", this cleans it.
+            audio_text = audio_text.replace('\\n', ' ')
 
-        # # This regex removes special characters but keeps text, numbers, and basic punctuation
-        # audio_text = re.sub(r'[*_#`]', '', audio_text)
+            # This regex removes special characters but keeps text, numbers, and basic punctuation
+            audio_text = re.sub(r'[*_#`]', '', audio_text)
 
-        # # Send the CLEAN text to the robot
-        # self.text_to_speech(audio_text)
+            # Send the CLEAN text to the robot
+            self.text_to_speech(audio_text)
 
-        return None, False
+        return CommandResult(value=True, replan=False)
     
-    def skill_re_plan(self) -> Tuple[None, bool]:
+    def skill_re_plan(self) -> CommandResult:
         print("[C] Start Replanning...")
-        return None, True
+        return CommandResult(value=True, replan=True)
 
-    def skill_delay(self, s: float) -> Tuple[None, bool]:
+
+    def skill_delay(self, s: float) -> CommandResult:
         time.sleep(s)
-        return None, False
+        return CommandResult(value=True, replan=False)
     
     def skill_add_skill(self, skill_name: str, description: str, minispec_def: str):
         skill_name = skill_name.strip('\'"')
@@ -457,9 +457,9 @@ class LLMController:
             json.dump(skills, f, indent=4)
 
         Statement.high_level_skillset.update(self.user_high_level_skill_path)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
-    def delete_skill(self, skill_name) -> Tuple[None, bool]:
+    def delete_skill(self, skill_name) -> CommandResult:
         if os.path.exists(self.user_high_level_skill_path):
             with open(self.user_high_level_skill_path, "r") as f:
                 skills = json.load(f)
@@ -468,13 +468,13 @@ class LLMController:
 
             with open(self.user_high_level_skill_path, "w") as f:
                 json.dump(skills, f, indent=4)
-        return None, False
+        return CommandResult(value=True, replan=False)
 
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
         self.append_message(f"[Q] {question}")
         self.text_to_speech(question)
         print_t(f"[Q] {question}")
-        return None, True, True
+        return CommandResult(value=True, replan=True, wait_user_answer=True)
 
     def append_message(self, message: str):
         if self.message_queue is not None:
@@ -485,7 +485,7 @@ class LLMController:
 
     def get_latest_frame(self, plot=False):
         image = self.shared_frame.get_image()
-        if plot and image:
+        if plot and image is not None:
             objects_list = self.vision.update_obj_list()
             YoloClient.plot_results_oi(image, objects_list)
         return image
@@ -570,9 +570,6 @@ class LLMController:
         self.append_message(f'\n[Task ended]')
         self.append_message('end')
         self.current_plan = None
-
-    def continue_execution(self): 
-        pass # TODO
 
     def start_robot(self):
         print_t("[C] Connecting to robot...")
