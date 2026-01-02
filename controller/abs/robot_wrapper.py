@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, NamedTuple, Tuple
+from typing import Any, NamedTuple, Optional, Tuple
 from enum import Enum
 
 from controller.context_map.graph_manager import GraphManager
@@ -9,8 +9,9 @@ from controller.context_map.graph_manager import GraphManager
 
 @dataclass(frozen=True)
 class CommandResult(NamedTuple):
-    ok: bool
+    value: Any
     replan: bool
+    wait_user_answer: bool = False
 
 class RobotType(Enum):
     """Supported robot backends."""
@@ -28,8 +29,9 @@ class RobotWrapper(ABC):
 
     Notes
     -----
-    - All movement and action methods return a CommandResultCommandResult(ok, replan):
-        ok   : bool -> whether the command was accepted/executed without error
+    - All movement and action methods return a CommandResultCommandResult(value, replan):
+        value   : Any -> True if the command was accepted/executed without error; False if it was not.
+                          Any returning value if required.
         replan : bool -> whether a replan is required to fulfill the user's task
     """
 
@@ -74,27 +76,27 @@ class RobotWrapper(ABC):
     # --- Flight control --------------------------------------------------
     @abstractmethod
     def takeoff(self) -> CommandResult:
-        """Command the robot to take off. Returns CommandResult(ok, replan)."""
+        """Command the robot to take off. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def land(self) -> CommandResult:
-        """Command the robot to land. Returns CommandResult(ok, replan)."""
+        """Command the robot to land. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def move_north(self, distance_cm: int) -> CommandResult:
-        """Move forward/north by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Move forward/north by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
     
     @abstractmethod
     def move_south(self, distance_cm: int) -> CommandResult:
-        """Move backward/south by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Move backward/south by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
     
     @abstractmethod
     def move_west(self, distance_cm: int) -> CommandResult:
-        """Move left/west by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Move left/west by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def move_east(self, distance_cm: int) -> CommandResult:
-        """Move right/east by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Move right/east by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def move_direction(self, direction_deg: int, distance_cm: int) -> CommandResult:
@@ -111,16 +113,16 @@ class RobotWrapper(ABC):
 
         Returns
         -------
-        CommandResult(ok, replan)
+        CommandResult(value, replan)
         """
 
     @abstractmethod
     def move_up(self, distance_cm: int) -> CommandResult:
-        """Increase altitude by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Increase altitude by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
     
     @abstractmethod
     def move_down(self, distance_cm: int) -> CommandResult:
-        """Decrease altitude by `distance_cm` centimeters. Returns CommandResult(ok, replan)."""
+        """Decrease altitude by `distance_cm` centimeters. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
@@ -137,16 +139,16 @@ class RobotWrapper(ABC):
             Target Z coordinate (cm) in the world/map frame.
         Returns
         -------
-        CommandResult(ok, replan)
+        CommandResult(value, replan)
         """
 
     @abstractmethod
     def turn_ccw(self, degree: int) -> CommandResult:
-        """Rotate counter-clockwise by `degree`. Returns CommandResult(ok, replan)."""
+        """Rotate counter-clockwise by `degree`. Returns CommandResult(value, replan)."""
 
     @abstractmethod
     def turn_cw(self, degree: int) -> CommandResult:
-        """Rotate clockwise by `degree`. Returns CommandResult(ok, replan)."""
+        """Rotate clockwise by `degree`. Returns CommandResult(value, replan)."""
 
     # --- State / pose -------------------------------------------------------------
     @abstractmethod
