@@ -4,4 +4,6 @@ Hint: {hint}
 
 Flyzone: {flyzone}
 
-Current Position: {current_position}
+Context Graph: {context_graph}
+
+Execution History: {execution_history}
