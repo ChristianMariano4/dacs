@@ -121,9 +121,9 @@
         "args": [{"name": "object_name", "type": "str"}]
     },
     {
-        "name": "probe",
-        "handler": "planner.probe",
-        "description": "Probe the LLM for reasoning. Add also what do you expect as returned value type. It automatically take the image in front of the robot",
+        "name": "query",
+        "handler": "planner.query",
+        "description": "Query the LLM for reasoning. Add also what do you expect as returned value type. It automatically take the image in front of the robot",
         "args": [{"name": "question", "type": "str"}]
     },
     {

@@ -16,7 +16,7 @@ GPT5_NANO = "gpt-5-nano" # Fastest, most cost-efficient version of GPT-5
 PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
 FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
 SHORT_MEMORY_PROMPT_ID = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
-PROBE_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
+QUERY_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
 DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
 NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
@@ -27,7 +27,7 @@ RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e4460048716
 PLAN_PROMPT_VERSION = "93"
 FEEDBACK_PROMPT_VERSION = "4"
 SHORT_MEMORY_PROMPT_VERSION = "8"
-PROBE_PROMPT_VERSION = "4"
+QUERY_PROMPT_VERSION = "4"
 DIRECTION_PROMPT_VERSION = "5"
 FLYZONE_PROMPT_VERSION = "22"
 NEW_GRAPH_PROMPT_VERSION = "6"
@@ -44,7 +44,7 @@ class RequestType(Enum):
     FEEDBACK = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
     SHORT_MEMORY = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
     EXPLORE_DIRECTION = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
-    PROBE = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
+    QUERY = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
     FLYZONE = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
     NEW_GRAPH = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
     EVERGREEN_FEEDBACK = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
@@ -164,12 +164,12 @@ class LLMWrapper:
                     stream=stream
                 )
 
-            case RequestType.PROBE:
-                assert image is not None, f"Image not given in a {RequestType.PROBE} request"
+            case RequestType.QUERY:
+                assert image is not None, f"Image not given in a {RequestType.QUERY} request"
                 response = client.responses.create(
                     prompt={
-                        "id": PROBE_PROMPT_ID,
-                        "version": PROBE_PROMPT_VERSION
+                        "id": QUERY_PROMPT_ID,
+                        "version": QUERY_PROMPT_VERSION
                     },
                     input=[
                         {

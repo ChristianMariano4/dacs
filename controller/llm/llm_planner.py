@@ -14,8 +14,8 @@ from ..minispec_interpreter import MiniSpecValueType, evaluate_value
 from ..abs.robot_wrapper import CommandResult, RobotType
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-USER_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
-PROBE_PROMPT_PATH = os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/probe/user_probe_prompt.txt")
+PLAN_PROMPT_PATH = os.path.join(CURRENT_DIR, "../assets/tello/plan/user_plan_prompt.txt")
+QUERY_PROMPT_PATH = os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/query/user_query_prompt.txt")
 FLYZONE_PATH = os.path.join(CURRENT_DIR, f"../assets/{ROBOT_NAME}/flyzone/flyzone.txt")
 
 class LLMPlanner:
@@ -33,14 +33,14 @@ class LLMPlanner:
 
         # Load prompts
         try:
-            with open(PROBE_PROMPT_PATH, "r") as f:
-                self.prompt_probe = f.read()
+            with open(QUERY_PROMPT_PATH, "r") as f:
+                self.prompt_query = f.read()
             
-            with open(USER_PROMPT_PATH, "r") as f:
+            with open(PLAN_PROMPT_PATH, "r") as f:
                 self.prompt_plan = f.read()
         except FileNotFoundError as e:
             print_t(f"[Error] Could not load prompt files: {e}")
-            self.prompt_probe = ""
+            self.prompt_query = ""
             self.prompt_plan = ""
 
         # Skillsets initialized via init()
@@ -104,18 +104,18 @@ class LLMPlanner:
 
         return response_plan, requires_execution
     
-    def probe(self, question) -> Tuple[MiniSpecValueType, bool]:
+    def query(self, question) -> Tuple[MiniSpecValueType, bool]:
         # Fix: Use isinstance instead of 'is' for type checking
         if isinstance(question, list):
             question = question[0]
             
         objects_list = self.vision_skill.get_obj_list() if self.vision_skill else []
-        prompt = self.prompt_probe.format(objects_list=objects_list, question=question)
+        prompt = self.prompt_query.format(objects_list=objects_list, question=question)
         
-        print_t(f"[P] Probing question: {question}")
+        print_t(f"[P] Querying question: {question}")
         
         # Fix: Save to the centralized cache folder instead of hardcoded path
-        image_path = os.path.join(self.cache_folder, "probe.jpg")
+        image_path = os.path.join(self.cache_folder, "query.jpg")
         
         if self.latest_frame is not None:
             Image.fromarray(self.latest_frame).save(image_path)
@@ -125,7 +125,7 @@ class LLMPlanner:
                 user_prompt=prompt, 
                 image=image, 
                 model_name=GPT5_MINI, 
-                request_type=RequestType.PROBE
+                request_type=RequestType.QUERY
             )["answer"]
             
             return CommandResult(value=answer, replan=False)
