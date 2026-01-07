@@ -18,8 +18,8 @@ from controller.utils.constants import (
     REGION_THRESHOLD, 
     SKILL_PATH
 )
-from controller.memory.short_memory import ShortMemoryModule
-from controller.memory.long_memory import LongMemoryModule
+from controller.memory.short_term_memory import ShortTermMemory
+from controller.memory.long_term_memory import LongTermMemory
 from controller.middle_layer.flyzone_manager import FlyzoneManager
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
@@ -63,9 +63,9 @@ class LLMController:
 
         # --- 2. Memory & User Setup ---
         self.middle_layer = MiddleLayer()
-        self.short_memory = ShortMemoryModule()
+        self.short_term_memory = ShortTermMemory()
         self.set_username(username, long_memory_flag=False) 
-        self.long_memory_module = LongMemoryModule(username=self.username)
+        self.long_memory_module = LongTermMemory(username=self.username)
         
         # --- 3. Vision & Perception ---
         self.shared_frame = SharedFrame()
@@ -557,7 +557,7 @@ class LLMController:
                 continue
             elif ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
-                self.short_memory.generate_interaction_summary(self.current_task, 
+                self.short_term_memory.generate_interaction_summary(self.current_task, 
                                                                context_graph=self.graph_manager.get_dense_graph(), 
                                                                low_level_skills = self.low_level_skillset,
                                                                high_level_skills = self.high_level_skillset

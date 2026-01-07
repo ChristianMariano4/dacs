@@ -33,7 +33,7 @@ TASK_ID_FILE = "task_id.json"
 MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/memory"
 SHORTCUTS_PATH = os.path.join(USER_MEMORY_PATH, "shortcuts.json")
 
-class LongMemoryModule:
+class LongTermMemory:
     '''
     LongMemoryModule has the goal of put in long memory (a document saved on disk)
     a summary of the interaction obtained with the user in the last task, together

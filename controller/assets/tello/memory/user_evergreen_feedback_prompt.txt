@@ -1,3 +1,0 @@
-User request: {user_request}
-
-Current preferences summary: {preferences_summary}
