@@ -20,7 +20,6 @@ class Task():
         if current_plan != "":
             self.execution_history_list.append([self.current_plan, [], ""])  # [plan, actions, summary]
         
-        self.task_summary = ""
         self.last_achievements = ""
         self.current_drone_position = np.zeros(3)
         self.current_region = "studio_room"
@@ -181,9 +180,6 @@ class Task():
         
         # Update the summary (third element, index 2)
         self.execution_history_list[-1][2] = summary
-    
-    def update_task_summary(self, summary):
-        self.task_summary = summary
     
     def to_dict(self):
         return {
