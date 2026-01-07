@@ -490,10 +490,10 @@ class LLMController:
             YoloClient.plot_results_oi(image, objects_list)
         return image
     
-    def execute_minispec(self, minispec: str, iteration_description: str):
+    def execute_minispec(self, minispec: str):
         interpreter = MiniSpecInterpreter(self.message_queue)
         ret_val = interpreter.execute([minispec])
-        self.current_task.update_execution_history(interpreter.execution_history, iteration_description)
+        self.current_task.update_execution_history(interpreter.execution_history)
         return ret_val
 
     def execute_task_description(self, task_description: str = "", img_b64 = None, is_shortcut: bool = False, shortcut: str = ""):
@@ -544,7 +544,7 @@ class LLMController:
             
             try:
                 self.execution_time = time.time()
-                ret_val = self.execute_minispec(self.current_task.get_current_plan(), iteration_description)
+                ret_val = self.execute_minispec(self.current_task.get_current_plan())
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             
