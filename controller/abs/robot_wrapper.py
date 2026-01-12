@@ -3,12 +3,11 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple, Optional, Tuple
 from enum import Enum
 
-from controller.context_map.graph_manager import GraphManager
 
 # Common return type for motion/actuation commands
 
 @dataclass(frozen=True)
-class CommandResult(NamedTuple):
+class CommandResult:
     value: Any
     replan: bool
     wait_user_answer: bool = False
@@ -35,7 +34,7 @@ class RobotWrapper(ABC):
         replan : bool -> whether a replan is required to fulfill the user's task
     """
 
-    def __init__(self, graph_manager: GraphManager, move_enable: bool = False) -> None:
+    def __init__(self, graph_manager, move_enable: bool = False) -> None:
         """
         Parameters
         ----------

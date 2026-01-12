@@ -139,7 +139,7 @@ class TelloWrapper(RobotWrapper):
                 self.drone.takeoff()
         else:
             print("[Drone] Takeoff (Simulated)")
-        return CommandResult(ok=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     def land(self) -> CommandResult:
         if self.move_enable:
@@ -147,13 +147,13 @@ class TelloWrapper(RobotWrapper):
                 self.drone.land()
         else:
             print("[Drone] Land (Simulated)")
-        return CommandResult(ok=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     def _move_relative(self, forward=0, backward=0, left=0, right=0, up=0, down=0, yaw_cw=0, yaw_ccw=0) -> CommandResult:
         """Unified movement handler."""
         if not self.move_enable:
             print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right} U:{up} D:{down} Y:{yaw_cw}")
-            return CommandResult(ok=True, replan=False)
+            return CommandResult(value=True, replan=False)
 
         with self.lock:  
             # Using blocking commands
@@ -167,7 +167,7 @@ class TelloWrapper(RobotWrapper):
             if yaw_ccw: self.drone.rotate_counter_clockwise(yaw_ccw)
             
         time.sleep(0.5) # Settle time
-        return CommandResult(ok=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     def move_north(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
         return self._move_relative(forward=int(distance_cm))
@@ -221,7 +221,7 @@ class TelloWrapper(RobotWrapper):
             # Move forward
             self.drone.move_forward(cap_distance(int(distance_cm)))
 
-        return CommandResult(ok=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """Move to absolute world coordinates (blocking)."""
@@ -233,13 +233,13 @@ class TelloWrapper(RobotWrapper):
 
         if not self.move_enable:
             print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz})")
-            return CommandResult(ok=True, replan=False)
+            return CommandResult(value=True, replan=False)
 
         with self.lock:
             # go_xyz_speed is relative to current position
             self.drone.go_xyz_speed(dx, dy, dz, speed=20)
         
-        return CommandResult(ok=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     # -------------------------------------------------------------------------
     # Odometry & State

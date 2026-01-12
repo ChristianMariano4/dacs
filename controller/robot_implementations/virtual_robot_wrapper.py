@@ -6,9 +6,7 @@ import numpy as np
 
 from controller.context_map.graph_manager import GraphManager
 
-from ..abs.robot_wrapper import RobotWrapper
-
-CommandResult = Tuple[bool, bool]  # (ok, replan)
+from ..abs.robot_wrapper import CommandResult, RobotWrapper
 
 # -----------------------------------------------------------------------------
 # Frame reader helper
@@ -89,12 +87,12 @@ class VirtualRobotWrapper(RobotWrapper):
     def takeoff(self) -> CommandResult:
         """Always succeeds for the virtual robot."""
         print("[Virtual] Takeoff")
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def land(self) -> CommandResult:
         """Land (no state changes other than log for the virtual robot)."""
         print("[Virtual] Land")
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def move_north(self, distance_cm: int = 10) -> CommandResult:
         """Increase Y by distance_cm."""
@@ -102,7 +100,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving forward {d} cm")
         self._pos_cm[1] += d
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def move_south(self, distance_cm: int = 10) -> CommandResult:
         """Decrease Y by distance_cm."""
@@ -110,7 +108,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving backward {d} cm")
         self._pos_cm[1] -= d
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     def move_west(self, distance_cm: int = 10) -> CommandResult:
         """Increase X by distance_cm (left)."""
@@ -118,7 +116,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving left {d} cm")
         self._pos_cm[0] += d
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     def move_east(self, distance_cm: int = 10) -> CommandResult:
         """Decrease X by distance_cm (right)."""
@@ -126,7 +124,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving right {d} cm")
         self._pos_cm[0] -= d
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     def move_direction(self, direction_deg: int, distance_cm: int) -> CommandResult:
         """
@@ -147,7 +145,7 @@ class VirtualRobotWrapper(RobotWrapper):
         self._pos_cm[0] += dx
         self._pos_cm[1] += dy
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def move_up(self, distance_cm: int) -> CommandResult:
         """Increase Z by distance_cm."""
@@ -155,7 +153,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving up {d} cm")
         self._pos_cm[2] += d
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def move_down(self, distance_cm: int) -> CommandResult:
         """Decrease Z by distance_cm."""
@@ -163,7 +161,7 @@ class VirtualRobotWrapper(RobotWrapper):
         print(f"-> Moving down {d} cm")
         self._pos_cm[2] = max(0.0, self._pos_cm[2] - d)
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """
@@ -175,21 +173,21 @@ class VirtualRobotWrapper(RobotWrapper):
         self._pos_cm[1] = float(target_y_cm)
         self._pos_cm[2] = float(target_z_cm)
         time.sleep(0.2)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     def turn_ccw(self, degrees: int) -> CommandResult:
         """Increase yaw accumulator (CCW)."""
         print(f"-> Turning CCW {degrees} degrees")
         self._yaw_deg = (self._yaw_deg - degrees) % 360.0
         time.sleep(0.1 if degrees < 90 else 0.0)
-        return True, False
+        return CommandResult(value=True, replan=False)
 
     def turn_cw(self, degrees: int) -> CommandResult:
         """Decrease yaw accumulator (CW)."""
         print(f"-> Turning CW {degrees} degrees")
         self._yaw_deg = (self._yaw_deg + degrees) % 360.0
         time.sleep(0.1 if degrees < 90 else 0.0)
-        return True, False
+        return CommandResult(value=True, replan=False)
     
     # --- State / pose ------------------------------------------------------
     def get_position(self) -> Tuple[float, float, float]:

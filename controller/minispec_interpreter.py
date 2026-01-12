@@ -10,6 +10,8 @@ from queue import Queue
 
 from openai import ChatCompletion, Stream
 
+from controller.abs.robot_wrapper import CommandResult
+
 from .skillset import SkillSet
 from .utils.general_utils import split_args, print_t
 
@@ -51,12 +53,13 @@ class MiniSpecReturnValue:
         self.wait_user_answer = wait_user_answer
 
     @staticmethod
-    def from_tuple(t: Tuple[MiniSpecValueType, bool, bool]):
-        if len(t) == 3:
-            return MiniSpecReturnValue(t[0], t[1], t[2])
-        else:
-            return MiniSpecReturnValue(t[0], t[1], False)
-
+    def from_command_result(cr: CommandResult):
+        return MiniSpecReturnValue(
+            cr.value,
+            cr.replan,
+            cr.wait_user_answer
+        )
+    
     @staticmethod
     def default():
         return MiniSpecReturnValue(None, False, False)
@@ -402,7 +405,7 @@ class Statement:
         skill = Statement.low_level_skillset.get_skill(name)
         if skill:
             print_debug(f'Executing low-level skill: {skill.get_name()} {args}')
-            return MiniSpecReturnValue.from_tuple(skill.execute(args))
+            return MiniSpecReturnValue.from_command_result(skill.execute(args))
 
         # high-level skill -----------------------------------------------------
         skill = Statement.high_level_skillset.get_skill(name)
