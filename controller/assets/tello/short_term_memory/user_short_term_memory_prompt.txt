@@ -1,0 +1,12 @@
+Current iteretion: 
+{last_iteration}
+
+Previously iterations: 
+{previously_iterations}
+
+Graph:
+{context_graph}
+
+Skills:
+{low_level_skills}
+{high_level_skills}

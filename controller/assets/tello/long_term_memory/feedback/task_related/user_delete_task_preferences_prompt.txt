@@ -1,0 +1,5 @@
+User Request:
+{{user_request}}
+
+Candidate Preferences (retrieved via semantic similarity):
+{{candidate_preferences_json}}
