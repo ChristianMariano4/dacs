@@ -7,12 +7,9 @@ import numpy as np
 from controller.context_map.graph_handler import GraphHandler
 from controller.llm.llm_wrapper import LLMWrapper, RequestType
 from controller.task import Task
+from controller.utils.constants import GRAPH_TXT_PATH, USER_GRAPH_PROMPT_PATH
 from controller.utils.general_utils import print_debug
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-MEMORY_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "../assets/tello/memory"))
-PROMPT_PATH = os.path.join(MEMORY_DIR, "user_graph_prompt.txt")
-GRAPH_LOG_PATH = os.path.join(MEMORY_DIR, "graph.txt")
 
 class GraphManager:
     """
@@ -23,11 +20,11 @@ class GraphManager:
         self.llm_wrapper = LLMWrapper()
         
         # Load prompt safely
-        if os.path.exists(PROMPT_PATH):
-            with open(PROMPT_PATH, "r") as f:
+        if os.path.exists(USER_GRAPH_PROMPT_PATH):
+            with open(USER_GRAPH_PROMPT_PATH, "r") as f:
                 self.user_prompt = f.read()
         else:
-            print(f"[Warning] Graph prompt not found at {PROMPT_PATH}")
+            print(f"[Warning] Graph prompt not found at {USER_GRAPH_PROMPT_PATH}")
             self.user_prompt = "{description}"
 
         self.drone_pose = np.zeros(3)
@@ -50,10 +47,6 @@ class GraphManager:
                 edges=[],
                 attrs={"coords": list(start_coords), "type": "region"},
             )
-        
-        # Ensure memory directory exists for logging
-        if not os.path.exists(MEMORY_DIR):
-            os.makedirs(MEMORY_DIR)
 
         # Set current task, then used to update drone position
         self.current_task: Task = None
@@ -63,9 +56,17 @@ class GraphManager:
 
     def update_graph_from_file(self):
         self.graph_handler.update_graph_from_file()
+        # Sync region pointer after reload so new detections connect properly.
+        if self.graph_handler.current_location:
+            self.current_region = self.graph_handler.current_location
+        else:
+            closest = self.graph_handler.get_closest_region()
+            if closest:
+                self.graph_handler.update_location(closest)
+                self.current_region = closest
 
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
-        prompt = self.user_prompt.format(description=description)
+        prompt = self.user_prompt.format(description=description, coordinates=self.drone_pose)
         return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
 
     def get_drone_pose(self):
@@ -139,7 +140,7 @@ class GraphManager:
     def write_graph_to_file(self):
         """Persist graph to disk for visualization or debugging."""
         try:
-            with open(GRAPH_LOG_PATH, "w") as f:
+            with open(GRAPH_TXT_PATH, "w") as f:
                 graph_dict = json.loads(self.graph_handler.to_json_str())
                 json.dump(graph_dict, f, indent=2)
                 f.write("\n")

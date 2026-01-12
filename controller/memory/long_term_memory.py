@@ -1,22 +1,13 @@
-from datetime import datetime
-from io import BytesIO
 import json
-from typing import Optional
-from PIL import Image
-import numpy as np
-import base64
 import uuid
 from openai import OpenAI
 import os
-from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH, USER_EVERGREEN_FEEDBACK_PROMPT_PATH, USER_MEMORY_PATH, USER_PLAN_PROMPT_PATH
+from controller.utils.constants import TASK_FEEDBACK_PATH, UNIVERSAL_FEEDBACK_PATH, USER_SHORTCUTS_PATH
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
-from controller.shared_frame import SharedFrame
 from controller.task import Task
-from controller.utils.general_utils import encode_image, print_t
-from pathlib import Path
+from controller.utils.general_utils import print_t
 
-from sentence_transformers import SentenceTransformer
 import chromadb
 
 GPT3 = "gpt-3.5-turbo-16k"
@@ -30,8 +21,6 @@ load_dotenv()
 
 type_folder_name = 'tello'
 TASK_ID_FILE = "task_id.json"
-MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/memory"
-SHORTCUTS_PATH = os.path.join(USER_MEMORY_PATH, "shortcuts.json")
 
 class LongTermMemory:
     '''
@@ -46,16 +35,16 @@ class LongTermMemory:
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(MEMORY_PATH, "user_task_feedback_prompt.txt"), "r") as f:
+        with open(os.path.join(TASK_FEEDBACK_PATH, "user_save_task_feedback_prompt.txt"), "r") as f:
             self.task_feedback_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
         
-        with open(USER_EVERGREEN_FEEDBACK_PROMPT_PATH, "r") as f:
+        with open(UNIVERSAL_FEEDBACK_PATH, "r") as f:
             self.user_evergreen_feedback_prompt = f.read()
 
         # Vector db section: retrieve the db of the specified user
         self.openai_client = OpenAI()
-        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
+        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(TASK_FEEDBACK_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
 
         # Shortcuts: tasks associated to keywords
@@ -64,33 +53,14 @@ class LongTermMemory:
     def change_username(self, username):
         self.username = username
         self.user_shortcut_tasks = self._load_shortcuts()
-        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(MEMORY_PATH, self.username))
+        self.client_chromadb = chromadb.PersistentClient(path=os.path.join(TASK_FEEDBACK_PATH, self.username))
         self.interactions_collection = self.client_chromadb.get_or_create_collection(name="interaction_memory")
     
     def get_username(self):
         return self.username
-
-    def load_last_task_id(self):
-        if os.path.exists(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE)):
-            with open(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE), "r") as f:
-                data = json.load(f)
-                return data.get("last_task_id", 0)
-        elif not os.path.exists(os.path.join(MEMORY_PATH, self.username)):
-            raise RuntimeError(f"Not existing user directory for {self.username}")
-        return 0
-    
-    def save_last_task_id(self, task_id):
-        with open(os.path.join(MEMORY_PATH, self.username, TASK_ID_FILE), "w") as f:
-            json.dump({"last_task_id": task_id}, f)
-    
-    def get_next_task_id(self):
-        last_id = self.load_last_task_id()
-        next_id = last_id + 1
-        self.save_last_task_id(next_id)
-        return next_id
     
     def change_feedback_prompt(self, user_request: str):
-        with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
+        with open(UNIVERSAL_FEEDBACK_PATH, "r") as f:
             current_user_feedback = f.read()
         prompt = self.user_evergreen_feedback_prompt.format(user_request=user_request,
                                                             preferences_summary=current_user_feedback)
@@ -101,7 +71,7 @@ class LongTermMemory:
             print_t("[ERROR in LongMemoryModule.change_feedback_prompt()] preferences_summary requested but None returned by LLM")
             return
         
-        with open(USER_EVERGREEN_FEEDBACK_PATH, "w") as f:
+        with open(UNIVERSAL_FEEDBACK_PATH, "w") as f:
             f.write(preferences_summary)
             
     def save_task_summary(self, task: Task, high_level_skills, low_level_skills, conf=0.3):
@@ -202,13 +172,13 @@ class LongTermMemory:
         return retrieved_docs
     
     def _load_shortcuts(self):
-        if os.path.exists(SHORTCUTS_PATH):
-            with open(os.path.join(USER_MEMORY_PATH), "r", encoding="utf-8") as f:
+        if os.path.exists(USER_SHORTCUTS_PATH):
+            with open(os.path.join(USER_SHORTCUTS_PATH), "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
     
     def _write_file_shortcuts(self):
-        with open(SHORTCUTS_PATH, "w", encoding="utf-8") as f:
+        with open(USER_SHORTCUTS_PATH, "w", encoding="utf-8") as f:
             json.dump(self.user_shortcut_tasks, f, indent=4)
 
     def save_shortcut_task(self, shortcut: str, task: Task):

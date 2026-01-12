@@ -1,5 +1,5 @@
 import os
-from controller.utils.constants import ROBOT_NAME
+from controller.utils.constants import ROBOT_NAME, SHORT_TERM_MEMORY_PATH
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.task import Task
 from controller.utils.general_utils import print_t
@@ -11,14 +11,13 @@ load_dotenv()
 
 type_folder_name = 'tello'
 TASK_ID_FILE = "task_id.json"
-MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/memory"
 
 class ShortTermMemory:
     '''
     '''
     def __init__(self):
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(MEMORY_PATH, "user_short_term_memory_prompt.txt"), "r") as f:
+        with open(os.path.join(SHORT_TERM_MEMORY_PATH, "user_short_term_memory_prompt.txt"), "r") as f:
             self.short_term_memory_prompt = f.read()
             
     def generate_interaction_summary(self, task: Task, context_graph, low_level_skills, high_level_skills):
