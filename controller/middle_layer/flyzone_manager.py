@@ -90,12 +90,16 @@ class FlyzoneManager:
         #     print(f"Response content: {response_content}")
         #     return
 
-        # eval the returned string of polygons into a safe environment
-        points_list = [Polygon(coords) for coords in response_content['points_list']]
-        print("Request done")
-        self.middle_layer.set_flyzone(points_list)
-        self.plot_current_flyzone()
-        self.parse_current_flyzone()    
+        # Check if Flyzone LLM needs user clarifications
+        user_question = response_content.get('ask_user', None)
+        if user_question == None:
+            # eval the returned string of polygons into a safe environment
+            points_list = [Polygon(coords) for coords in response_content['points_list']]
+            print("Request done")
+            self.middle_layer.set_flyzone(points_list)
+            self.plot_current_flyzone()
+            self.parse_current_flyzone()
+        return user_question
 
 
 if __name__ == '__main__':

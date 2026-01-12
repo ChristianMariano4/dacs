@@ -469,6 +469,13 @@ class LLMController:
             with open(self.user_high_level_skill_path, "w") as f:
                 json.dump(skills, f, indent=4)
         return CommandResult(value=True, replan=False)
+    
+    def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> CommandResult:
+        user_question = self.flyzone_manager.request_new_flyzone(user_instructions, image_present)
+        if user_question != None:
+            self.skill_ask_user(user_question)
+            return CommandResult(value=True, replan=True, wait_user_answer=True)
+        return CommandResult(value=True, replan=False)
 
     def skill_ask_user(self, question: str) -> Tuple[None, bool, bool]:
         self.append_message(f"[Q] {question}")

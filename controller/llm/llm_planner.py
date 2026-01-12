@@ -132,7 +132,3 @@ class LLMPlanner:
         else:
             print_t("[Error] No frame available for probing")
             return CommandResult(value=evaluate_value("I cannot see anything right now."), replan=False)
-    
-    def skill_create_flyzone(self, user_instructions: str, image_present: bool = False) -> CommandResult:
-        self.flyzone_manager.request_new_flyzone(user_instructions, image_present)
-        return CommandResult(value=True, replan=False)
