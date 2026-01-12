@@ -321,7 +321,7 @@ class LLMController:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
         
         graph = self.graph_manager.request_new_graph(description, image).get("context_graph")
-        print(graph)
+        # print(graph)
         with open(GRAPH_TXT_PATH, "w") as f:
             json.dump(graph, f, indent=4)
         self.graph_manager.update_graph_from_file()
@@ -527,8 +527,6 @@ class LLMController:
                 img_b64=img_b64,
                 execution_history=self.current_task.get_execution_plan_summary_prompt(), 
                 context_graph=self.graph_manager.get_dense_graph(), 
-                current_position=self.graph_manager.get_drone_pose(), 
-                current_region=self.graph_manager.get_current_region(),
                 old_interactions_feedbacks=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
             )
 
