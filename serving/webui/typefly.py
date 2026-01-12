@@ -563,6 +563,15 @@ class TypeFly:
             Calculates object positions dynamically relative to their parent regions.
             """
             import plotly.graph_objects as go
+            # Guard against partially initialized pandas breaking Plotly validators.
+            import _plotly_utils.basevalidators as basevalidators
+            try:
+                import pandas as pd
+            except Exception:
+                basevalidators.pd = None
+            else:
+                if not hasattr(pd, "Series"):
+                    basevalidators.pd = None
             from shapely import Polygon
 
             graph_json_str = self.graph_manager.get_graph()
