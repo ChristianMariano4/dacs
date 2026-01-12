@@ -168,8 +168,8 @@
     },
     {
         "name": "create_flyzone",
-        "handler": "planner.skill_create_flyzone",
-        "description": "Create through another LLM a new flyzone, passing only the user description that you had without adding anything. Set the `image_present` flag to True if the user also provides an image.",
+        "handler": "skill_create_flyzone",
+        "description": "Create through another LLM a new flyzone, passing user description. Set the `image_present` flag to True if the user also provides an image.",
         "args": [
             {"name": "user_description", "type": "str"},
             {"name": "image_present", "type": "bool"}
@@ -220,7 +220,7 @@
     {
         "name": "create_graph",
         "handler": "create_graph",
-        "description": "Create through another LLM a new context graph based on the environment description you pass. Do not include other text. Set the `image_present` flag to True if the user also provides an image.",
+        "description": "Create through another LLM a new context graph based on the environment description you pass. Set the `image_present` flag to True if the user also provides an image.",
         "args": [
             {"name": "user_description", "type": "str"},
             {"name": "image_present", "type": "bool"}
