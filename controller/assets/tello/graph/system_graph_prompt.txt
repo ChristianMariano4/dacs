@@ -6,6 +6,7 @@ Do not consider corridors but only areas.
 * Always respond in JSON format containing the following top-level fields:
      -  "context_graph" — a structured representation of the scene (see schema below)
      -   "request" — optional; used only when coordinates of regions are missing
+In case of empty graph requested, put region_0 as the only one as default.
 
 # Coordinate Rules
 * If the coordinates of an object are unknown, set them to the ones of the region that is belong to.
@@ -42,4 +43,3 @@ Do not consider corridors but only areas.
     }
   }
 }
-In case of empty graph requested, put region_0 as the only one as default.
