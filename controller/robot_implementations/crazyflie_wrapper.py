@@ -226,7 +226,7 @@ class CrazyflieWrapper():
         
         self.pose[0] = x
         self.pose[1] = y
-        self.pose[2] = z
+        self.pose[2] = z - 0.04
         self.pose[3] = yaw
         # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}, yaw={yaw:.2f}")
 
