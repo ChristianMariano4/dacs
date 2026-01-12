@@ -178,9 +178,13 @@ class GraphHandler:
                     neighbor_attrs = self.graph.nodes[neighbor]
                     n1_name = display_name
                     n2_name = neighbor_attrs.get("display_name", neighbor)
-                    
-                    # specific key logic can remain, or simplify to generic connections
-                    conn_key = f"{node_type}_connections" 
+
+                    # Classify edges by node types, not by iteration order.
+                    if node_type == "region" and neighbor_attrs.get("type") == "region":
+                        conn_key = "region_connections"
+                    else:
+                        conn_key = "object_connections"
+
                     graph_dict[conn_key].append(sorted([n1_name, n2_name]))
                     added_edges.add(edge_pair)
 
