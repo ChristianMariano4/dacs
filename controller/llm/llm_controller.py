@@ -387,13 +387,14 @@ class LLMController:
     
     def text_to_speech(self, text: str):
         """Convert text to speech using gTTS and play via system audio (server-side)."""
-        try:
-            tts = gTTS(text, lang="en")
-            speech_path = os.path.join(self.cache_folder, "speech.mp3")
-            tts.save(speech_path)
-            os.system(f"mpg123 {speech_path}") 
-        except Exception as e:
-            print_t(f"[C] TTS Error: {e}")
+        if ENABLE_SPEECH:
+            try:
+                tts = gTTS(text, lang="en")
+                speech_path = os.path.join(self.cache_folder, "speech.mp3")
+                tts.save(speech_path)
+                os.system(f"mpg123 {speech_path}") 
+            except Exception as e:
+                print_t(f"[C] TTS Error: {e}")
 
     def skill_log(self, text: str) -> CommandResult:
         text = str(text)
@@ -404,21 +405,20 @@ class LLMController:
         self.append_message(display_text)
 
         # --- 2. HANDLE AUDIO (CLEANING) ---
-        if ENABLE_SPEECH:
-            # Create a separate version just for the TTS engine
-            audio_text = text
+        # Create a separate version just for the TTS engine
+        audio_text = text
 
-            # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
-            audio_text = audio_text.replace('\n', ', ')
-            
-            # If your TTS literally says "One N", this cleans it.
-            audio_text = audio_text.replace('\\n', ' ')
+        # This prevents words sticking together like "Hello\nWorld" -> "HelloWorld"
+        audio_text = audio_text.replace('\n', ', ')
+        
+        # If your TTS literally says "One N", this cleans it.
+        audio_text = audio_text.replace('\\n', ' ')
 
-            # This regex removes special characters but keeps text, numbers, and basic punctuation
-            audio_text = re.sub(r'[*_#`]', '', audio_text)
+        # This regex removes special characters but keeps text, numbers, and basic punctuation
+        audio_text = re.sub(r'[*_#`]', '', audio_text)
 
-            # Send the CLEAN text to the robot
-            self.text_to_speech(audio_text)
+        # Send the CLEAN text to the robot
+        self.text_to_speech(audio_text)
 
         return CommandResult(value=True, replan=False)
     
@@ -551,7 +551,8 @@ class LLMController:
                 print(f"Inside if statement {user_question_answer}")
                 user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
                 self.current_task.update_execution_history(user_question_answer_str)
-                print_t(f"[C] > Replanning after user answer<: {ret_val.value}, {user_question_answer_str}")
+                self.current_task.append_last_iteration_summary(user_question_answer_str)
+                print_t(f"[C] > Replanning after user answer<: {user_question_answer_str}")
                 continue
             elif ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
