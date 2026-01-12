@@ -42,12 +42,12 @@ class LongTermMemory:
     Then when a new task arrives, we retrieve from vectorial db the related feedbacks,
     by similarity with the current task.
     '''
-    def __init__(self, username, middle_layer: MiddleLayer=None, shortcuts_file="controller/assets/tello/memory/shortcuts.json"):
+    def __init__(self, username, middle_layer: MiddleLayer=None):
         self.client_openai = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(MEMORY_PATH, "user_memory_prompt.txt"), "r") as f:
-            self.memory_prompt = f.read()
+        with open(os.path.join(MEMORY_PATH, "user_task_feedback_prompt.txt"), "r") as f:
+            self.task_feedback_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
         
         with open(USER_EVERGREEN_FEEDBACK_PROMPT_PATH, "r") as f:
@@ -110,14 +110,13 @@ class LongTermMemory:
         '''
 
         task_text = task.get_task_description()
-        prompt = self.memory_prompt.format(task_text=task_text, 
+        prompt = self.task_feedback_prompt.format(task_text=task_text, 
                                         execution_output=task.get_execution_plan_summary_prompt(), 
                                         feedback_text=task.get_user_feedback(),
                                         high_level_skills=high_level_skills,
                                         low_level_skills=low_level_skills
                                         )
         
-        # Send the request to gpt5-nano, because we just need to summarize information
         response_content: dict = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FEEDBACK, model_name=GPT5_NANO)
 
         # Parse the response
@@ -150,11 +149,11 @@ class LongTermMemory:
         )
 
     def delete_task_user_feedback(self, user_feedback: str, similarity_threshold: float = 0.3):
-        """Delete old feedback similar to the given one."""
+        """Delete old task-related feedback records similar to the given one."""
         # embedding = self.model.encode(user_feedback)
         embedding = self.openai_client.embeddings.create(
             input=user_feedback,
-            model="text-embedding-3-large"
+            model="text-embedding-3-small"
         )
         embedding_vector = embedding.data[0].embedding
         all_docs = self.interactions_collection.get()
@@ -172,10 +171,10 @@ class LongTermMemory:
 
         if ids_to_delete:
             self.interactions_collection.delete(ids=ids_to_delete['relevant_ids'])
-            print(f"Deleted {len(ids_to_delete)} similar feedback(s), with ids: {ids_to_delete}")
+            print(f"Deleted {len(ids_to_delete)} similar feedback records, with ids: {ids_to_delete}")
     
     def retrieve_old_interactions(self, new_task: str, N : int = 10, max_distance: float = 1.5) -> list[str]:
-        '''Retrieve N old useful feedbacks, based on new task'''
+        '''Retrieve N old useful feedback records, based on new task'''
 
         # Search for top N similar scenarios
         # new_task_embedding = self.model.encode(new_task)
