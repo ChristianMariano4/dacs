@@ -81,6 +81,7 @@ class Task():
 
         # Append new action statements
         for stmt in new_statements:
+            # print(f"stmt: {str(stmt)}")
             actions.append(str(stmt))
 
     def get_execution_history(self):
@@ -180,6 +181,33 @@ class Task():
         
         # Update the summary (third element, index 2)
         self.execution_history_list[-1][2] = summary
+
+    def append_last_iteration_summary(self, summary: str):
+        """Append text to the last iteration summary, preserving existing content."""
+        if not self.execution_history_list:
+            raise IndexError("No execution history to update")
+
+        last_item = self.execution_history_list[-1]
+        if isinstance(last_item, str):
+            self.execution_history_list[-1] = ["", [], last_item]
+            last_item = self.execution_history_list[-1]
+
+        if not isinstance(last_item, list):
+            raise TypeError(f"Expected list, got {type(last_item)}")
+
+        while len(last_item) < 3:
+            if len(last_item) == 0:
+                last_item.append("")  # plan
+            elif len(last_item) == 1:
+                last_item.append([])  # actions
+            else:
+                last_item.append("")  # summary
+
+        existing = str(last_item[2]).strip()
+        if existing:
+            last_item[2] = existing + " " + summary
+        else:
+            last_item[2] = summary
     
     def to_dict(self):
         return {
