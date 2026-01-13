@@ -55,10 +55,6 @@ class RobotWrapper(ABC):
     def disconnect(self) -> None:
         """Close connection to the robot and eventually stop threads."""
 
-    @abstractmethod
-    def keep_active(self) -> None:
-        """Optionally send heartbeats to prevent robot timeout or sleep."""
-
     # --- Stream control --------------------------------------------------
     @abstractmethod
     def start_stream(self) -> None:

@@ -616,7 +616,6 @@ class LLMController:
         frame_reader = self.drone.get_frame_reader()
         
         while self.controller_active:
-            self.drone.keep_active()
             self.latest_frame = frame_reader.frame
             self.planner.update_latest_frame(self.latest_frame)
             

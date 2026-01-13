@@ -60,10 +60,6 @@ class VirtualRobotWrapper(RobotWrapper):
         """No-op for the virtual robot."""
         pass
 
-    def keep_active(self) -> None:
-        """No-op heartbeat for the virtual robot."""
-        pass
-
     # --- Stream control -----------------------------------------------------
     def start_stream(self):
         """Open the default webcam (device 0)."""

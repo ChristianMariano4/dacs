@@ -130,9 +130,29 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     # Movement Commands
     # -------------------------------------------------------------------------
+
+    def _cap_distance_positive(distance: int) -> int:
+        """
+        Cap distance for directional movement commands.
+        Used by: forward, back, left, right, up, down
+        Range: 20-500 cm (positive only)
+        """
+        distance = abs(distance)
+        return max(20, min(distance, 500))
+
+    def _cap_distance_signed(distance: int) -> int:
+        """
+        Cap distance for go command (preserves sign).
+        Used by: go_xyz_speed
+        Range: -500 to 500 cm (cannot all be -20 to 20)
+        """
+        if -20 < distance < 20:
+            return 0  # Too small for go command
+        return max(-500, min(distance, 500))
+
     def takeoff(self) -> CommandResult:
         if not self.is_battery_good(): 
-            return False, False
+            return CommandResult(value=False, replan=False)
             
         if self.move_enable:
             with self.lock:
@@ -149,24 +169,33 @@ class TelloWrapper(RobotWrapper):
             print("[Drone] Land (Simulated)")
         return CommandResult(value=True, replan=False)
 
-    def _move_relative(self, forward=0, backward=0, left=0, right=0, up=0, down=0, yaw_cw=0, yaw_ccw=0) -> CommandResult:
-        """Unified movement handler."""
+    def _move_relative(self, forward=0, backward=0, left=0, right=0, up=0, down=0, yaw_cw=0, yaw_ccw=0):
         if not self.move_enable:
-            print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right} U:{up} D:{down} Y:{yaw_cw}")
+            print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right}")
             return CommandResult(value=True, replan=False)
 
-        with self.lock:  
-            # Using blocking commands
-            if forward: self.drone.move_forward(cap_distance(forward))
-            if backward: self.drone.move_back(cap_distance(backward))
-            if left: self.drone.move_left(cap_distance(left))
-            if right: self.drone.move_right(cap_distance(right))
-            if up: self.drone.move_up(cap_distance(up))
-            if down: self.drone.move_down(cap_distance(down))
-            if yaw_cw: self.drone.rotate_clockwise(yaw_cw)
-            if yaw_ccw: self.drone.rotate_counter_clockwise(yaw_ccw)
+        with self.lock:
+            # Use _cap_distance_positive for directional commands
+            if forward: 
+                self.drone.move_forward(self._cap_distance_positive(forward))
+            if backward: 
+                self.drone.move_back(self._cap_distance_positive(backward))
+            if left: 
+                self.drone.move_left(self._cap_distance_positive(left))
+            if right: 
+                self.drone.move_right(self._cap_distance_positive(right))
+            if up: 
+                self.drone.move_up(self._cap_distance_positive(up))
+            if down: 
+                self.drone.move_down(self._cap_distance_positive(down))
             
-        time.sleep(0.5) # Settle time
+            # Rotation: 1-360 degrees
+            if yaw_cw: 
+                self.drone.rotate_clockwise(max(1, min(yaw_cw, 360)))
+            if yaw_ccw: 
+                self.drone.rotate_counter_clockwise(max(1, min(yaw_ccw, 360)))
+        
+        time.sleep(0.5)
         return CommandResult(value=True, replan=False)
 
     def move_north(self, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
@@ -223,20 +252,27 @@ class TelloWrapper(RobotWrapper):
 
             return CommandResult(value=True, replan=False)
 
-    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
-        """Move to absolute world coordinates (blocking)."""
+    def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float):
         curr_x, curr_y, curr_z = self.get_position()[:3]
         
-        dx = cap_distance(int(target_x_cm - curr_x))
-        dy = cap_distance(int(target_y_cm - curr_y))
-        dz = cap_distance(int(target_z_cm - curr_z))
+        dx = int(target_x_cm - curr_x)
+        dy = int(target_y_cm - curr_y)
+        dz = int(target_z_cm - curr_z)
+        
+        # Check SDK constraint: can't all be between -20 and 20
+        if abs(dx) < 20 and abs(dy) < 20 and abs(dz) < 20:
+            return CommandResult(value=True, replan=False)
+        
+        # Use cap_distance_signed for go command
+        dx = self._cap_distance_signed(dx)
+        dy = self._cap_distance_signed(dy)
+        dz = self._cap_distance_signed(dz)
 
         if not self.move_enable:
-            print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz})")
+            print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz}) cm")
             return CommandResult(value=True, replan=False)
 
         with self.lock:
-            # go_xyz_speed is relative to current position
             self.drone.go_xyz_speed(dx, dy, dz, speed=20)
         
         return CommandResult(value=True, replan=False)
@@ -252,17 +288,6 @@ class TelloWrapper(RobotWrapper):
             self.position[2] * 100.0,
             self.position[3],
         )
-        
-
-    def keep_active(self):
-        """Heartbeat to keep session alive during idle times."""
-        self.active_count += 1
-        if self.active_count % 20 == 0:
-            # Queue a non-blocking read command to keep socket active
-            # We don't use the thread lock here to avoid blocking the main loop
-            try:
-                self.drone.send_command_without_return("command") 
-            except: pass
 
     def is_battery_good(self) -> bool:
         try:

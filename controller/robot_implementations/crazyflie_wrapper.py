@@ -199,11 +199,21 @@ class FrameReader:
         frame = adjust_exposure(frame, alpha=1.3, beta=-30)
         return sharpen_image(frame)
         
-def cap_distance(distance):
-    if distance < MOVEMENT_MIN:
-        return MOVEMENT_MIN
-    elif distance > MOVEMENT_MAX:
-        return MOVEMENT_MAX
+def cap_distance(distance: int) -> int:
+    """
+    Cap distance to Tello's limits, preserving sign.
+    Tello go command: x,y,z = -500 to 500
+    Cannot be between -20 and 20 simultaneously.
+    """
+    if -20 < distance < 20:
+        return 0  # Too small, skip
+    
+    # Clamp to [-500, 500]
+    if distance > 500:
+        return 500
+    if distance < -500:
+        return -500
+    
     return distance
 
 class CrazyflieWrapper():
