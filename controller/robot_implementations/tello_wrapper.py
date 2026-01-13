@@ -280,12 +280,13 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     def get_position(self) -> Tuple[float, float, float, float]:
         """Return position in cm and yaw in degrees (x, y, z. yaw)."""
-        return (
-            self.position[0] * 100.0,
-            self.position[1] * 100.0,
-            self.position[2] * 100.0,
-            self.position[3],
-        )
+        with self.lock:
+            return (
+                self.position[0] * 100.0,
+                self.position[1] * 100.0,
+                self.position[2] * 100.0,
+                self.position[3],
+            )
 
     def is_battery_good(self) -> bool:
         try:
@@ -310,10 +311,12 @@ class TelloWrapper(RobotWrapper):
         while not self._stop_event.is_set():
             if self.crazyflie:
                 pos_m = self.crazyflie.get_pose()
-                self.position = pos_m
-                self.position[3] = math.degrees(self.position[3])
-                if self.position[3] < 0:
-                    self.position[3] = self.position[3] + 360
+                with self.lock:
+                    self.position = pos_m
+                    self.position[3] = math.degrees(self.position[3])
+                    if self.position[3] < 0:
+                        self.position[3] = self.position[3] + 360
                 if self.graph_manager:
-                    self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
+                    with self.lock:
+                        self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
             time.sleep(0.02) # 50Hz
