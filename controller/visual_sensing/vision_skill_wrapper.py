@@ -2,6 +2,7 @@ from typing import List, Union, Tuple, Optional
 import numpy as np
 import time, math
 import cv2
+from controller.abs.robot_wrapper import CommandResult
 from controller.context_map.graph_manager import GraphManager
 from controller.visual_sensing.enviromental_analysis_module import EnvironmentalAnalysisModule
 from filterpy.kalman import KalmanFilter
@@ -195,33 +196,6 @@ class VisionSkillWrapper():
         # Remove trackers that should be deleted
         for key in to_delete:
             del self.object_trackers[key]
-    # def update(self):
-    #     if self.shared_frame.timestamp == self.last_update:
-    #         return
-    #     self.last_update = self.shared_frame.timestamp
-    #     objs = self.shared_frame.get_yolo_result()['result'] + self.shared_frame.get_yolo_result()['result_custom']
-    #     for obj in objs:
-    #         name = obj['name']
-    #         box = obj['box']
-    #         x = (box['x1'] + box['x2']) / 2
-    #         y = (box['y1'] + box['y2']) / 2
-    #         w = box['x2'] - box['x1']
-    #         h = box['y2'] - box['y1']
-    #         if name not in self.object_trackers:
-    #             self.object_trackers[name] = ObjectTracker(name, x, y, w, h)
-    #         else:
-    #             self.object_trackers[name].update(x, y, w, h)
-        
-    #     self.object_list = []
-    #     to_delete = []
-    #     for name, tracker in self.object_trackers.items():
-    #         obj = tracker.predict()
-    #         if obj is not None:
-    #             self.object_list.append(obj)
-    #         else:
-    #             to_delete.append(name)
-    #     for name in to_delete:
-    #         del self.object_trackers[name]
 
     def get_obj_list(self) -> str:
         self.update_obj_list()
@@ -249,40 +223,40 @@ class VisionSkillWrapper():
         self.update_scene_description()
         return self.scene_description
 
-    def is_visible(self, objects: List[str]) -> Tuple[str | bool, bool]:
+    def is_visible(self, objects: List[str]) -> CommandResult:
         for o in objects:
             if self.get_obj_info(o) is not None:
-                return o, False
-        return False, False
+                return CommandResult(o, False)
+        return CommandResult(False, False)
 
     def object_x(self, object_name: str) -> Tuple[Union[float, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
-            return f'object_x: {object_name} is not in sight', True
-        return info.x, False
+            return CommandResult(f'object_x: {object_name} is not in sight', False)
+        return CommandResult(info.x, False)
     
     def object_y(self, object_name: str) -> Tuple[Union[float, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
-            return f'object_y: {object_name} is not in sight', True
-        return info.y, False
+            return CommandResult(f'object_y: {object_name} is not in sight', False)
+        return CommandResult(info.y, False)
     
     def object_width(self, object_name: str) -> Tuple[Union[float, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
-            return f'object_width: {object_name} not in sight', True
-        return info.w, False
+            return CommandResult(info.w, f'object_width: {object_name} not in sight')
+        return CommandResult(info.w, False)
     
     def object_height(self, object_name: str) -> Tuple[Union[float, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
-            return f'object_height: {object_name} not in sight', True
-        return info.h, False
+            return CommandResult(info.h, f'object_height: {object_name} not in sight')
+        return CommandResult(info.h, False)
             
     def object_distance(self, object_name: str) -> Tuple[Union[int, str], bool]:
         info = self.get_obj_info(object_name)
         if info is None:
-            return f'object_distance: {object_name} not in sight', True
+            return CommandResult(f'object_distance: {object_name} not in sight', False)
         
         # Estimate distance based on object height in image
         # Assumption: average person height is ~170cm
@@ -301,16 +275,16 @@ class VisionSkillWrapper():
                 # Clamp to reasonable range
                 estimated_distance = max(30, min(estimated_distance, 500))
                 print(f"DEBUG: Height ratio={height_ratio:.3f}, estimated distance={estimated_distance}cm")
-                return estimated_distance, False
+                return CommandResult(estimated_distance, False)
         
         # For other objects, use width
         width_ratio = info.w
         if width_ratio > 0.01:
             estimated_distance = int(50 / width_ratio)
             estimated_distance = max(30, min(estimated_distance, 500))
-            return estimated_distance, False
+            return CommandResult(estimated_distance, False)
         
-        return 100, False  # default fallback
+        return CommandResult(100, False)  # default fallback
 
     # ──────────────────────────────────────────────────────────────
     #  New helper – normalized → pixel
