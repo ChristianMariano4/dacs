@@ -96,8 +96,7 @@ class LLMController:
         self.controller_active = True
         self.controller_wait_takeoff = True
         self.images_counter = 0
-        self.directions = {0: "north", 1: "north-east", 2: "east", 3: "south-east", 
-                           4: "south", 5: "south-west", 6: "west", 7: "north-west"}
+        self.direction_step_deg = 45  # Rotate 45° between photos
 
     def _initialize_robot(self, robot_type) -> RobotWrapper:
         """Factory method to initialize the correct robot wrapper."""
@@ -327,56 +326,28 @@ class LLMController:
         self.graph_manager.update_graph_from_file()
         return CommandResult(value=True, replan=False)
     
-    def align_direction(self):
-        yaw = self.drone.get_position()[3]
-        
-        # Snap to nearest 45-degree increment
-        snapped = round(yaw / 45) * 45
-        
-        # Convert 360 back to 0
-        snapped = snapped % 360
-        
-        # Calculate the angular difference (how much to turn)
-        diff = snapped - yaw
-        
-        # Normalize to [-180, 180] to find shortest path
-        if diff > 180:
-            diff -= 360
-        elif diff < -180:
-            diff += 360
-        
-        # Turn based on the sign and magnitude of difference
-        if abs(diff) > 0.1:  # Small threshold to avoid tiny corrections
-            if diff > 0:
-                self.drone.turn_cw(abs(diff))
-            else:
-                self.drone.turn_ccw(abs(diff))
-        
-        return CommandResult(value=True, replan=False)
-
     def skill_take_picture(self) -> CommandResult:
         time.sleep(0.1)
 
         if self.images_counter == 0:
             self.env_analysis_module.reset_updated_directions()
 
-        # Convert yaw to nearest 45-degree direction index (0–7)
-        direction_index = (
-            self.images_counter + round(self.drone.get_position()[3] / DIRECTION_STEP_DEG)
-        ) % 8
-            
-        direction = self.directions.get(direction_index)
-        if direction is None:
-            print_t(f"[C] Error: Invalid direction index {direction_index}")
-            return CommandResult(value=False, replan=False)
-        img_path = os.path.join(self.cache_folder, f"{direction}.jpg")
+        # Calculate current yaw after rotation
+        current_yaw = int(self.drone.get_position()[3])  # Get actual yaw in degrees
         
-        self.env_analysis_module.set_updated_directions(direction)
+        # Calculate the yaw for this photo (based on rotation count)
+        photo_yaw = (current_yaw + (self.images_counter * self.direction_step_deg)) % 360
+        
+        # Use yaw as filename: "0.jpg", "45.jpg", "90.jpg", etc.
+        img_path = os.path.join(self.cache_folder, f"{photo_yaw}.jpg")
+        
+        # Track which yaw angles have been updated
+        self.env_analysis_module.set_updated_directions(photo_yaw)
         self.images_counter = (self.images_counter + 1) % 8
         
         if self.latest_frame is not None:
             Image.fromarray(self.latest_frame).save(img_path)
-            print_t(f"[C] Picture saved to {img_path}")
+            print_t(f"[C] Picture saved to {img_path} (yaw: {photo_yaw}°)")
             self.append_message((img_path,))
         else:
             print_t("[C] Error: No frame available to take picture")
@@ -384,23 +355,22 @@ class LLMController:
         return CommandResult(value=True, replan=False)
     
     def skill_explore_direction(self) -> CommandResult:
-        (direction, distance, region_name) = self.env_analysis_module.choose_direction(
+        (target_yaw, distance, region_name) = self.env_analysis_module.choose_direction(
             self.current_task.get_task_description(), 
             self.cache_folder, 
             self.get_drone_pose()
         )
+        
         self._name_region(region_name)
-        valid_directions = ["north", "east", "south", "west", "north-east", "north-west", "south-east", "south-west"]
-        if direction in valid_directions:
-            print(f"{direction} is a valid direction")
-            next_yaw = {
-                "north": 0, "north-east": 45, "east": 90, "south-east": 135, 
-                "south": 180, "south-west": -135, "west": -90, "north-west": -45
-            }[direction]
-            print(f"Next yaw {next_yaw}")
-            self.drone.move_direction(next_yaw, distance)
+        
+        # Validate yaw is in valid range
+        if 0 <= target_yaw < 360:
+            print(f"Moving to yaw {target_yaw}° for distance {distance}cm")
+            self.drone.move_direction(target_yaw, distance)
             return CommandResult(value=True, replan=False)
-        return CommandResult(value=False, replan=False)
+        else:
+            print(f"Invalid yaw: {target_yaw}")
+            return CommandResult(value=False, replan=False)
     
     def text_to_speech(self, text: str):
         """Convert text to speech using gTTS and play via system audio (server-side)."""
@@ -602,6 +572,7 @@ class LLMController:
         print_t("[C] Starting stream...")
         self.drone.start_stream()
         self.controller_wait_takeoff = False
+        time.sleep(2)
         drone_position = self.drone.get_position()
         self.drone.go_to_position(drone_position[0], drone_position[1], 50)
 

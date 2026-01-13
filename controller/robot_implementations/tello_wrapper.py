@@ -40,6 +40,24 @@ class FrameReader:
         frame = adjust_exposure(raw_frame, alpha=1.3, beta=-30)
         return sharpen_image(frame)
 
+def _cap_distance_positive(distance: int) -> int:
+    """
+    Cap distance for directional movement commands.
+    Used by: forward, back, left, right, up, down
+    Range: 20-500 cm (positive only)
+    """
+    distance = abs(distance)
+    return max(20, min(distance, 500))
+
+def _cap_distance_signed(distance: int) -> int:
+    """
+    Cap distance for go command (preserves sign).
+    Used by: go_xyz_speed
+    Range: -500 to 500 cm (cannot all be -20 to 20)
+    """
+    if -20 < distance < 20:
+        return 0  # Too small for go command
+    return max(-500, min(distance, 500))
 # -----------------------------------------------------------------------------
 # Tello Implementation
 # -----------------------------------------------------------------------------
@@ -130,26 +148,7 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     # Movement Commands
     # -------------------------------------------------------------------------
-
-    def _cap_distance_positive(distance: int) -> int:
-        """
-        Cap distance for directional movement commands.
-        Used by: forward, back, left, right, up, down
-        Range: 20-500 cm (positive only)
-        """
-        distance = abs(distance)
-        return max(20, min(distance, 500))
-
-    def _cap_distance_signed(distance: int) -> int:
-        """
-        Cap distance for go command (preserves sign).
-        Used by: go_xyz_speed
-        Range: -500 to 500 cm (cannot all be -20 to 20)
-        """
-        if -20 < distance < 20:
-            return 0  # Too small for go command
-        return max(-500, min(distance, 500))
-
+    
     def takeoff(self) -> CommandResult:
         if not self.is_battery_good(): 
             return CommandResult(value=False, replan=False)
@@ -177,17 +176,17 @@ class TelloWrapper(RobotWrapper):
         with self.lock:
             # Use _cap_distance_positive for directional commands
             if forward: 
-                self.drone.move_forward(self._cap_distance_positive(forward))
+                self.drone.move_forward(_cap_distance_positive(forward))
             if backward: 
-                self.drone.move_back(self._cap_distance_positive(backward))
+                self.drone.move_back(_cap_distance_positive(backward))
             if left: 
-                self.drone.move_left(self._cap_distance_positive(left))
+                self.drone.move_left(_cap_distance_positive(left))
             if right: 
-                self.drone.move_right(self._cap_distance_positive(right))
+                self.drone.move_right(_cap_distance_positive(right))
             if up: 
-                self.drone.move_up(self._cap_distance_positive(up))
+                self.drone.move_up(_cap_distance_positive(up))
             if down: 
-                self.drone.move_down(self._cap_distance_positive(down))
+                self.drone.move_down(_cap_distance_positive(down))
             
             # Rotation: 1-360 degrees
             if yaw_cw: 
@@ -226,9 +225,8 @@ class TelloWrapper(RobotWrapper):
     
     def move_direction(self, direction_deg: int, distance_cm: int = REGION_THRESHOLD) -> CommandResult:
         """Rotate to target yaw (shortest path), then move forward."""
-
+        print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
         if not self.move_enable:
-            print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
             return CommandResult(value=True, replan=False)
 
         with self.lock:
@@ -264,12 +262,12 @@ class TelloWrapper(RobotWrapper):
             return CommandResult(value=True, replan=False)
         
         # Use cap_distance_signed for go command
-        dx = self._cap_distance_signed(dx)
-        dy = self._cap_distance_signed(dy)
-        dz = self._cap_distance_signed(dz)
+        dx = _cap_distance_signed(dx)
+        dy = _cap_distance_signed(dy)
+        dz = _cap_distance_signed(dz)
 
+        print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz}) cm")
         if not self.move_enable:
-            print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz}) cm")
             return CommandResult(value=True, replan=False)
 
         with self.lock:
