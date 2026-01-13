@@ -329,17 +329,29 @@ class LLMController:
     
     def align_direction(self):
         yaw = self.drone.get_position()[3]
-
+        
         # Snap to nearest 45-degree increment
         snapped = round(yaw / 45) * 45
-
+        
         # Convert 360 back to 0
         snapped = snapped % 360
-
-        if snapped > 0:
-            self.drone.turn_cw(snapped)
-        else:
-            self.drone.turn_ccw(snapped)
+        
+        # Calculate the angular difference (how much to turn)
+        diff = snapped - yaw
+        
+        # Normalize to [-180, 180] to find shortest path
+        if diff > 180:
+            diff -= 360
+        elif diff < -180:
+            diff += 360
+        
+        # Turn based on the sign and magnitude of difference
+        if abs(diff) > 0.1:  # Small threshold to avoid tiny corrections
+            if diff > 0:
+                self.drone.turn_cw(abs(diff))
+            else:
+                self.drone.turn_ccw(abs(diff))
+        
         return CommandResult(value=True, replan=False)
 
     def skill_take_picture(self) -> CommandResult:
@@ -349,9 +361,14 @@ class LLMController:
             self.env_analysis_module.reset_updated_directions()
 
         # Convert yaw to nearest 45-degree direction index (0–7)
-        direction_index = self.images_counter + round(self.drone.get_position()[3] / DIRECTION_STEP_DEG) % 8
+        direction_index = (
+            self.images_counter + round(self.drone.get_position()[3] / DIRECTION_STEP_DEG)
+        ) % 8
             
         direction = self.directions.get(direction_index)
+        if direction is None:
+            print_t(f"[C] Error: Invalid direction index {direction_index}")
+            return CommandResult(value=False, replan=False)
         img_path = os.path.join(self.cache_folder, f"{direction}.jpg")
         
         self.env_analysis_module.set_updated_directions(direction)
@@ -585,6 +602,8 @@ class LLMController:
         print_t("[C] Starting stream...")
         self.drone.start_stream()
         self.controller_wait_takeoff = False
+        drone_position = self.drone.get_position()
+        self.drone.go_to_position(drone_position[0], drone_position[1], 50)
 
     def stop_robot(self):
         print_t("[C] Drone is landing...")

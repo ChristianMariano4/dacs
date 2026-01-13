@@ -27,7 +27,7 @@ class GraphManager:
             print(f"[Warning] Graph prompt not found at {USER_GRAPH_PROMPT_PATH}")
             self.user_prompt = "{description}"
 
-        self.drone_pose = np.zeros(3)
+        self.drone_pose = np.zeros(4)
         self.graph_handler = GraphHandler()
         
         # Initialize starting region
@@ -64,6 +64,16 @@ class GraphManager:
             if closest:
                 self.graph_handler.update_location(closest)
                 self.current_region = closest
+            else:
+                # Create a default region if graph is completely empty
+                default_region = "region_0"
+                self.graph_handler.update_with_node_flexible(
+                    node=default_region,
+                    edges=[],
+                    attrs={"coords": [0.0, 0.0], "type": "region"}
+                )
+                self.graph_handler.update_location(default_region)
+                self.current_region = default_region
 
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
         prompt = self.user_prompt.format(description=description, coordinates=self.drone_pose)
@@ -95,6 +105,7 @@ class GraphManager:
         if self.current_region.startswith("region"):
             print(f"Naming region {self.current_region} to {name}")
             self.graph_handler.name_region(name)
+            self.current_region = name
             # Note: Logic to update self.current_region might be needed here 
             # if graph_handler.name_region doesn't handle the pointer update implicitly via ID change
     
@@ -104,15 +115,17 @@ class GraphManager:
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres.
         """
-        self.drone_pose = np.asarray(pose)[:3]
+        self.drone_pose = np.zeros(4, dtype=float)
+        self.drone_pose[:3] = np.asarray(pose)[:3]
         self.drone_pose[3] = yaw
         print_debug(f"Drone pose update: {self.drone_pose}")
         
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose[:3])
-        if result[1]: # If region changed or created
+        if result[1] and result[0] is not None:
             self.current_region = result[0]
         
-        self.current_task.update_drone_position(self.drone_pose, self.current_region)
+        if self.current_task is not None:
+            self.current_task.update_drone_position(self.drone_pose, self.current_region)
 
     # --- Objects
     def add_object_detection(self, label: str, xy: Sequence[float] = None) -> None:

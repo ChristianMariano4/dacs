@@ -200,7 +200,7 @@ class TelloWrapper(RobotWrapper):
 
         if not self.move_enable:
             print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
-            return True, False
+            return CommandResult(value=True, replan=False)
 
         with self.lock:
             # Read and normalize current yaw
@@ -221,11 +221,11 @@ class TelloWrapper(RobotWrapper):
             # Move forward
             self.drone.move_forward(cap_distance(int(distance_cm)))
 
-        return CommandResult(value=True, replan=False)
+            return CommandResult(value=True, replan=False)
 
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float) -> CommandResult:
         """Move to absolute world coordinates (blocking)."""
-        curr_x, curr_y, curr_z = self.get_position()
+        curr_x, curr_y, curr_z = self.get_position()[:3]
         
         dx = cap_distance(int(target_x_cm - curr_x))
         dy = cap_distance(int(target_y_cm - curr_y))
@@ -261,7 +261,7 @@ class TelloWrapper(RobotWrapper):
             # Queue a non-blocking read command to keep socket active
             # We don't use the thread lock here to avoid blocking the main loop
             try:
-                self.drone.send__command_without_return("command") 
+                self.drone.send_command_without_return("command") 
             except: pass
 
     def is_battery_good(self) -> bool:

@@ -137,7 +137,7 @@ class AIDeckViewer:
 
                 if img_format == 0: # Image is in Bayer format (raw sensor data)
                     bayer_img = np.frombuffer(img_stream, dtype=np.uint8).reshape((244, 324))
-                    color_img = cv2.cvtColor(bayer_img, cv2.COLOR_BayernBG2RGB)
+                    color_img = cv2.cvtColor(bayer_img, cv2.COLOR_BayerBG2RGB)
                     cv2.imshow('Raw', bayer_img)
                     cv2.imshow('Color', color_img)
                     if False:
@@ -213,9 +213,11 @@ class CrazyflieWrapper():
         self.cf=Crazyflie(rw_cache='./cache')
         self.stream_on = False
         self.connected = False
+        self.is_flying = False
+        self.gesture_trajectory_mapping = {}
         self.link_uri = link_uri
         self.z_target = 0.5  # Default target height in meters
-        self.pose = np.zeros(3)
+        self.pose = np.zeros(4)
         self.connect()
 
     def _log_stab_callback(self, timestamp, data, logconf):
@@ -226,7 +228,7 @@ class CrazyflieWrapper():
         
         self.pose[0] = x
         self.pose[1] = y
-        self.pose[2] = z - 0.04
+        self.pose[2] = z - 0.05
         self.pose[3] = yaw
         # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}, yaw={yaw:.2f}")
 
@@ -512,9 +514,6 @@ class CrazyflieWrapper():
         pass
 
     def get_frame_reader(self):
-        pass
-
-    def get_pose(self):
         pass
 
     def go_to_position(self, current_pos, target_pos, speed=50):
