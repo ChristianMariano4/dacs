@@ -15,6 +15,7 @@ import shutil
 
 # Local project imports
 from controller.utils.constants import (
+    EVALUATION_LOG_PATH,
     FLYZONE_USER_IMAGE_PATH, 
     GRAPH_TXT_PATH, 
     HIGH_LEVEL_SKILL_PATH, 
@@ -558,20 +559,33 @@ class LLMController:
             
             try:
                 self.execution_time = time.time()
+                # Evaluation log - Start execution
+                with open(EVALUATION_LOG_PATH, "a") as f:
+                    f.write(f"[{time.time()}] Start execution\n")
                 ret_val = self.execute_minispec(self.current_task.get_current_plan())
             except Exception as e:
                 print_t(f"[C] Error: {e}")
             
             if ret_val is not None and ret_val.wait_user_answer:
+                with open(EVALUATION_LOG_PATH, "a") as f:
+                    f.write(f"[{time.time()}] Waiting user answer\n")
                 user_question_answer = self.user_answer_queue.get(block=True)
+                with open(EVALUATION_LOG_PATH, "a") as f:
+                    f.write(f"[{time.time()}] User answered\n")
                 print(f"Inside if statement {user_question_answer}")
                 user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
                 self.current_task.update_execution_history(user_question_answer_str)
                 self.current_task.append_last_iteration_summary(user_question_answer_str)
                 print_t(f"[C] > Replanning after user answer<: {user_question_answer_str}")
+                # Evaluation log - Task ended
+                with open(EVALUATION_LOG_PATH, "a") as f:
+                    f.write(f"[{time.time()}] Start replanning after user answer\n")
                 continue
             elif ret_val is not None and ret_val.replan:
                 print_t(f"[C] > Replanning <: {ret_val.value}")
+                # Evaluation log - Task ended
+                with open(EVALUATION_LOG_PATH, "a") as f:
+                    f.write(f"[{time.time()}] Start replanning\n")
                 self.short_term_memory.generate_interaction_summary(self.current_task, 
                                                                context_graph=self.graph_manager.get_dense_graph(), 
                                                                low_level_skills = self.low_level_skillset,
@@ -580,7 +594,10 @@ class LLMController:
                 continue
             else:
                 break
-                
+
+        # Evaluation log - Task ended
+        with open(EVALUATION_LOG_PATH, "a") as f:
+            f.write(f"[{time.time()}] Task ended\n\n")
         print("[Task ended]")
         self.append_message(f'\n[Task ended]')
         self.append_message('end')

@@ -24,7 +24,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(PARENT_DIR)
 
-from controller.utils.constants import FLYZONE_USER_IMAGE_PATH
+from controller.utils.constants import EVALUATION_LOG_PATH, FLYZONE_USER_IMAGE_PATH
 from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
 from controller.utils.general_utils import print_t
@@ -176,6 +176,7 @@ class TypeFly:
             "Where is a banana?",
             "Find a banana",
         ]
+        self.task_id = 1
         with self.ui:
             gr.HTML(open(os.path.join(CURRENT_DIR, 'header.html'), 'r').read())
             
@@ -480,6 +481,11 @@ class TypeFly:
         Unified handler for tasks and answers using a single consumer loop.
         """
         print_t(f"[S] Processing input: {message}")
+
+        # Evaluation log - user task received
+        with open(EVALUATION_LOG_PATH, "a") as f:
+            f.write(f"--- Task number {self.task_id}\n[{time.time()}] Task from user: {message}\n")
+            self.task_id += 1
 
         if not message or message == "exit":
             if message == "exit":

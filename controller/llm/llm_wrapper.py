@@ -1,8 +1,11 @@
 from enum import Enum
 import os
+import time
 import openai
 from openai import Stream, ChatCompletion, OpenAI
 import json
+
+from controller.utils.constants import EVALUATION_LOG_PATH
 
 LLAMA3 = "meta-llama/Meta-Llama-3-8B-Instruct"
 GPT3 = "gpt-3.5-turbo-16k"
@@ -26,7 +29,7 @@ NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
 EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
 
 
-PLAN_PROMPT_VERSION = "100"
+PLAN_PROMPT_VERSION = "102"
 QUERY_PROMPT_VERSION = "4"
 SHORT_TERM_MEMORY_PROMPT_VERSION = "10"
 SAVE_TASK_FEEDBACK_PROMPT_VERSION = "4"
@@ -34,8 +37,8 @@ DELETE_TASK_FEEDBACK_PROMPT_VERSION = "6"
 
 
 DIRECTION_PROMPT_VERSION = "6"
-FLYZONE_PROMPT_VERSION = "25"
-NEW_GRAPH_PROMPT_VERSION = "9"
+FLYZONE_PROMPT_VERSION = "28"
+NEW_GRAPH_PROMPT_VERSION = "11"
 EVERGREEN_FEEDBACK_PROMPT_VERSION = "11"
 
 
@@ -274,5 +277,9 @@ class LLMWrapper:
 
         # Parse it:
         parsed = json.loads(raw_text)
+
+        # Evaluation log - received LLM plan
+        with open(EVALUATION_LOG_PATH, "a") as f:
+            f.write(f"[{time.time()}] Plan from LLM: {parsed}\n")
 
         return parsed
