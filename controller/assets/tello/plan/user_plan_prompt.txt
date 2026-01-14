@@ -4,9 +4,9 @@
 "low_level_skills": 
 {low_level_skills}
 
-"old_interactions_feedbacks": 
-{old_interactions_feedbacks}
-{evergreen_preferences}
+"old_interactions_feedback": 
+{old_interactions_feedback}
+{universal_preferences}
 
 "objects_list": 
 {objects_list}

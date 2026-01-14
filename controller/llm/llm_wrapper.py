@@ -26,7 +26,7 @@ NEW_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
 EVERGREEN_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
 
 
-PLAN_PROMPT_VERSION = "97"
+PLAN_PROMPT_VERSION = "100"
 QUERY_PROMPT_VERSION = "4"
 SHORT_TERM_MEMORY_PROMPT_VERSION = "10"
 SAVE_TASK_FEEDBACK_PROMPT_VERSION = "4"
@@ -36,7 +36,7 @@ DELETE_TASK_FEEDBACK_PROMPT_VERSION = "6"
 DIRECTION_PROMPT_VERSION = "6"
 FLYZONE_PROMPT_VERSION = "25"
 NEW_GRAPH_PROMPT_VERSION = "9"
-EVERGREEN_FEEDBACK_PROMPT_VERSION = "10"
+EVERGREEN_FEEDBACK_PROMPT_VERSION = "11"
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -94,7 +94,7 @@ class LLMWrapper:
                 response = client.responses.create(
                     prompt={
                         "id": PLAN_PROMPT_ID,
-                        "version": "92"
+                        "version": PLAN_PROMPT_VERSION
                     },
                     input=input_payload,
                     stream=stream

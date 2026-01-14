@@ -115,12 +115,6 @@
         "args": [{"name": "object_name", "type": "str"}]
     },
     {
-        "name": "object_dis",
-        "handler": "vision.object_distance",
-        "description": "Get object's distance in cm",
-        "args": [{"name": "object_name", "type": "str"}]
-    },
-    {
         "name": "query",
         "handler": "planner.query",
         "description": "Query the LLM for reasoning. Add also what do you expect as returned value type. It automatically take the image in front of the robot",

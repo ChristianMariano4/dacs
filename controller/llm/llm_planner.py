@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Tuple, List, Any
 from PIL import Image
 
 from controller.middle_layer.flyzone_manager import FlyzoneManager
-from controller.utils.constants import ROBOT_NAME, USER_EVERGREEN_FEEDBACK_PATH
+from controller.utils.constants import ROBOT_NAME, UNIVERSAL_FEEDBACK_PROMPT_PATH
 from controller.task import Task
 
 from ..skillset import SkillSet
@@ -59,7 +59,7 @@ class LLMPlanner:
 
     def plan(self, task: Task, img_b64: str, context_graph: str,
              objects_list: Optional[str] = None, execution_history: Optional[str] = None,
-             old_interactions_feedbacks: Optional[List[str]] = None):
+             old_interactions_feedback: Optional[List[str]] = None):
         
         # Format task description
         task_description = task.get_task_description()
@@ -75,10 +75,10 @@ class LLMPlanner:
                 self.flyzone = f.read()
 
         # Retrieve updated evergreen_preferences
-        evergreen_preferences = ""
-        if os.path.exists(USER_EVERGREEN_FEEDBACK_PATH):
-            with open(USER_EVERGREEN_FEEDBACK_PATH, "r") as f:
-                evergreen_preferences = f.read()
+        universal_preferences = ""
+        if os.path.exists(UNIVERSAL_FEEDBACK_PROMPT_PATH):
+            with open(UNIVERSAL_FEEDBACK_PROMPT_PATH, "r") as f:
+                universal_preferences = f.read()
 
         # Handle Shortcut formatting
         if not task.get_is_new():
@@ -87,8 +87,8 @@ class LLMPlanner:
         prompt = self.prompt_plan.format(
             high_level_skills=self.high_level_skillset,
             low_level_skills=self.low_level_skillset,
-            old_interactions_feedbacks=old_interactions_feedbacks,
-            evergreen_preferences=evergreen_preferences,
+            old_interactions_feedback=old_interactions_feedback,
+            universal_preferences=universal_preferences,
             objects_list=objects_list,
             task_description=task_description,
             execution_history=execution_history,

@@ -19,7 +19,8 @@ from controller.utils.constants import (
     GRAPH_TXT_PATH, 
     HIGH_LEVEL_SKILL_PATH, 
     REGION_THRESHOLD, 
-    SKILL_PATH
+    SKILL_PATH,
+    UNIVERSAL_FEEDBACK_PROMPT_PATH
 )
 from controller.memory.short_term_memory import ShortTermMemory
 from controller.memory.long_term_memory import LongTermMemory
@@ -536,14 +537,13 @@ class LLMController:
 
         # self.append_message('[TASK]: ' + task_description)
         ret_val = None
-        
         while True:
             self.current_plan, requires_execution= self.planner.plan(
                 self.current_task,
                 img_b64=img_b64,
                 execution_history=self.current_task.get_execution_plan_summary_prompt(), 
                 context_graph=self.graph_manager.get_dense_graph(), 
-                old_interactions_feedbacks=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
+                old_interactions_feedback=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
             )
 
             if requires_execution:
