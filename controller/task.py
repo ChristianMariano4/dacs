@@ -21,7 +21,7 @@ class Task():
             self.execution_history_list.append([self.current_plan, [], ""])  # [plan, actions, summary]
         
         self.last_achievements = ""
-        self.current_drone_position = np.zeros(3)
+        self.current_drone_position = np.zeros(4)
         self.current_region = "studio_room"
         self.previous_drone_position = self.current_drone_position
         self.previous_region = self.current_region

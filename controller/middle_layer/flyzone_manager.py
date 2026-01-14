@@ -4,11 +4,9 @@ from shapely.geometry import Polygon, Point
 import matplotlib.pyplot as plt
 
 from controller.utils.general_utils import encode_image
-
-
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controller.utils.constants import FLYZONE_USER_IMAGE_PATH, ROBOT_NAME
+from controller.utils.constants import FLYZONE_TXT_PATH, FLYZONE_USER_IMAGE_PATH, ROBOT_NAME
 from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 
@@ -66,7 +64,9 @@ class FlyzoneManager:
         return "The allowed flyzone is composed of the following polygonal regions:\n" + "\n".join(descriptions)
     
     def request_new_flyzone(self, instruction: str, image_present: bool, llm_model_name: str = GPT5):
-        prompt = self.prompt_flyzone.format(instruction=instruction)
+        with open(FLYZONE_TXT_PATH, "r") as f:
+            flyzone = f.read()
+        prompt = self.prompt_flyzone.format(instruction=instruction, flyzone = flyzone)
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
             response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FLYZONE, image=image)

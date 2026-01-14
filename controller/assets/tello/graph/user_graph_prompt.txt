@@ -1,3 +1,4 @@
 Description: {description}
 
-Robot coordinates: {coordinates}
+Current graph: 
+{context_graph}

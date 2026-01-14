@@ -18,7 +18,7 @@ class GraphHandler:
     def __init__(self) -> None:
         self.graph = nx.Graph()
         self.current_location: Optional[str] = None
-        self.drone_position = np.array([0.0, 0.0, 0.0])
+        self.drone_position = np.array([0.0, 0.0, 0.0, 0.0])
         self.as_json_str = "{}"
         
         # Initialize graph state
@@ -58,7 +58,7 @@ class GraphHandler:
         if not self.graph.nodes:
             return None
             
-        x, y, _ = self.drone_position
+        x, y, _, _ = self.drone_position
         min_dist = float('inf')
         curr_region = None
         
@@ -400,7 +400,7 @@ def parse_graph(
                     
                 G.add_edge(u, v, type=type_label, weight=w)
 
-    drone_pos_data = data.get("current_position", {}).get("coords", [0,0,0])
+    drone_pos_data = data.get("current_position", {}).get("coords", [0,0,0,0])
     drone_position = np.array(drone_pos_data)
 
     return G, json.dumps(data), drone_position

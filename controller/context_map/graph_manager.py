@@ -76,7 +76,7 @@ class GraphManager:
                 self.current_region = default_region
 
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
-        prompt = self.user_prompt.format(description=description, coordinates=self.drone_pose)
+        prompt = self.user_prompt.format(description=description, context_graph=self.get_dense_graph())
         return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
 
     def get_drone_pose(self):
