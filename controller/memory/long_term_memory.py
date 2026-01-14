@@ -2,7 +2,7 @@ import json
 import uuid
 from openai import OpenAI
 import os
-from controller.utils.constants import TASK_FEEDBACK_PATH, UNIVERSAL_FEEDBACK_PATH, USER_SHORTCUTS_PATH
+from controller.utils.constants import CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH, TASK_FEEDBACK_PATH, UNIVERSAL_FEEDBACK_PROMPT_PATH, USER_SHORTCUTS_PATH
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
@@ -39,8 +39,8 @@ class LongTermMemory:
             self.task_feedback_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
         
-        with open(UNIVERSAL_FEEDBACK_PATH, "r") as f:
-            self.user_evergreen_feedback_prompt = f.read()
+        with open(CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH, "r") as f:
+            self.user_change_user_feedback_prompt = f.read()
 
         # Vector db section: retrieve the db of the specified user
         self.openai_client = OpenAI()
@@ -60,10 +60,10 @@ class LongTermMemory:
         return self.username
     
     def change_feedback_prompt(self, user_request: str):
-        with open(UNIVERSAL_FEEDBACK_PATH, "r") as f:
+        with open(UNIVERSAL_FEEDBACK_PROMPT_PATH, "r") as f:
             current_user_feedback = f.read()
-        prompt = self.user_evergreen_feedback_prompt.format(user_request=user_request,
-                                                            preferences_summary=current_user_feedback)
+        prompt = self.user_change_user_feedback_prompt.format(user_request=user_request,
+                                                            current_user_feedback=current_user_feedback)
         response_content: dict = self.llm_wrapper.request(prompt, RequestType.EVERGREEN_FEEDBACK)
         preferences_summary = response_content.get("preferences_summary", None)
 
@@ -71,7 +71,7 @@ class LongTermMemory:
             print_t("[ERROR in LongMemoryModule.change_feedback_prompt()] preferences_summary requested but None returned by LLM")
             return
         
-        with open(UNIVERSAL_FEEDBACK_PATH, "w") as f:
+        with open(UNIVERSAL_FEEDBACK_PROMPT_PATH, "w") as f:
             f.write(preferences_summary)
             
     def save_task_summary(self, task: Task, high_level_skills, low_level_skills, conf=0.3):
@@ -109,7 +109,7 @@ class LongTermMemory:
         # embedding = self.model.encode(doc_text)
         embedding = self.openai_client.embeddings.create(
             input=task_text,
-            model="text-embedding-3-large"
+            model="text-embedding-3-small"
         )
         embedding_vector = embedding.data[0].embedding
         self.interactions_collection.add(
