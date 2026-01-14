@@ -10,7 +10,7 @@ class Frame():
         if image is None:
             self._image_buffer = np.zeros((352, 640, 3), dtype=np.uint8)
             self._image = Image.fromarray(self._image_buffer)
-        if isinstance(image, np.ndarray):
+        elif isinstance(image, np.ndarray):
             self._image_buffer = image
             self._image = Image.fromarray(image)
         elif isinstance(image, Image.Image):
@@ -60,9 +60,14 @@ class SharedFrame:
         # self.midas.eval()
 
         # Transform must match model
-        # self.transform = midas_transforms.dpt_transform  
+        # self.transform = midas_transforms.dpt_transform
 
         self.lock = threading.Lock()
+
+        # Initialize with default values to prevent AttributeError if accessed before set()
+        self.frame = Frame()
+        self.yolo_result = {}
+        self.timestamp = 0.0
 
     def get_image(self) -> Optional[Image.Image]:
         with self.lock:

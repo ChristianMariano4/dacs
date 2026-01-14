@@ -73,6 +73,7 @@ class ParsingState(Enum):
     CONDITION     = 2
     LOOP_COUNT    = 3
     SUB_STATEMENTS= 4
+    ELSE_STATEMENTS = 5
 
 # ------------------------------------------------------------------------------
 # MiniSpecProgram
@@ -169,6 +170,7 @@ class Statement:
         self.executable = False
         self.ret = False
         self.sub_statements: MiniSpecProgram | None = None
+        self.else_statements: MiniSpecProgram | None = None
         self.env = env
         self.read_argument = False
         self.depth_paren = 0  # ( … )
@@ -295,8 +297,28 @@ class Statement:
                 # ------------------------------------------------ sub-statements
                 case ParsingState.SUB_STATEMENTS:
                     if self.sub_statements.parse([c]):
+                        # Sub-statements finished, check if there's an else branch
+                        if self.action == 'if':
+                            # Switch to capture else statements
+                            self.else_statements = MiniSpecProgram(self.env)
+                            self.parsing_state = ParsingState.ELSE_STATEMENTS
+                        else:
+                            return True
+
+                case ParsingState.ELSE_STATEMENTS:
+                    if c == ';':
+                        # Else branch complete
+                        if self.else_statements.current_statement.code_buffer.strip():
+                            # There's accumulated code, finalize it as a statement
+                            self.else_statements.current_statement.action = self.else_statements.current_statement.code_buffer.strip()
+                            self.else_statements.current_statement.executable = True
+                            self.else_statements.statements.append(self.else_statements.current_statement)
+                        self.else_statements.finished = True
                         return True
-        return False
+                    else:
+                        # Accumulate else code
+                        self.else_statements.parse([c])
+                        return False
 
     # ---------------------------------------------------------------- eval     
     def eval(self) -> 'MiniSpecReturnValue':
@@ -309,10 +331,18 @@ class Statement:
             if ret_val.replan:
                 return ret_val
             if ret_val.value:
+                # Condition TRUE: execute sub_statements
                 ret_val = self.sub_statements.eval()
                 if ret_val.replan or self.sub_statements.ret:
                     self.ret = True
                 return ret_val
+            else:
+                # Condition FALSE: execute else_statements if present
+                if self.else_statements and self.else_statements.statements:
+                    ret_val = self.else_statements.eval()
+                    if ret_val.replan or self.else_statements.ret:
+                        self.ret = True
+                    return ret_val
             return MiniSpecReturnValue.default()
 
         if self.action == 'loop':
@@ -424,7 +454,7 @@ class Statement:
             if interp.ret:
                 return MiniSpecReturnValue(val.value, False)
             
-            return val
+            return MiniSpecReturnValue(False, False)
 
         raise Exception(f'Skill {name} is not defined')
 

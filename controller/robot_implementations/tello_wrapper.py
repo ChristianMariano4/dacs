@@ -1,5 +1,4 @@
 import logging
-import math
 import threading
 import time
 from typing import Tuple, Optional
@@ -100,9 +99,19 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     # Lifecycle
     # -------------------------------------------------------------------------
-    def connect(self):
-        with self.lock:
-            self.drone.connect()
+    def connect(self, retries: int = 3):
+        for attempt in range(retries):
+            try:
+                time.sleep(0.5)  # Brief delay before connection attempt
+                with self.lock:
+                    self.drone.connect()
+                logger.info("Tello connected successfully")
+                break
+            except Exception as e:
+                logger.warning(f"Connection attempt {attempt + 1}/{retries} failed: {e}")
+                if attempt == retries - 1:
+                    raise
+                time.sleep(1.0)
         
         # Start background tasks
         self._start_thread(self._keepalive_loop, "tello-keepalive")
@@ -110,6 +119,7 @@ class TelloWrapper(RobotWrapper):
         if self.use_lighthouse and self.crazyflie:
             self._start_thread(self._odometry_loop_crazyflie, "odo-crazyflie")
         else:
+            #TODO: _odometry_loop_dead_reckoning not implemented
             self._start_thread(self._odometry_loop_dead_reckoning, "odo-dead-reckoning")
 
     def disconnect(self):
@@ -311,12 +321,13 @@ class TelloWrapper(RobotWrapper):
         while not self._stop_event.is_set():
             if self.crazyflie:
                 pos_m = self.crazyflie.get_pose()
+                # print(f"Position from lighthouse: {pos_m[0]}, {pos_m[1]}, {pos_m[2]}, {pos_m[3]}")
                 with self.lock:
                     self.position = pos_m
-                    self.position[3] = math.degrees(self.position[3])
+                    # Yaw from Crazyflie lighthouse is already in degrees, no conversion needed
                     if self.position[3] < 0:
                         self.position[3] = self.position[3] + 360
-                if self.graph_manager:
-                    with self.lock:
+                    # Keep graph_manager update inside the same lock to avoid race condition
+                    if self.graph_manager:
                         self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
             time.sleep(0.02) # 50Hz

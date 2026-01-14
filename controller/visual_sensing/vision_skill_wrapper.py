@@ -229,31 +229,31 @@ class VisionSkillWrapper():
                 return CommandResult(o, False)
         return CommandResult(False, False)
 
-    def object_x(self, object_name: str) -> Tuple[Union[float, str], bool]:
+    def object_x(self, object_name: str) -> CommandResult:
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_x: {object_name} is not in sight', False)
         return CommandResult(info.x, False)
     
-    def object_y(self, object_name: str) -> Tuple[Union[float, str], bool]:
+    def object_y(self, object_name: str) -> CommandResult:
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_y: {object_name} is not in sight', False)
         return CommandResult(info.y, False)
     
-    def object_width(self, object_name: str) -> Tuple[Union[float, str], bool]:
+    def object_width(self, object_name: str) -> CommandResult:
         info = self.get_obj_info(object_name)
         if info is None:
-            return CommandResult(info.w, f'object_width: {object_name} not in sight')
+            return CommandResult(f'object_width: {object_name} not in sight', False)
         return CommandResult(info.w, False)
     
-    def object_height(self, object_name: str) -> Tuple[Union[float, str], bool]:
+    def object_height(self, object_name: str) -> CommandResult:
         info = self.get_obj_info(object_name)
         if info is None:
-            return CommandResult(info.h, f'object_height: {object_name} not in sight')
+            return CommandResult(f'object_height: {object_name} not in sight', False)
         return CommandResult(info.h, False)
             
-    def object_distance(self, object_name: str) -> Tuple[Union[int, str], bool]:
+    def object_distance(self, object_name: str) -> CommandResult:
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_distance: {object_name} not in sight', False)
@@ -305,7 +305,7 @@ class VisionSkillWrapper():
         **one single source of truth** for depth handling.
         """
         # --- 1. distance from your existing utility -------------------------
-        dist_cm, err = self.object_distance(object_name)     # ← you wrote this
+        dist_cm, err = self.object_distance(object_name)
         if err:
             raise RuntimeError(dist_cm)                     # message is in dist_cm
 

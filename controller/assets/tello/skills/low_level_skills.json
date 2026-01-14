@@ -243,11 +243,5 @@
         "handler": "skill_time",
         "description": "Get current execution time",
         "args": []
-    },
-        {
-        "name": "align_direction",
-        "handler": "align_direction",
-        "description": "Snaps drone yaw to nearest 45-degree compass direction.",
-        "args": []
     }
 ]

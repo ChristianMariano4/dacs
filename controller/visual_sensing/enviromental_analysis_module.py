@@ -57,7 +57,7 @@ class EnvironmentalAnalysisModule:
         self.updated_directions[yaw] = True
         print(f"[ENV] Direction {yaw}° marked as updated")
 
-    def choose_direction(self, current_task, base_path, current_position):
+    def choose_direction(self, current_task, base_path, context_graph, execution_history):
         try:
             # Read images by yaw angle
             images = {}
@@ -81,8 +81,8 @@ class EnvironmentalAnalysisModule:
             prompt = self.direction_prompt.format(
                 task=current_task, 
                 flyzone=self.flyzone,
-                current_position=current_position,
-                available_yaws=list(images.keys())  # Pass available angles to LLM
+                context_graph=context_graph,
+                execution_history=execution_history
             )
             
             response_content = self.llm_wrapper.request(

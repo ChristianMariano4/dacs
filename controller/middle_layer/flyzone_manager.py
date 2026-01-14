@@ -92,7 +92,7 @@ class FlyzoneManager:
 
         # Check if Flyzone LLM needs user clarifications
         user_question = response_content.get('ask_user', None)
-        if user_question == None:
+        if user_question is None:
             # eval the returned string of polygons into a safe environment
             points_list = [Polygon(coords) for coords in response_content['points_list']]
             print("Request done")

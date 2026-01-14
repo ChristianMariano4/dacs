@@ -2,11 +2,11 @@
     {
         "skill_name": "scan",
         "skill_description": "Rotate to find objects passed as argument as a list when they are *not* in current scene. Return the name of the object found, false otherwise.",
-        "definition": "ad();8{tp();_1=iv($1);?_1!=False{->_1};tc(45)}->False;"
+        "definition": "8{tp();_1=iv($1);?_1!=False{->_1};tc(45)}->False;"
     },
     {
         "skill_name": "scan_abstract",
         "skill_description": "Rotate to find an abstract object by a description $1 when it's *not* in current scene. Return the name of the object found, false otherwise.",
-        "definition": "ad();8{tp();_1=p($1. Return True or False);?_1!=False{->_1}tc(45)}->False;"
+        "definition": "8{tp();_1=p($1. Return True or False);?_1!=False{->_1}tc(45)}->False;"
     }
 ]

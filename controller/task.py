@@ -32,10 +32,11 @@ class Task():
         return self.task_description
     
     def update_drone_position(self, position, region):
-        if (self.current_drone_position != position):
+        # Use np.array_equal for proper numpy array comparison (avoids ambiguous truth value error)
+        if not np.array_equal(self.current_drone_position, position):
             self.previous_drone_position = self.current_drone_position
             self.current_drone_position = position
-        if (self.current_region != region):
+        if self.current_region != region:
             self.previous_region = self.current_region
             self.current_region = region
     

@@ -1,6 +1,8 @@
 import os
+from pathlib import Path
 import re
 import json
+import math
 import time
 import queue
 import asyncio
@@ -9,6 +11,7 @@ from typing import Optional, Tuple
 from PIL import Image
 from gtts import gTTS
 from dotenv import load_dotenv
+import shutil
 
 # Local project imports
 from controller.utils.constants import (
@@ -286,10 +289,15 @@ class LLMController:
     def skill_goto(self, object_name: str) -> CommandResult:
         # TODO: improve this skill to not be fixed of 110 cm moving forward
         print(f'Goto {object_name}')
-        if '[' in object_name:
-            x = float(object_name.split('[')[1].split(']')[0])
+        if '[' in object_name and ']' in object_name:
+            try:
+                x = float(object_name.split('[')[1].split(']')[0])
+            except (IndexError, ValueError):
+                return CommandResult(value=f'skill_goto: invalid format "{object_name}"', replan=True)
         else:
-            x = self.vision.object_x(object_name)[0]
+            result = self.vision.object_x(object_name)
+            # object_x returns a CommandResult, not a tuple
+            x = result.value
 
         print(f'>> GOTO x {x} {type(x)}')
         if isinstance(x, float):
@@ -333,7 +341,12 @@ class LLMController:
             self.env_analysis_module.reset_updated_directions()
 
         # Calculate current yaw after rotation
-        current_yaw = int(self.drone.get_position()[3])  # Get actual yaw in degrees
+        raw_yaw = self.drone.get_position()[3]
+        # Handle invalid yaw values (infinity, NaN)
+        if not math.isfinite(raw_yaw):
+            print_t(f"[C] Warning: Invalid yaw value ({raw_yaw}), defaulting to 0")
+            raw_yaw = 0.0
+        current_yaw = int(raw_yaw)  # Get actual yaw in degrees
         
         # Calculate the yaw for this photo (based on rotation count)
         photo_yaw = (current_yaw + (self.images_counter * self.direction_step_deg)) % 360
@@ -346,6 +359,7 @@ class LLMController:
         self.images_counter = (self.images_counter + 1) % 8
         
         if self.latest_frame is not None:
+            os.makedirs("my_directory", exist_ok=True)
             Image.fromarray(self.latest_frame).save(img_path)
             print_t(f"[C] Picture saved to {img_path} (yaw: {photo_yaw}°)")
             self.append_message((img_path,))
@@ -358,7 +372,8 @@ class LLMController:
         (target_yaw, distance, region_name) = self.env_analysis_module.choose_direction(
             self.current_task.get_task_description(), 
             self.cache_folder, 
-            self.get_drone_pose()
+            self.graph_manager.get_dense_graph(),
+            self.current_task.get_execution_history()
         )
         
         self._name_region(region_name)
@@ -367,9 +382,16 @@ class LLMController:
         if 0 <= target_yaw < 360:
             print(f"Moving to yaw {target_yaw}° for distance {distance}cm")
             self.drone.move_direction(target_yaw, distance)
+            cache_dir = Path(self.cache_folder)
+            for item in cache_dir.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
             return CommandResult(value=True, replan=False)
         else:
             print(f"Invalid yaw: {target_yaw}")
+            shutil.rmtree(self.cache_folder)
             return CommandResult(value=False, replan=False)
     
     def text_to_speech(self, text: str):

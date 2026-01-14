@@ -44,8 +44,8 @@ class VirtualRobotWrapper(RobotWrapper):
         self.stream_on = False
         self.cap: Optional[cv2.VideoCapture] = None
         
-        # Pose in centimeters: (x, y, z)
-        self._pos_cm = np.zeros(3, dtype=float)
+        # Pose in centimeters: (x, y, z, yaw)
+        self._pose = np.zeros(4, dtype=float)
         # Simple rotation accumulator for logging/telemetry only (degrees, +CW)
         self._yaw_deg = 0.0
 
@@ -94,7 +94,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Increase Y by distance_cm."""
         d = int(distance_cm)
         print(f"-> Moving forward {d} cm")
-        self._pos_cm[1] += d
+        self._pose[1] += d
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
 
@@ -102,7 +102,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Decrease Y by distance_cm."""
         d = int(distance_cm)
         print(f"-> Moving backward {d} cm")
-        self._pos_cm[1] -= d
+        self._pose[1] -= d
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
     
@@ -110,7 +110,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Increase X by distance_cm (left)."""
         d = int(distance_cm)
         print(f"-> Moving left {d} cm")
-        self._pos_cm[0] += d
+        self._pose[0] += d
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
     
@@ -118,7 +118,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Decrease X by distance_cm (right)."""
         d = int(distance_cm)
         print(f"-> Moving right {d} cm")
-        self._pos_cm[0] -= d
+        self._pose[0] -= d
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
     
@@ -138,8 +138,8 @@ class VirtualRobotWrapper(RobotWrapper):
         dx = d * np.sin(theta)   # +90° (east) would decrease X in our convention
         dy = d * np.cos(theta)   # 0° points +Y
         print(f"-> Moving {d:.0f} cm at {direction_deg}° (dx={dx:.1f}, dy={dy:.1f})")
-        self._pos_cm[0] += dx
-        self._pos_cm[1] += dy
+        self._pose[0] += dx
+        self._pose[1] += dy
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
 
@@ -147,7 +147,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Increase Z by distance_cm."""
         d = int(distance_cm)
         print(f"-> Moving up {d} cm")
-        self._pos_cm[2] += d
+        self._pose[2] += d
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
 
@@ -155,7 +155,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Decrease Z by distance_cm."""
         d = int(distance_cm)
         print(f"-> Moving down {d} cm")
-        self._pos_cm[2] = max(0.0, self._pos_cm[2] - d)
+        self._pose[2] = max(0.0, self._pose[2] - d)
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
     
@@ -165,9 +165,9 @@ class VirtualRobotWrapper(RobotWrapper):
         Z is unchanged.
         """
         print(f"-> Go to position ({target_x_cm:.1f}, {target_y_cm:.1f}, {target_z_cm:.1f}) cm")
-        self._pos_cm[0] = float(target_x_cm)
-        self._pos_cm[1] = float(target_y_cm)
-        self._pos_cm[2] = float(target_z_cm)
+        self._pose[0] = float(target_x_cm)
+        self._pose[1] = float(target_y_cm)
+        self._pose[2] = float(target_z_cm)
         time.sleep(0.2)
         return CommandResult(value=True, replan=False)
     
@@ -187,6 +187,6 @@ class VirtualRobotWrapper(RobotWrapper):
     
     # --- State / pose ------------------------------------------------------
     def get_position(self) -> Tuple[float, float, float]:
-        """Return (x_cm, y_cm, z_cm)."""
-        x, y, z = self._pos_cm
-        return (float(x), float(y), float(z))
+        """Return (x_cm, y_cm, z_cm, yaw_deg)."""
+        x, y, z, yaw = self._pose
+        return (float(x), float(y), float(z), yaw)
