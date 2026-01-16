@@ -188,8 +188,8 @@
         "args": [{"name": "user_feedback", "type": "str"}]
     },
     {
-        "name": "change_evergreen_user_feedback",
-        "handler": "change_evergreen_user_feedback",
+        "name": "change_universal_user_feedback",
+        "handler": "change_universal_user_feedback",
         "description": "Save new or delete old user feedback valid for every tasks in persistent memory, so you can retrieve it later for every tasks. Do not use for specific type of tasks preferences.",
         "args": [{"name": "user_request", "type": "str"}]
     },
