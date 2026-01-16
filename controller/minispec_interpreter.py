@@ -11,6 +11,7 @@ from queue import Queue
 from openai import ChatCompletion, Stream
 
 from controller.abs.robot_wrapper import CommandResult
+from controller.utils.constants import EVALUATION_LOG_PATH
 
 from .skillset import SkillSet
 from .utils.general_utils import split_args, print_t
@@ -627,8 +628,15 @@ class MiniSpecInterpreter:
 
             stmt = Statement.execution_queue.get()
             print_debug('Queue get statement:', stmt)
+            # Evaluation log - Start statement execution
+            with open(EVALUATION_LOG_PATH, "a") as f:
+                f.write(f"[{time.time()}] Start execution of: {stmt}\n")
+
             ret_val = stmt.eval()
             print_t('Queue statement done:', stmt)
+            # Evaluation log - Start statement execution
+            with open(EVALUATION_LOG_PATH, "a") as f:
+                f.write(f"[{time.time()}] Finish execution of: {stmt}\n")
             
             with self.program_lock:
                 if stmt.ret:                           # early return
