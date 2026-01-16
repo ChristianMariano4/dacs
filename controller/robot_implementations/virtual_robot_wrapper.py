@@ -175,6 +175,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Increase yaw accumulator (CCW)."""
         print(f"-> Turning CCW {degrees} degrees")
         self._yaw_deg = (self._yaw_deg - degrees) % 360.0
+        self._pose[3] = self._yaw_deg
         time.sleep(0.1 if degrees < 90 else 0.0)
         return CommandResult(value=True, replan=False)
 
@@ -182,6 +183,7 @@ class VirtualRobotWrapper(RobotWrapper):
         """Decrease yaw accumulator (CW)."""
         print(f"-> Turning CW {degrees} degrees")
         self._yaw_deg = (self._yaw_deg + degrees) % 360.0
+        self._pose[3] = self._yaw_deg
         time.sleep(0.1 if degrees < 90 else 0.0)
         return CommandResult(value=True, replan=False)
     
