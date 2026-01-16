@@ -257,7 +257,7 @@ class LLMController:
         self.long_memory_module.delete_task_user_feedback(user_feedback)
         return CommandResult(value=True, replan=False)
     
-    def change_evergreen_user_feedback(self, user_request: str) -> CommandResult:
+    def change_universal_user_feedback(self, user_request: str) -> CommandResult:
         self.long_memory_module.change_feedback_prompt(user_request)
         return CommandResult(value=True, replan=False)
     
@@ -341,29 +341,33 @@ class LLMController:
 
         if self.images_counter == 0:
             self.env_analysis_module.reset_updated_directions()
+            # Delete old pictures
+            shutil.rmtree("/home/christo/Desktop/polimi/prova_finale/SmartDrone/serving/webui/cache")
+            os.mkdir("/home/christo/Desktop/polimi/prova_finale/SmartDrone/serving/webui/cache")
 
         # Calculate current yaw after rotation
         raw_yaw = self.drone.get_position()[3]
+        print(f"The raw of new image is: {raw_yaw}")
         # Handle invalid yaw values (infinity, NaN)
-        if not math.isfinite(raw_yaw):
-            print_t(f"[C] Warning: Invalid yaw value ({raw_yaw}), defaulting to 0")
-            raw_yaw = 0.0
-        current_yaw = int(raw_yaw)  # Get actual yaw in degrees
+        # if not math.isfinite(raw_yaw):
+        #     print_t(f"[C] Warning: Invalid yaw value ({raw_yaw}), defaulting to 0")
+        #     raw_yaw = 0.0
+        # current_yaw = int(raw_yaw)  # Get actual yaw in degrees
         
-        # Calculate the yaw for this photo (based on rotation count)
-        photo_yaw = (current_yaw + (self.images_counter * self.direction_step_deg)) % 360
+        # # Calculate the yaw for this photo (based on rotation count)
+        # photo_yaw = (current_yaw + (self.images_counter * self.direction_step_deg)) % 360
         
         # Use yaw as filename: "0.jpg", "45.jpg", "90.jpg", etc.
-        img_path = os.path.join(self.cache_folder, f"{photo_yaw}.jpg")
+        img_path = os.path.join(self.cache_folder, f"{raw_yaw}.jpg")
         
         # Track which yaw angles have been updated
-        self.env_analysis_module.set_updated_directions(photo_yaw)
+        self.env_analysis_module.set_updated_directions(raw_yaw)
         self.images_counter = (self.images_counter + 1) % 8
         
         if self.latest_frame is not None:
             os.makedirs("my_directory", exist_ok=True)
             Image.fromarray(self.latest_frame).save(img_path)
-            print_t(f"[C] Picture saved to {img_path} (yaw: {photo_yaw}°)")
+            print_t(f"[C] Picture saved to {img_path} (yaw: {raw_yaw}°)")
             self.append_message((img_path,))
         else:
             print_t("[C] Error: No frame available to take picture")
@@ -372,28 +376,24 @@ class LLMController:
     
     def skill_explore_direction(self) -> CommandResult:
         (target_yaw, distance, region_name) = self.env_analysis_module.choose_direction(
-            self.current_task.get_task_description(), 
-            self.cache_folder, 
+            self.current_task.get_task_description(),
+            self.cache_folder,
             self.graph_manager.get_dense_graph(),
             self.current_task.get_execution_history()
         )
-        
+
         self._name_region(region_name)
-        
+
+        # Reset counter for next scan cycle
+        self.images_counter = 0
+
         # Validate yaw is in valid range
         if 0 <= target_yaw < 360:
             print(f"Moving to yaw {target_yaw}° for distance {distance}cm")
             self.drone.move_direction(target_yaw, distance)
-            cache_dir = Path(self.cache_folder)
-            for item in cache_dir.iterdir():
-                if item.is_dir():
-                    shutil.rmtree(item)
-                else:
-                    item.unlink()
             return CommandResult(value=True, replan=False)
         else:
             print(f"Invalid yaw: {target_yaw}")
-            shutil.rmtree(self.cache_folder)
             return CommandResult(value=False, replan=False)
     
     def text_to_speech(self, text: str):
