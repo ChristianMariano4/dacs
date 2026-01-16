@@ -53,7 +53,7 @@ class EnvironmentalAnalysisModule:
 
     def set_updated_directions(self, yaw: int):
         """Mark a specific yaw angle as having an updated image"""
-        yaw = int(yaw) % 360  # Normalize to [0, 360)
+        yaw = yaw % 360  # Normalize to [0, 360)
         self.updated_directions[yaw] = True
         print(f"[ENV] Direction {yaw}° marked as updated")
 

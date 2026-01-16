@@ -27,7 +27,7 @@ class GraphManager:
             print(f"[Warning] Graph prompt not found at {USER_GRAPH_PROMPT_PATH}")
             self.user_prompt = "{description}"
 
-        self.drone_pose = np.zeros(4)
+        self.drone_pose = np.zeros(4, dtype=float)
         self.graph_handler = GraphHandler()
         
         # Initialize starting region
@@ -115,9 +115,9 @@ class GraphManager:
         Call from TelloWrapper after every motion command.
         xy is in *world* centimetres.
         """
-        self.drone_pose = np.zeros(4, dtype=float)
         self.drone_pose[:3] = np.asarray(pose)[:3]
         self.drone_pose[3] = yaw
+        self.graph_handler.drone_position = self.drone_pose.copy()
         print_debug(f"Drone pose update: {self.drone_pose}")
         
         result = self.graph_handler.ensure_region_for_pose(self.drone_pose[:3])
