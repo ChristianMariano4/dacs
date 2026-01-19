@@ -20,22 +20,22 @@ PLAN_PROMPT_ID = "pmpt_68e90713b9408193b55cfa7573c17c370576d48f6ffbf9bf"
 QUERY_PROMPT_ID = "pmpt_68e9237d54e8819588219a8d0b09e0ec048745458397c172"
 SHORT_TERM_MEMORY_PROMPT_ID = "pmpt_68fb6f6eb20481959bf11be873e8ce7e03ae4d244586878c"
 SAVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_68e91e679d08819596f9fd50bbba4bb60783ed888cede905"
-DELETE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
-CHANGE_UNIVERSAL_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
+RETRIEVE_TASK_FEEDBACK_PROMPT_ID = "pmpt_691b7959f63c8197b22b544c7806e44600487163bee17f0a"
+UPDATE_UNIVERSAL_FEEDBACK_PROMPT_ID = "pmpt_690dbf7c49a08197ba357393820e3a1a01e35afc9d9db34b"
 CHOOSE_DIRECTION_PROMPT_ID = "pmpt_68e921121c3481959413d8ea3978f32a083d5502d67b3df6"
 CREATE_FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d388474238928"
 CREATE_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
 
 
 PLAN_PROMPT_VERSION = "109"
-QUERY_PROMPT_VERSION = "4"
+QUERY_PROMPT_VERSION = "5"
 SHORT_TERM_MEMORY_PROMPT_VERSION = "11"
-SAVE_TASK_FEEDBACK_PROMPT_VERSION = "5"
-DELETE_TASK_FEEDBACK_PROMPT_VERSION = "7"
-CHANGE_UNIVERSAL_FEEDBACK_PROMPT_VERSION = "12"
-CHOOSE_DIRECTION_PROMPT_VERSION = "7"
-CREATE_FLYZONE_PROMPT_VERSION = "28"
-CREATE_GRAPH_PROMPT_VERSION = "11"
+SAVE_TASK_FEEDBACK_PROMPT_VERSION = "6"
+RETRIEVE_TASK_FEEDBACK_PROMPT_VERSION = "8"
+UPDATE_UNIVERSAL_FEEDBACK_PROMPT_VERSION = "12"
+CHOOSE_DIRECTION_PROMPT_VERSION = "8"
+CREATE_FLYZONE_PROMPT_VERSION = "30"
+CREATE_GRAPH_PROMPT_VERSION = "13"
 
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -112,8 +112,8 @@ class LLMWrapper:
             case RequestType.RETRIEVE_TASK_FEEDBACK:
                 response = client.responses.create(
                     prompt={
-                        "id": DELETE_TASK_FEEDBACK_PROMPT_ID,
-                        "version": DELETE_TASK_FEEDBACK_PROMPT_VERSION,
+                        "id": RETRIEVE_TASK_FEEDBACK_PROMPT_ID,
+                        "version": RETRIEVE_TASK_FEEDBACK_PROMPT_VERSION,
                         "variables": {
                             "user_request": variables[0],
                             "candidate_preferences_json": json.dumps(variables[1])
@@ -125,8 +125,8 @@ class LLMWrapper:
             case RequestType.EVERGREEN_FEEDBACK:
                 response = client.responses.create(
                     prompt={
-                        "id": CHANGE_UNIVERSAL_FEEDBACK_PROMPT_ID,
-                        "version": CHANGE_UNIVERSAL_FEEDBACK_PROMPT_VERSION
+                        "id": UPDATE_UNIVERSAL_FEEDBACK_PROMPT_ID,
+                        "version": UPDATE_UNIVERSAL_FEEDBACK_PROMPT_VERSION
                     },
                     input=user_prompt,
                     stream=stream
