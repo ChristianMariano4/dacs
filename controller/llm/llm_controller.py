@@ -329,11 +329,10 @@ class LLMController:
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
         
-        graph = self.graph_manager.request_new_graph(description, image).get("context_graph")
-        # print(graph)
-        with open(GRAPH_TXT_PATH, "w") as f:
-            json.dump(graph, f, indent=4)
-        self.graph_manager.update_graph_from_file()
+        user_question  = self.graph_manager.request_new_graph(description, image)
+        if user_question != None:
+            self.skill_ask_user(user_question)
+            return CommandResult(value=True, replan=True, wait_user_answer=True)
         return CommandResult(value=True, replan=False)
     
     def skill_take_picture(self) -> CommandResult:

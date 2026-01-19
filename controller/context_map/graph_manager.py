@@ -77,7 +77,14 @@ class GraphManager:
 
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
         prompt = self.user_prompt.format(description=description, context_graph=self.get_dense_graph())
-        return self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
+        response_content = self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
+        user_question = response_content.get('ask_user', None)
+        graph = response_content.get('context_graph', None)
+        if user_question is None:
+            with open(GRAPH_TXT_PATH, "w") as f:
+                json.dump(graph, f, indent=4)
+            self.update_graph_from_file()
+        return user_question
 
     def get_drone_pose(self):
         return self.drone_pose
