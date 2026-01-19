@@ -24,7 +24,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(PARENT_DIR)
 
-from controller.utils.constants import EVALUATION_LOG_PATH, FLYZONE_USER_IMAGE_PATH
+from controller.utils.constants import EVALUATION_LOG_PATH, FLYZONE_USER_IMAGE_PATH, REGION_THRESHOLD
 from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
 from controller.utils.general_utils import print_t
@@ -586,6 +586,10 @@ class TypeFly:
 
             graph_data: dict = json.loads(graph_json_str)
 
+            # --- Configuration ---
+            # This should match the threshold in GraphHandler.ensure_region_for_pose
+            VISUAL_RADIUS = REGION_THRESHOLD / 2 
+
             # --- Helper to safely parse XY ---
             def parse_xy(v):
                 if isinstance(v, str):
@@ -599,43 +603,34 @@ class TypeFly:
             regions = {r["name"]: parse_xy(r["coords"]) for r in graph_data.get("regions", [])}
             
             # 2. Parse Objects (Topological: we just need their names)
-            # Note: We no longer look for 'coords' here to prevent KeyErrors
             object_names = {o["name"] for o in graph_data.get("objects", [])}
 
             region_connections = graph_data.get("region_connections", [])
             object_connections = graph_data.get("object_connections", [])
-            current_pos = graph_data.get("current_position", {}) # Note: JSON key is usually "current_position"
+            current_pos = graph_data.get("current_position", {})
 
             # --- Calculate Visual Positions for Objects ---
             object_display_positions = {}
             
-            # Find which region acts as the anchor for each object
             for a, b in object_connections:
-                # Determine which node is the region and which is the object
                 if a in regions and b in object_names:
                     region_node, obj_node = a, b
                 elif b in regions and a in object_names:
                     region_node, obj_node = b, a
                 else:
-                    continue # Skip object-object or region-region links in this loop
+                    continue
 
-                # Generate a stable pseudo-random position around the region
                 if region_node in regions:
                     rx, ry = regions[region_node]
-                    
-                    # Use hash of name to ensure the object stays in the same place 
-                    # every time the graph refreshes
                     seed_value = hash(obj_node) % 10000
                     random.seed(seed_value)
-                    
                     angle = random.uniform(0, 2 * np.pi)
-                    distance = random.uniform(20, 40) # Distance from region center (cm)
-                    
+                    distance = random.uniform(20, 40)
                     object_display_positions[obj_node] = (
                         rx + distance * np.cos(angle), 
                         ry + distance * np.sin(angle)
                     )
-                    random.seed() # Reset seed
+                    random.seed()
 
             # --- Build Figure ---
             fig = go.Figure()
@@ -653,54 +648,81 @@ class TypeFly:
             except Exception as e:
                 print(f"[WARN] Could not plot flyzone: {e}")
 
-            # 2. Region Circles (Visual anchor zones)
-            radius = 75
-            theta = np.linspace(0, 2 * np.pi, 30)
+            # 2. THRESHOLD CIRCLES - Shows the "coverage area" of each region
+            # If the drone is inside this circle, it belongs to that region (no new region created)
+            theta = np.linspace(0, 2 * np.pi, 60)  # Smooth circle
             for region_name, (cx, cy) in regions.items():
+                circle_x = cx + VISUAL_RADIUS * np.cos(theta)
+                circle_y = cy + VISUAL_RADIUS * np.sin(theta)
                 fig.add_trace(go.Scatter(
-                    x=cx + radius * np.cos(theta), y=cy + radius * np.sin(theta),
-                    mode='lines', line=dict(color='lightgray', width=1, dash='dash'),
-                    fill='toself', fillcolor='rgba(128,128,128,0.35)', opacity=0.5,
-                    hoverinfo='skip', showlegend=False
+                    x=circle_x.tolist() + [circle_x[0]],  # Close the circle
+                    y=circle_y.tolist() + [circle_y[0]],
+                    mode='lines',
+                    line=dict(color='rgba(100, 149, 237, 0.6)', width=2, dash='dash'),  # Cornflower blue, dashed
+                    fill='toself',
+                    fillcolor='rgba(100, 149, 237, 0.15)',  # Light blue fill
+                    hoverinfo='text',
+                    hovertext=f"{region_name}<br>Threshold: {REGION_THRESHOLD}cm",
+                    showlegend=False,
+                    name=f'{region_name} threshold'
                 ))
 
-            # 3. Region-Region Connections
+            # 3. Region visual circles (smaller, solid - the "core" of each region)
+            core_radius = 30  # Smaller visual marker for the region center
+            theta_small = np.linspace(0, 2 * np.pi, 30)
+            for region_name, (cx, cy) in regions.items():
+                fig.add_trace(go.Scatter(
+                    x=(cx + core_radius * np.cos(theta_small)).tolist(),
+                    y=(cy + core_radius * np.sin(theta_small)).tolist(),
+                    mode='lines',
+                    line=dict(color='rgba(135, 206, 250, 0.8)', width=1),  # Light sky blue
+                    fill='toself',
+                    fillcolor='rgba(135, 206, 250, 0.4)',
+                    hoverinfo='skip',
+                    showlegend=False
+                ))
+
+            # 4. Region-Region Connections
             for r1, r2 in region_connections:
                 if r1 in regions and r2 in regions:
                     x1, y1 = regions[r1]
                     x2, y2 = regions[r2]
-                    fig.add_trace(go.Scatter(x=[x1, x2], y=[y1, y2], mode='lines',
-                        line=dict(color='gray', dash='dot'), opacity=0.5, showlegend=False))
+                    fig.add_trace(go.Scatter(
+                        x=[x1, x2], y=[y1, y2], 
+                        mode='lines',
+                        line=dict(color='gray', dash='dot'), 
+                        opacity=0.5, 
+                        showlegend=False
+                    ))
 
-            # 4. Object-Region Connections (Visual lines)
+            # 5. Object-Region Connections (Visual lines)
             for obj_name, (ox, oy) in object_display_positions.items():
-                # Find parent region again to draw line
-                # (In a real app, you might optimize by storing parent in the loop above)
-                parent_region = None
-                for r_name, r_coords in regions.items():
-                    # This is a visual heuristic; strictly we should check edges again, 
-                    # but drawing to the nearest is usually visually sufficient or 
-                    # you can re-iterate object_connections if strictness is needed.
-                    pass 
-                
-                # Re-find the connected region for drawing the line
                 for a, b in object_connections:
                     other = a if b == obj_name else (b if a == obj_name else None)
                     if other and other in regions:
                         rx, ry = regions[other]
-                        fig.add_trace(go.Scatter(x=[rx, ox], y=[ry, oy], mode='lines',
-                            line=dict(color='lightblue', dash='solid', width=1), opacity=0.6, showlegend=False))
+                        fig.add_trace(go.Scatter(
+                            x=[rx, ox], y=[ry, oy], 
+                            mode='lines',
+                            line=dict(color='lightblue', dash='solid', width=1), 
+                            opacity=0.6, 
+                            showlegend=False
+                        ))
                         break
 
-            # 5. Markers: Regions
+            # 6. Markers: Regions
             if regions:
                 fig.add_trace(go.Scatter(
-                    x=[x for x, _ in regions.values()], y=[y for _, y in regions.values()],
-                    mode='markers+text', text=list(regions.keys()), textposition='top center',
-                    marker=dict(size=14, color='skyblue', line=dict(color='black', width=1)), name='Regions'
+                    x=[x for x, _ in regions.values()], 
+                    y=[y for _, y in regions.values()],
+                    mode='markers+text', 
+                    text=list(regions.keys()), 
+                    textposition='top center',
+                    marker=dict(size=14, color='skyblue', line=dict(color='black', width=1)), 
+                    name='Regions'
                 ))
 
-            # 6. Markers: Objects
+            # 7. Markers: Objects
             if object_display_positions:
                 fig.add_trace(go.Scatter(
                     x=[x for x, _ in object_display_positions.values()], 
@@ -712,13 +734,27 @@ class TypeFly:
                     name='Objects'
                 ))
 
-            # 7. Marker: Drone
+            # 8. Marker: Drone
             if "coords" in current_pos and current_pos["coords"]:
                 x, y, *_ = current_pos["coords"]
                 fig.add_trace(go.Scatter(
-                    x=[x], y=[y], mode='markers+text', text=[f"Drone"], textposition='top right',
-                    marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)), name='You'
+                    x=[x], y=[y], 
+                    mode='markers+text', 
+                    text=["Drone"], 
+                    textposition='top right',
+                    marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)), 
+                    name='You'
                 ))
+
+            # --- Add Legend Entry for Threshold Circle ---
+            # (Add one invisible trace just to show in legend what the dashed circles mean)
+            fig.add_trace(go.Scatter(
+                x=[None], y=[None],
+                mode='lines',
+                line=dict(color='rgba(100, 149, 237, 0.6)', width=2, dash='dash'),
+                name=f'Region Threshold ({REGION_THRESHOLD}cm)',
+                showlegend=True
+            ))
 
             # --- Layout ---
             fig.update_layout(
