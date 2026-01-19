@@ -208,7 +208,7 @@ class LLMWrapper:
                 # Iterate over dict items and append direction + image pairs
                 for direction, img_b64 in images.items():
                     input_payload[0]["content"].append(
-                        {"type": "input_text", "text": f"Direction: {direction}"}
+                        {"type": "input_text", "text": f"Yaw: {direction}"}
                     )
                     input_payload[0]["content"].append(
                         {"type": "input_image", "image_url": "data:image/jpeg;base64," + img_b64}
