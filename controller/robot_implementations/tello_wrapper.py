@@ -69,12 +69,11 @@ class TelloWrapper(RobotWrapper):
 
     def __init__(self, move_enable: bool, graph_manager: GraphManager, 
                  use_crazyflie_lighthouse: bool = True, 
-                 cf_uri: str = 'radio://0/40/2M/BADF00D002'):
+                 cf_uri: str = 'radio://0/40/2M/BADF00D003'):
         
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
-        
+
         self.drone = Tello()
-        self.lock = threading.Lock()  # Protect SDK access across threads
         self.use_lighthouse = use_crazyflie_lighthouse
         
         # Crazyflie Integration for Lighthouse positioning
@@ -103,8 +102,8 @@ class TelloWrapper(RobotWrapper):
         for attempt in range(retries):
             try:
                 time.sleep(0.5)  # Brief delay before connection attempt
-                with self.lock:
-                    self.drone.connect()
+        
+                self.drone.connect()
                 logger.info("Tello connected successfully")
                 break
             except Exception as e:
@@ -127,8 +126,7 @@ class TelloWrapper(RobotWrapper):
         for t in self._threads:
             t.join(timeout=1.0)
         
-        with self.lock:
-            self.drone.end()
+        self.drone.end()
 
     def _start_thread(self, target, name):
         t = threading.Thread(target=target, name=name, daemon=True)
@@ -140,14 +138,12 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     def start_stream(self):
         if not self.stream_on:
-            with self.lock:
-                self.drone.streamon()
+            self.drone.streamon()
             self.stream_on = True
 
     def stop_stream(self):
         if self.stream_on:
-            with self.lock:
-                self.drone.streamoff()
+            self.drone.streamoff()
             self.stream_on = False
 
     def get_frame_reader(self):
@@ -164,16 +160,14 @@ class TelloWrapper(RobotWrapper):
             return CommandResult(value=False, replan=False)
             
         if self.move_enable:
-            with self.lock:
-                self.drone.takeoff()
+            self.drone.takeoff()
         else:
             print("[Drone] Takeoff (Simulated)")
         return CommandResult(value=True, replan=False)
 
     def land(self) -> CommandResult:
         if self.move_enable:
-            with self.lock:
-                self.drone.land()
+            self.drone.land()
         else:
             print("[Drone] Land (Simulated)")
         return CommandResult(value=True, replan=False)
@@ -183,26 +177,25 @@ class TelloWrapper(RobotWrapper):
             print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right}")
             return CommandResult(value=True, replan=False)
 
-        with self.lock:
-            # Use _cap_distance_positive for directional commands
-            if forward: 
-                self.drone.move_forward(_cap_distance_positive(forward))
-            if backward: 
-                self.drone.move_back(_cap_distance_positive(backward))
-            if left: 
-                self.drone.move_left(_cap_distance_positive(left))
-            if right: 
-                self.drone.move_right(_cap_distance_positive(right))
-            if up: 
-                self.drone.move_up(_cap_distance_positive(up))
-            if down: 
-                self.drone.move_down(_cap_distance_positive(down))
-            
-            # Rotation: 1-360 degrees
-            if yaw_cw: 
-                self.drone.rotate_clockwise(max(1, min(yaw_cw, 360)))
-            if yaw_ccw: 
-                self.drone.rotate_counter_clockwise(max(1, min(yaw_ccw, 360)))
+        # Use _cap_distance_positive for directional commands
+        if forward: 
+            self.drone.move_forward(_cap_distance_positive(forward))
+        if backward: 
+            self.drone.move_back(_cap_distance_positive(backward))
+        if left: 
+            self.drone.move_left(_cap_distance_positive(left))
+        if right: 
+            self.drone.move_right(_cap_distance_positive(right))
+        if up: 
+            self.drone.move_up(_cap_distance_positive(up))
+        if down: 
+            self.drone.move_down(_cap_distance_positive(down))
+        
+        # Rotation: 1-360 degrees
+        if yaw_cw: 
+            self.drone.rotate_clockwise(max(1, min(yaw_cw, 360)))
+        if yaw_ccw: 
+            self.drone.rotate_counter_clockwise(max(1, min(yaw_ccw, 360)))
         
         time.sleep(0.5)
         return CommandResult(value=True, replan=False)
@@ -237,28 +230,32 @@ class TelloWrapper(RobotWrapper):
         """Rotate to target yaw (shortest path), then move forward."""
         print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
         if not self.move_enable:
+            print(f"[Drone] Not enable")
             return CommandResult(value=True, replan=False)
 
-        with self.lock:
-            # Read and normalize current yaw
-            current_yaw = self.get_position()[3] % 360
-            target_yaw = direction_deg % 360
+        # Read and normalize current yaw
+        print(f"[Drone Starting movement")
+        current_yaw = self.position[3] % 360
+        target_yaw = direction_deg % 360
+        print(f"{current_yaw} vs {target_yaw}")
+        
 
-            # Compute shortest signed delta in range [-180, 180]
-            delta = (target_yaw - current_yaw + 180) % 360 - 180
+        # Compute shortest signed delta in range [-180, 180]
+        delta = (target_yaw - current_yaw + 180) % 360 - 180
+        print(f"Delta: {delta}")
 
-            # Rotate in correct direction
-            if delta > 0:
-                self.drone.rotate_clockwise(abs(int(delta)))
-            elif delta < 0:
-                self.drone.rotate_counter_clockwise(abs(int(delta)))
+        # Rotate in correct direction
+        if delta > 0:
+            self.drone.rotate_counter_clockwise(abs(int(delta)))  # Was rotate_clockwise
+        elif delta < 0:
+            self.drone.rotate_clockwise(abs(int(delta)))   
 
-            time.sleep(1.0)
+        time.sleep(1.0)
 
-            # Move forward
-            self.drone.move_forward(cap_distance(int(distance_cm)))
+        # Move forward
+        self.drone.move_forward(cap_distance(int(distance_cm)))
 
-            return CommandResult(value=True, replan=False)
+        return CommandResult(value=True, replan=False)
 
     def go_to_position(self, target_x_cm: float, target_y_cm: float, target_z_cm: float):
         curr_x, curr_y, curr_z = self.get_position()[:3]
@@ -280,8 +277,7 @@ class TelloWrapper(RobotWrapper):
         if not self.move_enable:
             return CommandResult(value=True, replan=False)
 
-        with self.lock:
-            self.drone.go_xyz_speed(dx, dy, dz, speed=20)
+        self.drone.go_xyz_speed(dx, dy, dz, speed=20)
         
         return CommandResult(value=True, replan=False)
 
@@ -290,13 +286,18 @@ class TelloWrapper(RobotWrapper):
     # -------------------------------------------------------------------------
     def get_position(self) -> Tuple[float, float, float, float]:
         """Return position in cm and yaw in degrees (x, y, z. yaw)."""
-        with self.lock:
-            return (
-                self.position[0] * 100.0,
-                self.position[1] * 100.0,
-                self.position[2] * 100.0,
-                self.position[3],
-            )
+
+        print(self.position[0] * 100.0,
+            self.position[1] * 100.0,
+            self.position[2] * 100.0,
+            self.position[3],
+        )
+        return (
+            self.position[0] * 100.0,
+            self.position[1] * 100.0,
+            self.position[2] * 100.0,
+            self.position[3],
+        )
 
     def is_battery_good(self) -> bool:
         try:
@@ -309,25 +310,23 @@ class TelloWrapper(RobotWrapper):
     def _keepalive_loop(self):
         while not self._stop_event.is_set():
             try:
-                with self.lock:
-                    self.drone.send_control_command("command")
+                self.drone.send_control_command("command")
             except Exception as e:
                 logger.debug(f"Keepalive error: {e}")
             self._stop_event.wait(self.KEEPALIVE_PERIOD)
 
     def _odometry_loop_crazyflie(self):
         """Position tracking via external Lighthouse system."""
-        print_debug("_odometry_loop_crazyflie started")
+        print("DEBUG: Odometry loop STARTED") 
         while not self._stop_event.is_set():
             if self.crazyflie:
                 pos_m = self.crazyflie.get_pose()
-                # print(f"Position from lighthouse: {pos_m[0]}, {pos_m[1]}, {pos_m[2]}, {pos_m[3]}")
-                with self.lock:
-                    self.position = pos_m
-                    # Yaw from Crazyflie lighthouse is already in degrees, no conversion needed
-                    if self.position[3] < 0:
-                        self.position[3] = self.position[3] + 360
-                    # Keep graph_manager update inside the same lock to avoid race condition
-                    if self.graph_manager:
-                        self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
+                print(f"DEBUG: Got pose {pos_m}")
+                self.position = pos_m
+                # Yaw from Crazyflie lighthouse is already in degrees, no conversion needed
+                if self.position[3] < 0:
+                    self.position[3] = self.position[3] + 360
+                # Keep graph_manager update inside the same lock to avoid race condition
+                if self.graph_manager:
+                    self.graph_manager.update_pose(self.position[:3] * 100.0, self.position[3])
             time.sleep(0.02) # 50Hz
