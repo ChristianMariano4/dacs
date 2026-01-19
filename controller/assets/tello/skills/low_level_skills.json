@@ -60,9 +60,9 @@
     {
         "name": "explore_new_region",
         "handler": "explore_new_region",
-        "description": "Explore a new region (forward, backward, left, right) by a given distance in cm.",
+        "description": "Explore a new region (0 for forward, -180 for backward, -90 for left, 90 for right) by a given distance in cm.",
         "args": [
-            {"name": "direction", "type": "str"},
+            {"name": "direction", "type": "int"},
             {"name": "distance", "type": "float"}
         ]
     },
