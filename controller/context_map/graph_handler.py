@@ -8,7 +8,7 @@ import networkx as nx
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from controller.utils.constants import GRAPH_TXT_PATH
+from controller.utils.constants import GRAPH_TXT_PATH, REGION_THRESHOLD
 
 class GraphHandler:
     """
@@ -75,7 +75,7 @@ class GraphHandler:
     def ensure_region_for_pose(
         self,
         pose_xyz: Sequence[float],
-        threshold: float = 100.0, # cm
+        threshold: float = REGION_THRESHOLD, # cm
         connect_to_nearest: bool = True,
     ) -> Tuple[str, bool]:
         """
@@ -191,6 +191,7 @@ class GraphHandler:
             # Update current position
             if self.current_location and self.current_location in self.graph.nodes:
                 current_loc_name = self.graph.nodes[self.current_location].get("display_name", self.current_location)
+                # print(self.drone_position.tolist())
                 graph_dict["current_position"] = {
                     "coords": self.drone_position.tolist(), 
                     "region": current_loc_name

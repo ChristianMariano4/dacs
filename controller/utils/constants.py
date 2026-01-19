@@ -1,7 +1,7 @@
 import os
 
 
-REGION_THRESHOLD: int = 50 # How distant in centimeters are the regions. After that distance, a new region is automatically created
+REGION_THRESHOLD: int = 100 # How distant in centimeters are the regions. After that distance, a new region is automatically created
 
 
 ROBOT_NAME = "tello"
