@@ -226,7 +226,11 @@ class GraphHandler:
             v_name = v_attr.get("display_name", v)
             
             # If one is a region, treat it as the 'key' for the adjacency list
-            if u_attr.get("type") == "region":
+            if u_attr.get("type") == "region" and v_attr.get("type") == "region":
+                # Region-to-region: add both directions
+                adj[u_name].append(v_name)
+                adj[v_name].append(u_name)
+            elif u_attr.get("type") == "region":
                 adj[u_name].append(v_name)
             elif v_attr.get("type") == "region":
                 adj[v_name].append(u_name)
@@ -235,10 +239,11 @@ class GraphHandler:
                 adj[u_name].append(v_name)
 
         # 3. Serialize into a compact string
+        # Ensure all regions appear in output, even those with no object connections
         lines = []
-        for region, neighbors in adj.items():
-            coord_str = region_info.get(region, "")
-            neighbors_str = ", ".join(neighbors)
+        for region, coord_str in region_info.items():
+            neighbors = adj.get(region, [])
+            neighbors_str = ", ".join(neighbors) if neighbors else ""
             lines.append(f"{region}{coord_str}: {neighbors_str}")
 
         # 4. Current Position
