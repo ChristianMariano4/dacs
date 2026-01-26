@@ -229,24 +229,25 @@ class CrazyflieWrapper():
         self.z_target = 0.5  # Default target height in meters
         self.pose = np.zeros(4)
         self.connect()
+        self.odometry_file = open("odometry.txt", "a")
 
     def _log_stab_callback(self, timestamp, data, logconf):
+        # print(f"[POSE CALLBACK] Received pose data at timestamp {timestamp}")
         x = data['stateEstimate.x']
         y = data['stateEstimate.y']
         z = data['stateEstimate.z']
         yaw = data['stateEstimate.yaw']
         
-        self.pose[0] = x
-        self.pose[1] = y
-        self.pose[2] = z - 0.05
-        self.pose[3] = yaw
-        # print(f"[{timestamp}] x={x:.2f}, y={y:.2f}, z={z:.2f}, yaw={yaw:.2f}")
+        self.pose[0] = x * 100
+        self.pose[1] = y * 100
+        self.pose[2] = (z - 0.05) * 100
+        self.pose[3]= yaw % 360
+        
+        # print(f"[{timestamp}] x={self.pose[0]:.2f}, y={self.pose[1]:.2f}, z={self.pose[2]:.2f}, yaw={self.pose[3]:.2f}")
 
     def _track_position(self):
         '''Continuosly track drone position through lighthouse'''
-        #TODO: add yaw
         # Configure logging
-        print("Here")
         logconf = LogConfig(name='Position', period_in_ms=100)
         logconf.add_variable('stateEstimate.x', 'float')
         logconf.add_variable('stateEstimate.y', 'float')
@@ -258,6 +259,7 @@ class CrazyflieWrapper():
         logconf.start()
     
     def get_pose(self):
+        self.odometry_file.write(f"[{time.time()}] x={self.pose[0]:.2f}, y={self.pose[1]:.2f}, z={self.pose[2]:.2f}, yaw={self.pose[3]:.2f}\n")
         return self.pose
 
     def connect(self):
