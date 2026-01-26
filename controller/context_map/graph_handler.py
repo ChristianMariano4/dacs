@@ -84,7 +84,7 @@ class GraphHandler:
         
         Returns: (region_name, created_new_flag)
         """
-        pose_xy = np.asarray(pose_xyz)[:3]
+        pose_xy = np.asarray(pose_xyz)[:2]
         
         # 1. Check existing regions
         region_nodes = [n for n, a in self.graph.nodes(data=True) if a.get("type") == "region"]
@@ -94,7 +94,7 @@ class GraphHandler:
 
         for node in region_nodes:
             coords = self.graph.nodes[node]["coords"]
-            dist = np.linalg.norm(np.array(coords) - np.array(pose_xy[:2]))
+            dist = np.linalg.norm(np.array(coords) - np.array(pose_xy))
             if dist < min_dist:
                 min_dist = dist
                 best_node = node
