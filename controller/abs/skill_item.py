@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union, Tuple
+from typing import Any, List, Optional, Union, Tuple
 
 class SkillArg:
     def __init__(self, arg_name: str, arg_type: type):
@@ -57,7 +57,7 @@ class SkillItem(ABC):
         return abbr
 
 
-    def parse_args(self, args_str_list: List[Union[int, float, str, Optional[any]]], allow_positional_args: bool = False):
+    def parse_args(self, args_str_list: List[Union[int, float, str, Optional[Any]]], allow_positional_args: bool = False):
         """Parses the string of arguments and converts them to the expected types."""
         # Count required vs optional arguments
         required_args = 0
