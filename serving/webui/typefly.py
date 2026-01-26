@@ -736,11 +736,11 @@ class TypeFly:
 
             # 8. Marker: Drone
             if "coords" in current_pos and current_pos["coords"]:
-                x, y, *_ = current_pos["coords"]
+                x, y, z, yaw = current_pos["coords"]
                 fig.add_trace(go.Scatter(
                     x=[x], y=[y], 
                     mode='markers+text', 
-                    text=["Drone"], 
+                    text=[f"Drone (z={z:.1f}, yaw={yaw:.1f}°)"],
                     textposition='top right',
                     marker=dict(symbol='x', size=12, color='red', line=dict(color='black', width=1)), 
                     name='You'
