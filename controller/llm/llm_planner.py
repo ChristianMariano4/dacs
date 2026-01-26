@@ -128,7 +128,7 @@ class LLMPlanner:
                 request_type=RequestType.QUERY
             )["answer"]
             
-            return CommandResult(value=answer, replan=False)
+            return CommandResult(value=evaluate_value(answer), replan=False)
         else:
             print_t("[Error] No frame available for probing")
             return CommandResult(value=evaluate_value("I cannot see anything right now."), replan=False)
