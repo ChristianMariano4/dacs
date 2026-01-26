@@ -23,5 +23,5 @@ LONG_TERM_MEMORY_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/c
 TASK_FEEDBACK_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/long_term_memory/feedback/task_related"
 UNIVERSAL_FEEDBACK_PROMPT_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/long_term_memory/feedback/universal/user_universal_feedback_prompt.txt"
 CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH = f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/long_term_memory/feedback/universal/user_change_universal_feedback_prompt.txt"
-USER_SHORTCUTS_PATH = f"controller/assets/tello/memory/shortcuts/{USERNAME}/shortcuts.json"
+USER_SHORTCUTS_PATH = f"controller/assets/tello/shortcuts/{USERNAME}/shortcuts.json"
 EVALUATION_LOG_PATH = "/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/evaluation_log.txt"

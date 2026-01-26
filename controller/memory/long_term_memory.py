@@ -199,3 +199,4 @@ class LongTermMemory:
         Delete from memory task mapped by key 'shortcut'.
         '''
         del self.user_shortcut_tasks[shortcut]
+        self._write_file_shortcuts()
