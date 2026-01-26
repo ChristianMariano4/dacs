@@ -611,9 +611,9 @@ class LLMController:
         print_t("[C] Starting stream...")
         self.drone.start_stream()
         self.controller_wait_takeoff = False
-        time.sleep(2)
+        time.sleep(3)
         drone_position = self.drone.get_position()
-        self.drone.go_to_position(drone_position[0], drone_position[1], 50)
+        self.drone.go_to_position(drone_position[0], drone_position[1], -30)
 
     def stop_robot(self):
         print_t("[C] Drone is landing...")
