@@ -66,7 +66,7 @@ def sharpen_image(img):
     sharpened = cv2.filter2D(img, -1, kernel)
     return sharpened
 
-def encode_image(image_input, quality=40, max_size=(500, 500)):
+def encode_image(image_input, quality=100, max_size=(500, 500)):
     """Compress and convert an image (path, PIL.Image, or numpy array) to base64 string."""
 
     # --- Handle input type ---

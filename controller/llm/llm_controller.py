@@ -116,7 +116,7 @@ class LLMController:
             case RobotType.CRAZYFLIE:
                 print_t("[C] Start Crazyflie drone...")
                 from ..robot_implementations.crazyflie_wrapper import CrazyflieWrapper
-                return CrazyflieWrapper(move_enable=True)
+                return CrazyflieWrapper(move_enable=True, graph_manager=self.graph_manager)
             case _:
                 print_t("[C] Start Virtual drone...")
                 return VirtualRobotWrapper(graph_manager=self.graph_manager, move_enable=True)

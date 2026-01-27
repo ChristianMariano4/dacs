@@ -86,9 +86,6 @@ import numpy as np
 from djitellopy import Tello
 
 from controller.context_map.graph_manager import GraphManager
-# NOTE: CrazyflieWrapper is imported here for the main process (cap_distance helper)
-# The odometry process will import it separately inside _odometry_process_func
-# This is necessary because 'spawn' mode starts a fresh interpreter
 from controller.robot_implementations.crazyflie_wrapper import CrazyflieWrapper, cap_distance
 from controller.robot_implementations.virtual_robot_wrapper import CommandResult
 from controller.utils.constants import REGION_THRESHOLD
@@ -498,7 +495,11 @@ class TelloWrapper(RobotWrapper):
         # 2. We get consistent readings (all 4 values from same timestamp)
         # =====================================================================
         self._position_lock = _spawn_ctx.Lock()
-        
+        # Lock for all Tello commands (thread-level, not multiprocessing)
+        # We use threading.Lock because all Tello commands happen in the MAIN process
+        # (keepalive thread + main thread), not across processes
+        self._command_lock = threading.Lock()
+            
         # =====================================================================
         # EDUCATIONAL: Stop Event
         # =====================================================================
@@ -659,14 +660,16 @@ class TelloWrapper(RobotWrapper):
             return CommandResult(value=False, replan=False)
             
         if self.move_enable:
-            self.drone.takeoff()
+            with self._command_lock:
+                self.drone.takeoff()
         else:
             print("[Drone] Takeoff (Simulated)")
         return CommandResult(value=True, replan=False)
 
     def land(self) -> CommandResult:
         if self.move_enable:
-            self.drone.land()
+            with self._command_lock:
+                self.drone.land()
         else:
             print("[Drone] Land (Simulated)")
         return CommandResult(value=True, replan=False)
@@ -676,23 +679,34 @@ class TelloWrapper(RobotWrapper):
             print(f"[Drone] Move: F:{forward} B:{backward} L:{left} R:{right}")
             return CommandResult(value=True, replan=False)
 
-        if forward: 
-            self.drone.move_forward(_cap_distance_positive(forward))
-        if backward: 
-            self.drone.move_back(_cap_distance_positive(backward))
-        if left: 
-            self.drone.move_left(_cap_distance_positive(left))
-        if right: 
-            self.drone.move_right(_cap_distance_positive(right))
-        if up: 
-            self.drone.move_up(_cap_distance_positive(up))
-        if down: 
-            self.drone.move_down(_cap_distance_positive(down))
-        
-        if yaw_cw: 
-            self.drone.rotate_clockwise(max(1, min(yaw_cw, 360)))
-        if yaw_ccw: 
-            self.drone.rotate_counter_clockwise(max(1, min(yaw_ccw, 360)))
+        try:
+            if forward:
+                with self._command_lock:
+                    self.drone.move_forward(_cap_distance_positive(forward))
+            if backward:
+                with self._command_lock:
+                    self.drone.move_back(_cap_distance_positive(backward))
+            if left: 
+                with self._command_lock:
+                    self.drone.move_left(_cap_distance_positive(left))
+            if right: 
+                with self._command_lock:
+                    self.drone.move_right(_cap_distance_positive(right))
+            if up: 
+                with self._command_lock:
+                    self.drone.move_up(_cap_distance_positive(up))
+            if down: 
+                with self._command_lock:
+                    self.drone.move_down(_cap_distance_positive(down))
+            
+            if yaw_cw: 
+                with self._command_lock:
+                    self.drone.rotate_clockwise(max(1, min(yaw_cw, 360)))
+            if yaw_ccw: 
+                with self._command_lock:
+                    self.drone.rotate_counter_clockwise(max(1, min(yaw_ccw, 360)))
+        except Exception as e:
+            print(f"[ERROR] {e}")
         
         time.sleep(0.5)
         return CommandResult(value=True, replan=False)
@@ -728,7 +742,7 @@ class TelloWrapper(RobotWrapper):
         # if not self.is_position_valid():
         #     print("⚠️ Cannot move - tracking lost!")
         #     return CommandResult(value=False, replan=True)
-        print(f"[Drone] Rotate to {direction_deg}°, then move {distance_cm}cm")
+        print(f"[Drone] Rotate to {direction_deg}°, then move by {distance_cm}cm")
         if not self.move_enable:
             print(f"[Drone] Not enable")
             return CommandResult(value=True, replan=False)
@@ -743,12 +757,14 @@ class TelloWrapper(RobotWrapper):
         print(f"Delta: {delta}")
 
         if delta > 0:
-            self.drone.rotate_counter_clockwise(abs(int(delta)))
+            self.turn_ccw(abs(int(delta)))
         elif delta < 0:
-            self.drone.rotate_clockwise(abs(int(delta)))   
+            self.turn_cw(abs(int(delta)))   
 
-        time.sleep(1.0)
-        self.drone.move_forward(cap_distance(int(distance_cm)))
+        time.sleep(3.0)
+        print(f"Before moving")
+        self.move_north(distance_cm)
+        print(f"After moving")
 
         return CommandResult(value=True, replan=False)
 
@@ -769,8 +785,9 @@ class TelloWrapper(RobotWrapper):
         print(f"[Drone] GoTo: Δ({dx}, {dy}, {dz}) cm")
         if not self.move_enable:
             return CommandResult(value=True, replan=False)
-
-        self.drone.go_xyz_speed(dx, dy, dz, speed=20)
+        
+        with self._command_lock:
+            self.drone.go_xyz_speed(dx, dy, dz, speed=20)
         
         return CommandResult(value=True, replan=False)
 
@@ -835,7 +852,8 @@ class TelloWrapper(RobotWrapper):
 
     def is_battery_good(self) -> bool:
         try:
-            bat = self.drone.get_battery()
+            with self._command_lock:
+                bat = self.drone.get_battery()
             print(f"> Battery: {bat}% {'[LOW]' if bat < 20 else '[OK]'}")
             return bat >= 20
         except:
@@ -867,7 +885,8 @@ class TelloWrapper(RobotWrapper):
         """Keepalive still runs as a thread (needs access to self.drone)"""
         while not self._thread_stop_event.is_set():
             try:
-                self.drone.send_control_command("command")
+                with self._command_lock:
+                    self.drone.send_control_command("command")
                 
                 # EDUCATIONAL: Update graph manager in keepalive loop
                 # This ensures position updates happen at regular intervals
