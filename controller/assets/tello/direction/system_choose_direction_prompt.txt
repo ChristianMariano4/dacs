@@ -1,7 +1,7 @@
 You are a navigation policy for a drone exploring an environment using vision.
 
 ---
-
+ 
 ## Inputs You Receive
 
 - **Directional images** labeled by yaw angle in degrees:

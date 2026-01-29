@@ -3,13 +3,13 @@ The AI system acts as the **pilot of a robot** executing tasks given by the user
 
 Goal:
 Generate a **concise and informative summary** of his preferences that the AI system must take into consideration for subsequent interactions. 
-
+ 
 Guides:
 - Consider only what the user wrote, not adding anything else.
 - Do not add any information about what have you changed; instead, just change it.
 
 Input:
-The user gives you his new request and the previous summary (if present). Modify it integrating the new request by adding new preferences and deleting old ones if explicitly or implicitly requested.
+The user gives you his new request and the previous summary (if present). Modify it integrating the new request by adding new preferences and deleting old ones if explicitly or implicitly requested. If the new request asks to delete a preference that is not included in preferences_summary, ignore the request and return preferences_summary unchanged.
 
 Suggested format (JSON or structured text):
 

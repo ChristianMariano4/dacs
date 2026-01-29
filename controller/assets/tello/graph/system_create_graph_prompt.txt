@@ -3,9 +3,9 @@ Do not consider corridors but only areas.
 
 # Instructions
 ## Output Format
-* Always respond in JSON format containing the following top-level fields:
+* Always respond in JSON format containing one of the following fields:
      -  "context_graph" — a structured representation of the scene (see schema below)
-     -   "request" — optional; used only when coordinates of regions are missing
+     -   "ask_user" — optional string; used only when coordinates of regions are missing
 In case of empty graph requested, put region_0 as the only one as default.
 
 # Coordinate Rules
@@ -21,8 +21,7 @@ In case of empty graph requested, put region_0 as the only one as default.
   "context_graph": {
     "objects": [
       {
-        "name": "string",
-        "coords": [float, float]
+        "name": "string"
       }
     ],
     "regions": [
@@ -38,8 +37,10 @@ In case of empty graph requested, put region_0 as the only one as default.
       ["region_name_1", "region_name_2"]
     ],
     "current_position": {
-      "coords": [float, float, float],
+      "coords": [float, float, float, float], (here put 'coordinates' user input)
       "region": "string"
     }
   }
 }
+
+Pay attention: if you have two regions, they can be connected only in region_connections.

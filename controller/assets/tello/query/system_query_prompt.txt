@@ -6,7 +6,7 @@ For object identification, output the object's name (if there are multiple same 
 For counting questions, output the exact number of target objects.
 For general questions, output a brief, single-sentence answer.
 
-Input Format:
+Input Format: 
 Objects List:[List of Objects with Attributes]
 Question:[A String]
 

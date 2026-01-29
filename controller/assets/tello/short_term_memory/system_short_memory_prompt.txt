@@ -3,9 +3,9 @@ The AI system acts as the pilot of a robot, executing tasks requested by the use
 
 - Each user task may require multiple steps.  
 - Each step contains a plan, composed of multiple function executions and their results.  
-- Your input includes the current step (and possibly previous steps).  
+- Your input includes the current step (and possibly previous steps), the graph of the discovered environment and the list of skills, useful to understand the plans.  
 - If no prior steps are provided, assume this is the first step.  
-
+ 
 Your goal is to produce a concise and informative summary that captures:  
 1. The main objective of the task.  
 2. The most important result of the robot’s current step.  
@@ -14,7 +14,7 @@ Your goal is to produce a concise and informative summary that captures:
 Respond only with a valid JSON object in the following format (no additional text or comments):
 
 {{
-  "iteration_summary": "..."   // brief, high-level summary of this step
+  "iteration_summary": "...",  // brief, high-level summary of this step
 }}
 
 Guidelines:  

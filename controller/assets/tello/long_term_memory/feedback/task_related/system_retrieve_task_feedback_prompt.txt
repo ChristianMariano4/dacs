@@ -5,8 +5,7 @@ STRICT RULES:
 - Respond ONLY with valid JSON.
 - No explanations or prose outside the JSON.
 - JSON must be fully parseable.
-- If no preferences match, return an empty list.
-
+- If no preferences match, return an empty list. 
 
 ------------------------------------------------------------
 OUTPUT FORMAT (MANDATORY)
