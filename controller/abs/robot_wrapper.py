@@ -3,9 +3,18 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple, Optional, Tuple
 from enum import Enum
 
+# =============================================================================
+# STATUS CODES (shared between processes)
+# =============================================================================
+class TrackingStatus:
+    """Status codes for shared_status[0]"""
+    VALID = 1.0
+    STALE = 0.0
+    RECOVERING = -1.0
+    FAILED = -2.0
+
 
 # Common return type for motion/actuation commands
-
 @dataclass(frozen=True)
 class CommandResult:
     value: Any
