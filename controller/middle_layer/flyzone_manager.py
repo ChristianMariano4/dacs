@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from controller.utils.general_utils import encode_image
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from controller.utils.constants import FLYZONE_TXT_PATH, FLYZONE_USER_IMAGE_PATH, ROBOT_NAME
+from controller.utils.constants import FLYZONE_TXT_PATH, FLYZONE_USER_IMAGE_PATH, ROBOT_NAME, USE_OLLAMA
 from controller.llm.llm_wrapper import GPT5, GPT_O4_MINI, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 
@@ -18,7 +18,7 @@ class FlyzoneManager:
         self.middle_layer = middle_layer
         
         self.llm_wrapper = LLMWrapper()
-        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/flyzone/user_flyzone_prompt.txt"), "r") as f:
+        with open(os.path.join(CURRENT_DIR, f"/home/christo/Desktop/polimi/prova_finale/SmartDrone/controller/assets/{ROBOT_NAME}/flyzone/user_create_flyzone_prompt.txt"), "r") as f:
             self.prompt_flyzone = f.read()
 
     def plot_current_flyzone(self):
@@ -69,9 +69,14 @@ class FlyzoneManager:
         prompt = self.prompt_flyzone.format(instruction=instruction, flyzone = flyzone)
         if image_present:
             image = encode_image(FLYZONE_USER_IMAGE_PATH)
-            response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FLYZONE, image=image)
+            response_content = self.llm_wrapper.request(user_prompt=prompt, 
+                                                        request_type=RequestType.CREATE_FLYZONE, 
+                                                        image=image, 
+                                                        use_ollama=USE_OLLAMA)
         else:
-            response_content = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FLYZONE)
+            response_content = self.llm_wrapper.request(user_prompt=prompt, 
+                                                        request_type=RequestType.CREATE_FLYZONE,
+                                                        use_ollama=USE_OLLAMA)
         # if response_content.startswith("```json"):
         #     response_content = response_content.replace("```json", "").replace("```", "").strip()
 

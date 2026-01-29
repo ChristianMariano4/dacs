@@ -7,7 +7,7 @@ import numpy as np
 from controller.context_map.graph_handler import GraphHandler
 from controller.llm.llm_wrapper import LLMWrapper, RequestType
 from controller.task import Task
-from controller.utils.constants import GRAPH_TXT_PATH, USER_GRAPH_PROMPT_PATH
+from controller.utils.constants import GRAPH_TXT_PATH, USE_OLLAMA, USER_GRAPH_PROMPT_PATH
 from controller.utils.general_utils import print_debug
 
 
@@ -77,7 +77,7 @@ class GraphManager:
 
     def request_new_graph(self, description: Optional[str], image: Optional[str]) -> dict:
         prompt = self.user_prompt.format(description=description, context_graph=self.get_dense_graph())
-        response_content = self.llm_wrapper.request(prompt, RequestType.NEW_GRAPH, image=image)
+        response_content = self.llm_wrapper.request(prompt, RequestType.CREATE_GRAPH, image=image, use_ollama=USE_OLLAMA)
         user_question = response_content.get('ask_user', None)
         graph = response_content.get('context_graph', None)
         if user_question is None:

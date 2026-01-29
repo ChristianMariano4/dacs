@@ -22,7 +22,7 @@ import socket
 import struct
 import threading
 
-from controller.robot_implementations.abs.robot_wrapper import RobotWrapper, CommandResult
+from controller.abs.robot_wrapper import RobotWrapper, CommandResult
 from controller.context_map.graph_manager import GraphManager
 from controller.utils.constants import REGION_THRESHOLD
 

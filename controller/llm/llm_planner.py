@@ -3,7 +3,7 @@ from typing import Optional, Sequence, Tuple, List, Any
 from PIL import Image
 
 from controller.middle_layer.flyzone_manager import FlyzoneManager
-from controller.utils.constants import ROBOT_NAME, UNIVERSAL_FEEDBACK_PROMPT_PATH
+from controller.utils.constants import ROBOT_NAME, UNIVERSAL_FEEDBACK_PROMPT_PATH, USE_OLLAMA
 from controller.task import Task
 
 from ..skillset import SkillSet
@@ -98,7 +98,7 @@ class LLMPlanner:
         
         print_t(f"[P] Planning request: {task_description}")
 
-        response_json = self.llm.request(prompt, request_type=RequestType.PLAN, image=img_b64)
+        response_json = self.llm.request(prompt, request_type=RequestType.PLAN, image=img_b64, use_ollama=USE_OLLAMA)
         response_plan = response_json.get("plan")
         requires_execution = response_json.get("requires_execution", True)
 
@@ -124,8 +124,8 @@ class LLMPlanner:
             answer = self.llm.request(
                 user_prompt=prompt, 
                 image=image, 
-                model_name=GPT5_MINI, 
-                request_type=RequestType.QUERY
+                request_type=RequestType.QUERY,
+                use_ollama=USE_OLLAMA
             )["answer"]
             
             return CommandResult(value=evaluate_value(answer), replan=False)

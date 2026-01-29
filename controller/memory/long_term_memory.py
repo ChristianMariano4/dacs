@@ -2,7 +2,7 @@ import json
 import uuid
 from openai import OpenAI
 import os
-from controller.utils.constants import CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH, TASK_FEEDBACK_PATH, UNIVERSAL_FEEDBACK_PROMPT_PATH, USER_SHORTCUTS_PATH
+from controller.utils.constants import CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH, TASK_FEEDBACK_PATH, UNIVERSAL_FEEDBACK_PROMPT_PATH, USE_OLLAMA, USER_SHORTCUTS_PATH
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.task import Task
@@ -36,8 +36,11 @@ class LongTermMemory:
         self.middle_layer = middle_layer # TODO: not yet used 
         self.llm_wrapper = LLMWrapper()
         with open(os.path.join(TASK_FEEDBACK_PATH, "user_save_task_feedback_prompt.txt"), "r") as f:
-            self.task_feedback_prompt = f.read()
+            self.save_task_feedback_prompt = f.read()
         self.username = username # used to retrieve the correct vector db
+
+        with open(os.path.join(TASK_FEEDBACK_PATH, "user_retrieve_task_feedback_prompt.txt"), "r") as f:
+            self.retrieve_task_feedback_prompt = f.read()
         
         with open(CHANGE_UNIVERSAL_FEEDBACK_PROMPT_PATH, "r") as f:
             self.user_change_user_feedback_prompt = f.read()
@@ -64,7 +67,7 @@ class LongTermMemory:
             current_user_feedback = f.read()
         prompt = self.user_change_user_feedback_prompt.format(user_request=user_request,
                                                             current_user_feedback=current_user_feedback)
-        response_content: dict = self.llm_wrapper.request(prompt, RequestType.EVERGREEN_FEEDBACK)
+        response_content: dict = self.llm_wrapper.request(prompt, RequestType.UNIVERSAL_FEEDBACK, use_ollama=USE_OLLAMA)
         preferences_summary = response_content.get("preferences_summary", None)
 
         if preferences_summary == None:
@@ -80,14 +83,16 @@ class LongTermMemory:
         '''
 
         task_text = task.get_task_description()
-        prompt = self.task_feedback_prompt.format(task_text=task_text, 
+        prompt = self.save_task_feedback_prompt.format(task_text=task_text, 
                                         execution_output=task.get_execution_plan_summary_prompt(), 
                                         feedback_text=task.get_user_feedback(),
                                         high_level_skills=high_level_skills,
                                         low_level_skills=low_level_skills
                                         )
         
-        response_content: dict = self.llm_wrapper.request(user_prompt=prompt, request_type=RequestType.FEEDBACK, model_name=GPT5_NANO)
+        response_content: dict = self.llm_wrapper.request(user_prompt=prompt, 
+                                                          request_type=RequestType.SAVE_TASK_FEEDBACK,
+                                                          use_ollama=USE_OLLAMA)
 
         # Parse the response
         task_summary = response_content.get("task_summary", "No task_summary provided")
@@ -131,13 +136,17 @@ class LongTermMemory:
         if not all_docs['ids']:
             return {"deleted_count": 0}
         
-        results = self.interactions_collection.query(
+        candidate_preferences_json = self.interactions_collection.query(
             query_embeddings=[embedding_vector],
             n_results=len(all_docs["ids"])
         )
 
-        ids_to_delete = self.llm_wrapper.request(request_type=RequestType.RETRIEVE_TASK_FEEDBACK,
-                                 variables=(user_feedback, results))
+        prompt = self.retrieve_task_feedback_prompt.format(user_request=user_feedback,
+                                                           candidate_preferences_json = candidate_preferences_json)
+
+        ids_to_delete = self.llm_wrapper.request(user_prompt=prompt, 
+                                                 request_type=RequestType.RETRIEVE_TASK_FEEDBACK,
+                                                 use_ollama=USE_OLLAMA)
 
         if ids_to_delete:
             self.interactions_collection.delete(ids=ids_to_delete['relevant_ids'])

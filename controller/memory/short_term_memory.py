@@ -1,5 +1,5 @@
 import os
-from controller.utils.constants import ROBOT_NAME, SHORT_TERM_MEMORY_PATH
+from controller.utils.constants import ROBOT_NAME, SHORT_TERM_MEMORY_PATH, USE_OLLAMA
 from controller.llm.llm_wrapper import GPT5_NANO, LLMWrapper, RequestType
 from controller.task import Task
 from controller.utils.general_utils import print_t
@@ -34,7 +34,7 @@ class ShortTermMemory:
         # Send the request to gpt5-nano, because we just need to summarize information
         response_content = self.llm_wrapper.request(user_prompt=prompt, 
                                                     request_type=RequestType.SHORT_TERM_MEMORY, 
-                                                    model_name=GPT5_NANO)
+                                                    use_ollama=USE_OLLAMA)
 
         # Parse the response
         iteration_summary = response_content.get("iteration_summary")

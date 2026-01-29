@@ -9,7 +9,7 @@ import numpy as np
 import base64
 from openai import OpenAI
 import os
-from controller.utils.constants import ROBOT_NAME
+from controller.utils.constants import ROBOT_NAME, USE_OLLAMA
 from controller.llm.llm_wrapper import GPT5_MINI, GPT5_NANO, LLMWrapper, RequestType
 from controller.middle_layer.middle_layer import MiddleLayer
 from controller.shared_frame import SharedFrame
@@ -34,7 +34,7 @@ class EnvironmentalAnalysisModule:
     def __init__(self, middle_layer: MiddleLayer=None):
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         
-        with open(f"controller/assets/{ROBOT_NAME}/direction/user_direction_prompt.txt", "r") as f:
+        with open(f"controller/assets/{ROBOT_NAME}/direction/user_choose_direction_prompt.txt", "r") as f:
             self.direction_prompt = f.read()
         
         self.middle_layer = middle_layer
@@ -88,8 +88,8 @@ class EnvironmentalAnalysisModule:
             response_content = self.llm_wrapper.request(
                 prompt, 
                 images=images, 
-                model_name=GPT5_MINI, 
-                request_type=RequestType.EXPLORE_DIRECTION
+                request_type=RequestType.CHOOSE_DIRECTION,
+                use_ollama=USE_OLLAMA
             )
             
             print(f"Raw API response: {response_content}")
