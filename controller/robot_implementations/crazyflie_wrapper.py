@@ -217,7 +217,7 @@ def cap_distance(distance: int) -> int:
     return distance
 
 class CrazyflieWrapper():
-    def __init__(self, move_enable: bool = False, link_uri: str = 'radio://0/40/2M/BADF00D002'):
+    def __init__(self, move_enable: bool = False, link_uri: str = 'radio://0/40/2M/BADF00D003'):
         # super().__init__(move_enable=move_enable)
         self.move_enable = False
         self.cf=Crazyflie(rw_cache='./cache')
