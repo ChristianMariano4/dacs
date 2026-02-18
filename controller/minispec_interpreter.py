@@ -639,12 +639,12 @@ class MiniSpecInterpreter:
                 f.write(f"[{time.time()}] Finish execution of: {stmt}\n")
             
             with self.program_lock:
-                if stmt.ret:                           # early return
+                if stmt.ret or ret_val.replan:         # early return (explicit or replan/wait_user_answer)
                     with Statement.execution_queue.mutex:
                         Statement.execution_queue.queue.clear()
                     self.ret_queue.put(ret_val)
                     self._reset_timing()
-                    continue                
+                    continue
 
                 self.program_count -= 1
                 if self.program_count == 0:            # programma terminato
