@@ -410,7 +410,7 @@ class LLMWrapper:
                     if user_prompt:
                         f.write(user_prompt + "\n---\n")
                     if not stream:
-                        f.write(response.model_dump_json(indent=2) + "\n---\n")
+                        f.write(json.dumps(response) + "\n---\n")
         
 
         return response

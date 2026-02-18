@@ -6,7 +6,7 @@ REGION_THRESHOLD: int = 100 # How distant in centimeters are the regions. After 
 
 ROBOT_NAME = "tello"
 USERNAME = "Christian"
-USE_OLLAMA = True
+USE_OLLAMA = False
 DEBUG = False
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 

@@ -67,7 +67,7 @@ class AIDeckClient:
     IMG_HEADER_SIZE = 11
     MAGIC_BYTE = b'FER'
 
-    def __init__(self, esp32_ip="172.16.0.151", esp32_port=5000, listen_port=5001):
+    def __init__(self, esp32_ip="172.16.0.141", esp32_port=5000, listen_port=5001):
         self.esp32_ip = esp32_ip
         self.esp32_port = esp32_port
         self.listen_port = listen_port
@@ -152,6 +152,10 @@ class AIDeckFrameReader:
                 color_img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
 
                 if color_img is not None:
+                    # AI-deck may send grayscale; convert to BGR so
+                    # downstream pipeline (exposure, sharpen, YOLO) gets 3 channels
+                    if len(color_img.shape) == 2:
+                        color_img = cv2.cvtColor(color_img, cv2.COLOR_GRAY2BGR)
                     with self._lock:
                         self._frame = color_img
             except Exception as e:
@@ -164,7 +168,9 @@ class AIDeckFrameReader:
             if self._frame is None:
                 return None
             frame = adjust_exposure(self._frame.copy(), alpha=1.3, beta=-30)
-            return sharpen_image(frame)
+            frame = sharpen_image(frame)
+            # Convert BGR (OpenCV) to RGB (PIL)
+            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
 class TrackingStatus:
@@ -453,8 +459,21 @@ def _crazyflie_process_func(
         
         return False
     
-    reset_kalman()
-    
+    if not reset_kalman():
+        print("[CrazyflieProcess] Kalman reset failed, checking connection...")
+        if cf.link is None:
+            print("[CrazyflieProcess] Connection lost during Kalman reset")
+            with position_lock:
+                shared_status[0] = TrackingStatus.FAILED
+            return
+
+    # Verify connection is still alive before setting up logging
+    if cf.link is None:
+        print("[CrazyflieProcess] Connection lost after Kalman reset")
+        with position_lock:
+            shared_status[0] = TrackingStatus.FAILED
+        return
+
     def pose_callback(timestamp, data, logconf):
         nonlocal pose, last_pose_time
         pose[0] = data['stateEstimate.x'] * 100
@@ -462,15 +481,21 @@ def _crazyflie_process_func(
         pose[2] = (data['stateEstimate.z'] - 0.05) * 100  # Ground offset
         pose[3] = data['stateEstimate.yaw'] % 360
         last_pose_time = time.time()
-    
-    log_config = LogConfig(name='Position', period_in_ms=20)
-    log_config.add_variable('stateEstimate.x', 'float')
-    log_config.add_variable('stateEstimate.y', 'float')
-    log_config.add_variable('stateEstimate.z', 'float')
-    log_config.add_variable('stateEstimate.yaw', 'float')
-    cf.log.add_config(log_config)
-    log_config.data_received_cb.add_callback(pose_callback)
-    log_config.start()
+
+    try:
+        log_config = LogConfig(name='Position', period_in_ms=20)
+        log_config.add_variable('stateEstimate.x', 'float')
+        log_config.add_variable('stateEstimate.y', 'float')
+        log_config.add_variable('stateEstimate.z', 'float')
+        log_config.add_variable('stateEstimate.yaw', 'float')
+        cf.log.add_config(log_config)
+        log_config.data_received_cb.add_callback(pose_callback)
+        log_config.start()
+    except Exception as e:
+        print(f"[CrazyflieProcess] Failed to start position logging: {e}")
+        with position_lock:
+            shared_status[0] = TrackingStatus.FAILED
+        return
     
     def handle_command(cmd: Command):
         nonlocal is_flying
@@ -511,8 +536,15 @@ def _crazyflie_process_func(
     # Main loop
     while not stop_event.is_set():
         try:
+            # Check if connection is still alive
+            if cf.link is None:
+                print("[CrazyflieProcess] Connection lost, exiting...")
+                with position_lock:
+                    shared_status[0] = TrackingStatus.FAILED
+                break
+
             current_time = time.time()
-            
+
             # Process pending commands (non-blocking)
             try:
                 while True:
@@ -523,7 +555,7 @@ def _crazyflie_process_func(
                     handle_command(cmd)
             except:
                 pass
-            
+
             # Check for stale tracking
             position_changed = np.any(np.abs(pose - last_position) > POSITION_CHANGE_THRESHOLD * 100)
             if position_changed:
@@ -588,8 +620,8 @@ class CrazyflieWrapperMP(RobotWrapper):
         self, 
         graph_manager: GraphManager,
         move_enable: bool = False, 
-        link_uri: str = 'radio://0/40/2M/BADF00D003',
-        esp32_ip: str = "172.16.0.151",
+        link_uri: str = 'radio://0/80/2M/E7E7E7E7E7',
+        esp32_ip: str = "172.16.0.141",
         esp32_port: int = 5000,
         listen_port: int = 5001
     ):
@@ -742,6 +774,7 @@ class CrazyflieWrapperMP(RobotWrapper):
     def takeoff(self, height: float = 0.5, duration: float = 3.0) -> CommandResult:
         if not self.move_enable:
             print(f"[CrazyflieWrapperMP] Takeoff (simulated)")
+            self._is_flying = True
             return CommandResult(value=True, replan=False)
         
         self._command_queue.put(Command(
@@ -755,6 +788,7 @@ class CrazyflieWrapperMP(RobotWrapper):
     def land(self, height: float = 0.0, duration: float = 4.5) -> CommandResult:
         if not self.move_enable:
             print(f"[CrazyflieWrapperMP] Land (simulated)")
+            self._is_flying = False
             return CommandResult(value=True, replan=False)
         
         self._command_queue.put(Command(
