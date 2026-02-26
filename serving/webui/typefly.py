@@ -248,11 +248,14 @@ class TypeFly:
                                 min_width=60
                             )
 
-                            image_input = gr.Image(
-                                label="Upload Image",
-                                type="numpy",   # returns numpy array
-                                visible=True,
-                                scale=2
+                            image_upload_btn = gr.UploadButton(
+                                "🖼️",
+                                file_types=["image"],
+                                file_count="single",
+                                variant="secondary",
+                                size="sm",
+                                scale=1,
+                                min_width=60
                             )
                             
                             # Text input (center - takes most space)
@@ -277,6 +280,12 @@ class TypeFly:
                             "",
                             visible=False
                         )
+
+                        # Request processing indicator (hidden by default)
+                        processing_status = gr.Markdown(
+                            "",
+                            visible=False
+                        )
                         
                         # Examples
                         gr.Examples(
@@ -286,6 +295,11 @@ class TypeFly:
                     
                     # Store state for recording
                     recording_state = gr.State(False)
+                    image_state = gr.State(None)
+
+                    def set_uploaded_image(uploaded_file):
+                        """Store uploaded image payload in state."""
+                        return uploaded_file
                     
                     # Event handlers
                     def toggle_recording(is_recording):
@@ -327,18 +341,44 @@ class TypeFly:
                             inputs=[recording_state],
                             outputs=[recording_state, voice_btn, recording_status, msg_input]
                         )
+
+                    image_upload_btn.upload(
+                        fn=set_uploaded_image,
+                        inputs=[image_upload_btn],
+                        outputs=[image_state]
+                    )
                     
-                def send_message(message, history, image_array):
+                def send_message(message, history, image_payload):
                     """Send message and get response - generator for streaming"""
-                    if not message.strip() and not image_array:
-                        yield history, ""
+                    message = message or ""
+
+                    def payload_to_pil_image(payload):
+                        if payload is None:
+                            return None
+                        if isinstance(payload, (list, tuple)):
+                            return payload_to_pil_image(payload[0]) if payload else None
+                        if isinstance(payload, np.ndarray):
+                            return Image.fromarray(payload.astype("uint8"))
+                        if isinstance(payload, str):
+                            return Image.open(payload)
+                        if isinstance(payload, dict):
+                            payload_path = payload.get("path") or payload.get("name")
+                            if payload_path:
+                                return Image.open(payload_path)
+                        if hasattr(payload, "name") and payload.name:
+                            return Image.open(payload.name)
+                        return None
+
+                    img = payload_to_pil_image(image_payload)
+                    if not message.strip() and img is None:
+                        yield history, "", gr.Markdown("", visible=False), None
                         return
                     user_entry = message
 
                     img_b64 = None
-                    # Handle image uploads (convert numpy → base64) and save it to use it later
-                    if image_array is not None:
-                        img = Image.fromarray(image_array.astype('uint8'))
+                    # Handle image uploads and save it for downstream usage
+                    if img is not None:
+                        img = img.convert("RGB")
                         img.save(FLYZONE_USER_IMAGE_PATH)
                         buf = io.BytesIO()
                         img.save(buf, format="PNG")
@@ -346,25 +386,27 @@ class TypeFly:
                         user_entry += f"\n\n![uploaded image](data:image/png;base64,{img_b64})"
                         
                     history = history + [[user_entry, None]]
-                    yield history, ""
+                    yield history, "", gr.Markdown("⏳ Richiesta in elaborazione...", visible=True), None
 
                     # Process message as before
                     for partial_response in self.process_message(message, history, img_b64):
                         if partial_response:
                             clean_response = partial_response.split("\nCommand Complete!")[0]
                             history[-1][1] = clean_response
-                            yield history, ""
+                            yield history, "", gr.Markdown("⏳ Richiesta in elaborazione...", visible=True), None
+
+                    yield history, "", gr.Markdown("", visible=False), None
 
                 send_btn.click(
                     send_message,
-                    inputs=[msg_input, chatbot, image_input],
-                    outputs=[chatbot, msg_input]
+                    inputs=[msg_input, chatbot, image_state],
+                    outputs=[chatbot, msg_input, processing_status, image_state]
                 )
 
                 msg_input.submit(
                     send_message,
-                    inputs=[msg_input, chatbot, image_input],
-                    outputs=[chatbot, msg_input]
+                    inputs=[msg_input, chatbot, image_state],
+                    outputs=[chatbot, msg_input, processing_status, image_state]
                 )
                 
                 with gr.TabItem("📊 Graph Visualization", id="graph_tab") as graph_tab:
