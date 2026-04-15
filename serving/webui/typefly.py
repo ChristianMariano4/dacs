@@ -24,7 +24,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(PARENT_DIR)
 
-from controller.utils.constants import EVALUATION_LOG_PATH, FLYZONE_USER_IMAGE_PATH, REGION_THRESHOLD
+from controller.utils.constants import EVALUATION_LOG_PATH, FLYZONE_USER_IMAGE_PATH, GRAPH_TXT_PATH, REGION_THRESHOLD
 from controller.context_map.graph_manager import GraphManager
 from controller.llm.llm_controller import LLMController
 from controller.utils.general_utils import print_t
@@ -148,6 +148,22 @@ class VoiceAgent:
             return f"Error stopping audio streams: {e}"
 
 class TypeFly:
+    DEFAULT_GRAPH_STATE = {
+        "objects": [],
+        "regions": [
+            {
+                "name": "region_0",
+                "coords": "[0.0, 0.0]"
+            }
+        ],
+        "object_connections": [],
+        "region_connections": [],
+        "current_position": {
+            "coords": [0.0, 0.0, 0.0, 0.0],
+            "region": "region_0"
+        }
+    }
+
     def __init__(self, robot_type, use_http=False):
         # Create a cache folder
         self.cache_folder = os.path.join(CURRENT_DIR, 'cache')
@@ -226,7 +242,7 @@ class TypeFly:
                                 fn=refresh_flyzone_image,
                                 outputs=flyzone_display
                             )
-                    
+
                     # Chat interface below the two-column layout
                     with gr.Column():
                         # Chat display area
@@ -273,6 +289,14 @@ class TypeFly:
                                 size="sm",
                                 scale=1,
                                 min_width=60
+                            )
+
+                            stop_btn = gr.Button(
+                                "⛔ Stop",
+                                variant="stop",
+                                size="sm",
+                                scale=1,
+                                min_width=90
                             )
                         
                         # Recording status indicator (hidden by default)
@@ -347,7 +371,7 @@ class TypeFly:
                         inputs=[image_upload_btn],
                         outputs=[image_state]
                     )
-                    
+
                 def send_message(message, history, image_payload):
                     """Send message and get response - generator for streaming"""
                     message = message or ""
@@ -403,6 +427,23 @@ class TypeFly:
                     outputs=[chatbot, msg_input, processing_status, image_state]
                 )
 
+                def stop_execution(history):
+                    was_running = self.llm_controller.request_plan_stop()
+                    self.user_question_answer = []
+                    status_text = (
+                        "🛑 Stop richiesto: interrompo il piano in esecuzione."
+                        if was_running else
+                        "ℹ️ Nessun piano in esecuzione."
+                    )
+                    history = history or []
+                    return history + [["", status_text]], gr.Markdown(status_text, visible=True)
+
+                stop_btn.click(
+                    stop_execution,
+                    inputs=[chatbot],
+                    outputs=[chatbot, processing_status]
+                )
+
                 msg_input.submit(
                     send_message,
                     inputs=[msg_input, chatbot, image_state],
@@ -412,6 +453,174 @@ class TypeFly:
                 with gr.TabItem("📊 Graph Visualization", id="graph_tab") as graph_tab:
                     self.setup_graph_tab()
                     # Connect the tab select event to refresh the graph
+
+                with gr.TabItem("🎮 Manual Control"):
+                    gr.Markdown("### 🕹️ Drone Controller")
+                    manual_status = gr.Markdown("Ready for manual commands.")
+                    with gr.Row():
+                        move_step_cm = gr.Slider(
+                            minimum=20,
+                            maximum=200,
+                            value=50,
+                            step=10,
+                            label="Move step (cm)",
+                        )
+                        turn_step_deg = gr.Slider(
+                            minimum=5,
+                            maximum=180,
+                            value=30,
+                            step=5,
+                            label="Turn step (deg)",
+                        )
+                    with gr.Row():
+                        takeoff_btn = gr.Button("🛫 Takeoff", variant="primary", size="lg")
+                        land_btn = gr.Button("🛬 Land", variant="stop", size="lg")
+
+                    with gr.Row():
+                        with gr.Column(scale=2):
+                            gr.Markdown("#### D-Pad")
+                            with gr.Row():
+                                gr.Markdown("")
+                                forward_btn = gr.Button("⬆️", size="lg", min_width=110)
+                                gr.Markdown("")
+                            with gr.Row():
+                                left_btn = gr.Button("⬅️", size="lg", min_width=110)
+                                gr.Button("●", size="lg", min_width=110, interactive=False)
+                                right_btn = gr.Button("➡️", size="lg", min_width=110)
+                            with gr.Row():
+                                gr.Markdown("")
+                                backward_btn = gr.Button("⬇️", size="lg", min_width=110)
+                                gr.Markdown("")
+                        with gr.Column(scale=1):
+                            gr.Markdown("#### Altitude")
+                            up_btn = gr.Button("⤴️ Up", size="lg")
+                            down_btn = gr.Button("⤵️ Down", size="lg")
+                        with gr.Column(scale=1):
+                            gr.Markdown("#### Yaw")
+                            turn_left_btn = gr.Button("↺ Left", size="lg")
+                            turn_right_btn = gr.Button("↻ Right", size="lg")
+
+                    takeoff_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("takeoff", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    land_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("land", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    forward_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("forward", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    backward_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("backward", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    left_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("left", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    right_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("right", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    up_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("up", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    down_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("down", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    turn_left_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("turn_left", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+                    turn_right_btn.click(
+                        fn=lambda move_step, turn_step: self.execute_manual_command("turn_right", move_step, turn_step),
+                        inputs=[move_step_cm, turn_step_deg],
+                        outputs=[manual_status],
+                    )
+
+    @staticmethod
+    def _format_pose_text(pose):
+        try:
+            x, y, z, yaw = pose
+            return f"x={x:.1f}cm, y={y:.1f}cm, z={z:.1f}cm, yaw={yaw:.1f}°"
+        except Exception:
+            return str(pose)
+
+    def execute_manual_command(self, action: str, move_step_cm: float, turn_step_deg: float) -> str:
+        drone = self.llm_controller.get_drone()
+        move_step_cm = int(move_step_cm)
+        turn_step_deg = int(turn_step_deg)
+
+        action_label = {
+            "takeoff": "takeoff",
+            "land": "land",
+            "forward": "forward",
+            "backward": "backward",
+            "left": "left",
+            "right": "right",
+            "up": "up",
+            "down": "down",
+            "turn_left": "turn left",
+            "turn_right": "turn right",
+        }.get(action, action)
+
+        try:
+            if action == "takeoff":
+                result = drone.takeoff()
+                if result.value:
+                    self.llm_controller.controller_wait_takeoff = False
+            elif action == "land":
+                result = drone.land()
+                if result.value:
+                    self.llm_controller.controller_wait_takeoff = True
+            elif action == "forward":
+                result = drone.move_north(move_step_cm)
+            elif action == "backward":
+                result = drone.move_south(move_step_cm)
+            elif action == "left":
+                result = drone.move_west(move_step_cm)
+            elif action == "right":
+                result = drone.move_east(move_step_cm)
+            elif action == "up":
+                result = drone.move_up(move_step_cm)
+            elif action == "down":
+                result = drone.move_down(move_step_cm)
+            elif action == "turn_left":
+                result = drone.turn_ccw(turn_step_deg)
+            elif action == "turn_right":
+                result = drone.turn_cw(turn_step_deg)
+            else:
+                return f"⚠️ Unknown action: {action}"
+        except Exception as e:
+            return f"❌ Manual command failed ({action_label}): {e}"
+
+        simulation_note = ""
+        if hasattr(drone, "get_move_enable"):
+            try:
+                if not drone.get_move_enable():
+                    simulation_note = " [simulated: move_enable=False]"
+            except Exception:
+                pass
+
+        pose_text = self._format_pose_text(drone.get_position())
+        if result.value:
+            return f"✅ {action_label} executed{simulation_note}\nPose: {pose_text}"
+
+        extra = " (drone may need takeoff)" if result.replan else ""
+        return f"⚠️ {action_label} rejected{simulation_note}{extra}\nPose: {pose_text}"
 
     def start_recording(self):
         try:
@@ -471,6 +680,14 @@ class TypeFly:
         """Setup the graph visualization tab"""
         with gr.Column():
             gr.Markdown("## 🌐 Dynamic Object Detection Graph")
+            with gr.Row():
+                clear_graph_btn = gr.Button("🧹 Reset Graph", variant="secondary")
+                clear_graph_status = gr.Markdown("")
+
+            clear_graph_btn.click(
+                fn=self.clear_graph_file,
+                outputs=[clear_graph_status],
+            )
             
             # Static Iframe - no timestamp parameter needed anymore
             graph_html = """
@@ -482,6 +699,20 @@ class TypeFly:
             </div>
             """
             gr.HTML(graph_html)
+
+    def clear_graph_file(self):
+        """Reset graph.txt to a default empty graph and reload GraphManager state."""
+        try:
+            os.makedirs(os.path.dirname(GRAPH_TXT_PATH), exist_ok=True)
+            with open(GRAPH_TXT_PATH, "w") as f:
+                json.dump(self.DEFAULT_GRAPH_STATE, f, indent=2)
+                f.write("\n")
+
+            self.graph_manager.update_graph_from_file()
+            return "✅ Graph reset to default state."
+        except Exception as e:
+            print(f"[ERROR] Failed to reset graph: {e}")
+            return f"❌ Failed to reset graph: {e}"
 
     # def checkbox_llama3(self):
     #     self.use_llama3 = not self.use_llama3
@@ -906,13 +1137,12 @@ class TypeFly:
 
         flask_thread = Thread(target=app.run, kwargs={'host': 'localhost', 'port': 50000, 'debug': False, 'use_reloader': False})
         flask_thread.start()
-        
+
         self.ui.launch(show_api=False, server_port=50001, prevent_thread_lock=True)
-        
-        while True:
-            time.sleep(1)
-            if self.system_stop:
-                break
+
+        # Keep process alive without opening any OpenCV window.
+        while not self.system_stop:
+            time.sleep(0.1)
 
         llmc_thread.join()
         asyncio_thread.join()
