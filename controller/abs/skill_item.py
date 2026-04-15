@@ -118,7 +118,7 @@ class SkillItem(ABC):
                                 parsed_list = ast.literal_eval(arg.strip())
                                 if not isinstance(parsed_list, list):
                                     parsed_list = [arg.strip()]
-                                parsed_args.append([arg.strip()])
+                                parsed_args.append(parsed_list)
                             except:
                                 parsed_args.append([arg.strip()])
                         else:

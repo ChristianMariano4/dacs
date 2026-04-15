@@ -204,9 +204,29 @@ class VisionSkillWrapper():
             str_list.append(str(obj))
         return str(str_list).replace("'", '')
 
+    def _flatten_object_names(self, value) -> List[str]:
+        """Flatten nested list/tuple inputs into a plain list of object names."""
+        if value is None:
+            return []
+        if isinstance(value, str):
+            name = value.strip()
+            return [name] if name else []
+        if isinstance(value, (list, tuple, set)):
+            names = []
+            for item in value:
+                names.extend(self._flatten_object_names(item))
+            return names
+        # Fallback for unexpected scalar types
+        return [str(value).strip()] if str(value).strip() else []
+
+    def _normalize_object_name(self, value: Union[str, List[str]]) -> str:
+        names = self._flatten_object_names(value)
+        return names[0] if names else ""
+
     def get_obj_info(self, object_name: str) -> ObjectInfo:
-        if type(object_name) is list:
-            object_name = object_name[0]
+        object_name = self._normalize_object_name(object_name)
+        if not object_name:
+            return None
         for _ in range(10):
             self.update_obj_list()
             # print(self.object_list)
@@ -224,36 +244,41 @@ class VisionSkillWrapper():
         return self.scene_description
 
     def is_visible(self, objects: List[str]) -> CommandResult:
-        for o in objects:
+        for o in self._flatten_object_names(objects):
             if self.get_obj_info(o) is not None:
                 return CommandResult(o, False)
         return CommandResult(False, False)
 
     def object_x(self, object_name: str) -> CommandResult:
+        object_name = self._normalize_object_name(object_name)
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_x: {object_name} is not in sight', False)
         return CommandResult(info.x, False)
     
     def object_y(self, object_name: str) -> CommandResult:
+        object_name = self._normalize_object_name(object_name)
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_y: {object_name} is not in sight', False)
         return CommandResult(info.y, False)
     
     def object_width(self, object_name: str) -> CommandResult:
+        object_name = self._normalize_object_name(object_name)
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_width: {object_name} not in sight', False)
         return CommandResult(info.w, False)
     
     def object_height(self, object_name: str) -> CommandResult:
+        object_name = self._normalize_object_name(object_name)
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_height: {object_name} not in sight', False)
         return CommandResult(info.h, False)
             
     def object_distance(self, object_name: str) -> CommandResult:
+        object_name = self._normalize_object_name(object_name)
         info = self.get_obj_info(object_name)
         if info is None:
             return CommandResult(f'object_distance: {object_name} not in sight', False)
@@ -305,11 +330,10 @@ class VisionSkillWrapper():
         **one single source of truth** for depth handling.
         """
         # --- 1. distance from your existing utility -------------------------
-        dist_cm, err = self.object_distance(object_name)
-        if err:
-            raise RuntimeError(dist_cm)                     # message is in dist_cm
-
-        depth_m = dist_cm / 100.0
+        dist_result = self.object_distance(object_name)
+        if not dist_result.value or isinstance(dist_result.value, str):
+            raise RuntimeError(dist_result.value)
+        depth_m = float(dist_result.value) / 100.0
 
         # --- 2. pixel location of the object centre -------------------------
         info = self.get_obj_info(object_name)

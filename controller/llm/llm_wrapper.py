@@ -28,7 +28,7 @@ CREATE_FLYZONE_PROMPT_ID = "pmpt_68e9255a306c819784c286c70106af680a2d38847423892
 CREATE_GRAPH_PROMPT_ID = "pmpt_69047fda7b048195bd41c7f3ccba7f8f0a2d879dd1ddb53e"
 
 
-PLAN_PROMPT_VERSION = "110"
+PLAN_PROMPT_VERSION = "114"
 QUERY_PROMPT_VERSION = "5"
 SHORT_TERM_MEMORY_PROMPT_VERSION = "11"
 SAVE_TASK_FEEDBACK_PROMPT_VERSION = "6"
@@ -216,7 +216,7 @@ class LLMWrapper:
                                 "text": (
                                     user_prompt
                                     + "\n\nPlease respond in JSON format with fields: "
-                                    "direction, distance, region_name."
+                                    "yaw, distance, region_name, reason."
                                 ),
                             }
                         ],
