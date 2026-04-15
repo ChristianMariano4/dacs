@@ -1,140 +1,90 @@
 #!/usr/bin/env python3
-"""
-Crazyflie autonomous flight sequence using the **High-Level Commander (HLC)**
---------------------------------------------------------------------------
-This script demonstrates how to control a Crazyflie with the *High-Level* API
-(via `cf.high_level_commander`). The sequence:
-
-1. Connect to the Crazyflie using `SyncCrazyflie`.
-2. Enable the high-level commander (`commander.enHighLevel = 1`).
-3. **Take-off** to 0.4 m.
-4. Fly a 0.5 m square (X-Y plane, constant heading).
-5. Approximate a circle (0.4 m radius) with 8 smooth `go_to()` segments.
-6. **Land** and disconnect.
-
-Usage (example):
-    python crazyflie_hlc_sequence.py radio://0/80/2M/E7E7E7E7E7
-
-Requirements:
-    pip install cflib
-
-Make sure you have a positioning system (Flow, Lighthouse, Loco, MoCap) since
-High-Level Commander works in *position* mode.
-"""
-from __future__ import annotations
-
-import argparse
-import math
-import sys
+import socket
+import struct
+import cv2
+import numpy as np
 import time
-from typing import Iterable
 
-from cflib.crtp import init_drivers
-from cflib.crazyflie import Crazyflie
-from cflib.crazyflie.syncCrazyflie import SyncCrazyflie
+# =============================================================================
+# CONFIGURATION - Change this to your AI-deck's IP address!
+# =============================================================================
+ESP32_IP = "172.16.0.39"  # <-- PUT YOUR AI-DECK IP HERE
+ESP32_PORT = 5000
+UDP_PORT = 5001
+MAGIC_BYTE = b'FER'
 
-# ---------------------------------------------------------------------------
-# Tunables
-# ---------------------------------------------------------------------------
-URI_HELP = "Crazyflie URI, e.g. radio://0/80/2M/E7E7E7E7E7"
-HEIGHT_M = 0.4         # Take-off height
-VEL_M_S = 0.5          # Nominal path velocity (used for timing only)
-SQUARE_SIDE_M = 0.5    # Square side length
-CIRCLE_RADIUS_M = 0.4  # Circle radius
-CIRCLE_SEGMENTS = 8
+# =============================================================================
+# Protocol constants
+# =============================================================================
+CPX_HEADER_SIZE = 4
+IMG_HEADER_MAGIC = 0xBC
+IMG_HEADER_SIZE = 11
 
-# ---------------------------------------------------------------------------
-# Helper functions
-# ---------------------------------------------------------------------------
+# Create socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-def wait(seconds: float) -> None:
-    """Busy-sleep helper so Ctrl-C immediately interrupts `time.sleep`."""
-    end = time.time() + seconds
-    while time.time() < end:
-        time.sleep(0.01)
+sock.bind(("0.0.0.0", UDP_PORT))
 
+print("=" * 60)
+print("AI-deck UDP Video Stream Client (Station Mode)")
+print("=" * 60)
+print(f"Your computer must be on the same network as the AI-deck")
+print(f"AI-deck IP: {ESP32_IP}")
+print(f"Listening on port: {UDP_PORT}")
+print("-" * 60)
 
-def square_vectors(side: float) -> Iterable[tuple[float, float]]:
-    """Generate 4 relative (dx, dy) moves forming a square."""
-    return (
-        (side, 0.0),
-        (0.0, side),
-        (-side, 0.0),
-        (0.0, -side),
-    )
+# Send magic byte to initiate connection
+print(f"Sending magic byte to {ESP32_IP}:{ESP32_PORT}...")
+sock.sendto(MAGIC_BYTE, (ESP32_IP, ESP32_PORT))
+print("Waiting for video frames... Press Ctrl+C to exit")
+print("-" * 60)
 
+# Stream state
+buffer = bytearray()
+expected_size = None
+receiving = False
+frame_count = 0
+last_time = None
 
-def circle_vectors(radius: float, segments: int) -> Iterable[tuple[float, float]]:
-    """Return *segments* small relative vectors approximating a circle."""
-    prev_x, prev_y = radius, 0.0  # start on +X axis
-    step = 2 * math.pi / segments
-    for i in range(1, segments + 1):
-        theta = i * step
-        x, y = radius * math.cos(theta), radius * math.sin(theta)
-        yield x - prev_x, y - prev_y
-        prev_x, prev_y = x, y
-
-
-# ---------------------------------------------------------------------------
-# Main flight routine
-# ---------------------------------------------------------------------------
-
-def fly(uri: str) -> None:
-    print("[INFO] Initialising CRTP drivers …")
-    init_drivers(enable_debug_driver=False)
-
-    cf = Crazyflie(rw_cache="./cache")
-    print(f"[INFO] Connecting to {uri} …")
-
-    with SyncCrazyflie(uri, cf=cf) as scf:
-        # Ensure we are in high-level (position) mode
-        scf.cf.param.set_value("commander.enHighLevel", "1")
-        wait(0.1)
-
-        hlc = scf.cf.high_level_commander
-
-        # --------------------- TAKE-OFF ---------------------
-        print("[INFO] Take-off …")
-        hlc.takeoff(HEIGHT_M, 2.0)
-        wait(3.0)  # extra stabilisation time
-
-        # # --------------------- SQUARE -----------------------
-        # print("[INFO] Flying square …")
-        # for dx, dy in square_vectors(SQUARE_SIDE_M):
-        #     hlc.go_to(dx, dy, 0.0, yaw=0.0, duration_s=SQUARE_SIDE_M / VEL_M_S, relative=True)
-        #     wait(SQUARE_SIDE_M / VEL_M_S + 0.3)
-
-        # # --------------------- CIRCLE -----------------------
-        # print("[INFO] Flying circle …")
-        # for dx, dy in circle_vectors(CIRCLE_RADIUS_M, CIRCLE_SEGMENTS):
-        #     hlc.go_to(dx, dy, 0.0, yaw=0.0, duration_s=(2 * math.pi * CIRCLE_RADIUS_M / VEL_M_S) / CIRCLE_SEGMENTS, relative=True)
-        #     wait((2 * math.pi * CIRCLE_RADIUS_M / VEL_M_S) / CIRCLE_SEGMENTS + 0.05)
-
-        # # --------------------- LAND -------------------------
-        # print("[INFO] Landing …")
-        # hlc.land(0.02, 2.0)  # land to 2 cm above ground
-        # wait(3.0)
-        # hlc.stop()
-
-    print("[INFO] Flight finished. Disconnected.")
-
-
-# ---------------------------------------------------------------------------
-# CLI entry-point
-# ---------------------------------------------------------------------------
-
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Crazyflie HLC autonomous flight")
-    parser.add_argument("uri", help=URI_HELP)
-    args = parser.parse_args(argv)
-
-    try:
-        fly(args.uri)
-    except KeyboardInterrupt:
-        print("[WARN] Interrupted by user — attempting to stop and land.")
-        # If we were still inside the context managers the CF would land already
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
+while True:
+    data, addr = sock.recvfrom(4096)
+    
+    # Check for image header
+    if len(data) >= CPX_HEADER_SIZE + 1 and data[CPX_HEADER_SIZE] == IMG_HEADER_MAGIC:
+        payload = data[CPX_HEADER_SIZE:]
+        if len(payload) >= IMG_HEADER_SIZE:
+            magic, width, height, depth, fmt, size = struct.unpack('<BHHBBI', payload[:IMG_HEADER_SIZE])
+            expected_size = size
+            buffer = bytearray(payload[IMG_HEADER_SIZE:])
+            receiving = True
+    elif receiving:
+        buffer.extend(data[CPX_HEADER_SIZE:])
+    
+    # Check if frame complete
+    if expected_size and len(buffer) >= expected_size:
+        frame_count += 1
+        
+        # Calculate FPS
+        now = time.time()
+        if last_time:
+            fps = 1.0 / (now - last_time)
+            if frame_count % 10 == 0:
+                print(f"Frame {frame_count}, FPS: {fps:.1f}")
+        last_time = now
+        
+        # Decode image
+        try:
+            np_data = np.frombuffer(buffer[:expected_size], np.uint8)
+            decoded = cv2.imdecode(np_data, cv2.IMREAD_UNCHANGED)
+            
+            if decoded is not None:
+                cv2.imshow("AI-deck Stream", decoded)
+                cv2.waitKey(1)
+            else:
+                # Try raw grayscale if JPEG decode fails
+                print(f"Frame {frame_count}: Trying raw decode...")
+        except Exception as e:
+            print(f"Error: {e}")
+        
+        receiving = False
+        expected_size = None
