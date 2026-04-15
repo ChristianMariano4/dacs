@@ -10,6 +10,7 @@ import math
 import time
 import logging
 import ctypes
+from queue import Empty as QueueEmpty
 import multiprocessing as mp
 from multiprocessing import Process, Array, Queue
 from typing import Tuple, Optional, Any
@@ -37,16 +38,6 @@ MOVEMENT_MAX_CM = 500
 DEFAULT_HEIGHT_CM = 50
 DEFAULT_VELOCITY = 0.3
 
-
-def adjust_exposure(img, alpha=1.0, beta=0):
-    return cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
-
-
-def sharpen_image(img):
-    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-    return cv2.filter2D(img, -1, kernel)
-
-
 def cap_distance_cm(distance_cm: int, min_cm: int = MOVEMENT_MIN_CM,
                     max_cm: int = MOVEMENT_MAX_CM) -> int:
     if abs(distance_cm) < min_cm:
@@ -60,117 +51,204 @@ def calculate_duration(distance_m: float, velocity: float = DEFAULT_VELOCITY) ->
     return max(abs(distance_m) / velocity, 0.5)
 
 
-class AIDeckClient:
-    """UDP client for AI-deck image streaming."""
+def _wait_for_param_toc(cf: Any, timeout_sec: float = 3.0):
+    """Wait briefly for param TOC sync when cflib exposes the flag."""
+    param_iface = getattr(cf, "param", None)
+    if param_iface is None or not hasattr(param_iface, "is_updated"):
+        return
+
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline and not getattr(param_iface, "is_updated", False):
+        time.sleep(0.05)
+
+
+def _cf_param_exists(cf: Any, full_name: str) -> bool:
+    """Best-effort check for a parameter in the Crazyflie TOC."""
+    group, sep, name = full_name.partition(".")
+    if not sep or not group or not name:
+        return False
+
+    param_iface = getattr(cf, "param", None)
+    toc_iface = getattr(param_iface, "toc", None) if param_iface else None
+    if toc_iface is None:
+        return False
+
+    getter = getattr(toc_iface, "get_element_by_complete_name", None)
+    if callable(getter):
+        try:
+            return getter(full_name) is not None
+        except Exception:
+            pass
+
+    toc_map = getattr(toc_iface, "toc", None)
+    if isinstance(toc_map, dict):
+        if full_name in toc_map:
+            return True
+        group_map = toc_map.get(group)
+        if isinstance(group_map, dict):
+            return name in group_map
+
+    return False
+
+
+def _is_param_toc_missing_error(error: Exception) -> bool:
+    msg = str(error).lower()
+    return ("not in param toc" in msg) or ("not in the toc" in msg)
+
+
+def _is_not_connected_error(error: Exception) -> bool:
+    msg = str(error).lower()
+    return (
+        "without being connected to a crazyflie" in msg
+        or "not connected" in msg
+        or "link is down" in msg
+    )
+
+
+def _cf_set_param(cf: Any, full_name: str, value: Any, log_prefix: str) -> Tuple[bool, bool]:
+    """Returns (ok, missing_in_toc)."""
+    try:
+        cf.param.set_value(full_name, str(value))
+        return True, False
+    except Exception as e:
+        print(f"{log_prefix} Failed to set '{full_name}': {e}")
+        return False, _is_param_toc_missing_error(e)
+
+
+class AIDeckFrameReader:
+    """Threaded frame reader for AI-deck using the same UDP loop as test/cf.py."""
+
     CPX_HEADER_SIZE = 4
     IMG_HEADER_MAGIC = 0xBC
     IMG_HEADER_SIZE = 11
     MAGIC_BYTE = b'FER'
 
-    def __init__(self, esp32_ip="172.16.0.141", esp32_port=5000, listen_port=5001):
-        self.esp32_ip = esp32_ip
-        self.esp32_port = esp32_port
-        self.listen_port = listen_port
-        self.socket = None
-        self.buffer = bytearray()
-        self.expected_size = None
-        self.receiving = False
-
-    def connect(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(("0.0.0.0", self.listen_port))
-        self.socket.settimeout(5.0)
-        # Send magic byte to initiate streaming
-        self.socket.sendto(self.MAGIC_BYTE, (self.esp32_ip, self.esp32_port))
-        logger.info(f"AI-deck UDP connection established on port {self.listen_port}")
-
-    def receive_image_packet(self):
-        try:
-            while True:
-                data, addr = self.socket.recvfrom(2048)
-
-                # Check for image header
-                if len(data) >= self.CPX_HEADER_SIZE + 1 and data[self.CPX_HEADER_SIZE] == self.IMG_HEADER_MAGIC:
-                    payload = data[self.CPX_HEADER_SIZE:]
-                    if len(payload) < self.IMG_HEADER_SIZE:
-                        continue
-
-                    _, width, height, depth, fmt, size = struct.unpack('<BHHBBI', payload[:self.IMG_HEADER_SIZE])
-                    self.expected_size = size
-                    self.buffer = bytearray(payload[self.IMG_HEADER_SIZE:])
-                    self.receiving = True
-
-                elif self.receiving:
-                    self.buffer.extend(data[self.CPX_HEADER_SIZE:])
-
-                if self.expected_size is not None and len(self.buffer) >= self.expected_size:
-                    img_data = bytes(self.buffer[:self.expected_size])
-                    self.receiving = False
-                    self.expected_size = None
-                    return img_data, 1, (width, height)
-
-        except socket.timeout:
-            return None, None, None
-        except Exception as e:
-            logger.error(f"Error receiving image: {e}")
-            return None, None, None
-
-    def close(self):
-        if self.socket:
-            self.socket.close()
-            self.socket = None
-
-
-class AIDeckFrameReader:
-    """Threaded frame reader for AI-deck."""
-    def __init__(self, client: AIDeckClient):
-        self.client = client
-        self._frame = None
-        self._lock = threading.Lock()
+    def __init__(self, esp32_ip: str, esp32_port: int, listen_port: int):
+        self._esp32_ip = esp32_ip
+        self._esp32_port = esp32_port
+        self._listen_port = listen_port
+        self._sock: Optional[socket.socket] = None
+        self._thread: Optional[threading.Thread] = None
         self._running = False
-        self._thread = None
+        self._latest_frame = None
+        self._lock = threading.Lock()
+
+        self._buffer = bytearray()
+        self._expected_size = None
+        self._receiving = False
+        self._frame_count = 0
+        self._last_time = None
 
     def start(self):
+        if self._running:
+            return
+
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("0.0.0.0", self._listen_port))
+        self._sock.settimeout(3.0)
+
+        print("=" * 60)
+        print("AI-deck UDP Video Stream Client (Station Mode)")
+        print("=" * 60)
+        print("Your computer must be on the same network as the AI-deck")
+        print(f"AI-deck IP: {self._esp32_ip}")
+        print(f"Listening on port: {self._listen_port}")
+        print("-" * 60)
+        print(f"Sending magic byte to {self._esp32_ip}:{self._esp32_port}...")
+        self._sock.sendto(self.MAGIC_BYTE, (self._esp32_ip, self._esp32_port))
+        print("Waiting for video frames... Press Ctrl+C to exit")
+        print("-" * 60)
+
         self._running = True
-        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread = threading.Thread(target=self._capture_loop, name="aideck-stream", daemon=True)
         self._thread.start()
+        print("[AIDeckFrameReader] Thread started")
+
+    def _capture_loop(self):
+        got_any_packet = False
+        while self._running:
+            try:
+                data, addr = self._sock.recvfrom(4096)
+            except socket.timeout:
+                print("[AIDeckProcess] No packets yet, resending magic byte...")
+                try:
+                    self._sock.sendto(self.MAGIC_BYTE, (self._esp32_ip, self._esp32_port))
+                except Exception as e:
+                    print(f"[AIDeckProcess] Failed to resend magic byte: {e}")
+                continue
+            except OSError:
+                break
+            except Exception as e:
+                print(f"Error: {e}")
+                continue
+
+            if not got_any_packet:
+                got_any_packet = True
+                print(f"[AIDeckProcess] First UDP packet received from {addr[0]}:{addr[1]}")
+
+            if len(data) >= self.CPX_HEADER_SIZE + 1 and data[self.CPX_HEADER_SIZE] == self.IMG_HEADER_MAGIC:
+                payload = data[self.CPX_HEADER_SIZE:]
+                if len(payload) >= self.IMG_HEADER_SIZE:
+                    magic, width, height, depth, fmt, size = struct.unpack('<BHHBBI', payload[:self.IMG_HEADER_SIZE])
+                    self._expected_size = size
+                    self._buffer = bytearray(payload[self.IMG_HEADER_SIZE:])
+                    self._receiving = True
+            elif self._receiving:
+                self._buffer.extend(data[self.CPX_HEADER_SIZE:])
+
+            if self._expected_size and len(self._buffer) >= self._expected_size:
+                self._frame_count += 1
+                now = time.time()
+                if self._last_time:
+                    fps = 1.0 / (now - self._last_time)
+                    if self._frame_count % 10 == 0:
+                        print(f"Frame {self._frame_count}, FPS: {fps:.1f}")
+                self._last_time = now
+
+                try:
+                    np_data = np.frombuffer(self._buffer[:self._expected_size], np.uint8)
+                    decoded = cv2.imdecode(np_data, cv2.IMREAD_UNCHANGED)
+                    if decoded is not None:
+                        with self._lock:
+                            self._latest_frame = decoded
+                    else:
+                        print(f"Frame {self._frame_count}: Trying raw decode...")
+                except Exception as e:
+                    print(f"Error: {e}")
+
+                self._receiving = False
+                self._expected_size = None
 
     def stop(self):
         self._running = False
+        if self._sock is not None:
+            try:
+                self._sock.close()
+            except Exception:
+                pass
+            self._sock = None
         if self._thread:
             self._thread.join(timeout=2.0)
-
-    def _capture_loop(self):
-        while self._running:
-            try:
-                img_data, img_format, dims = self.client.receive_image_packet()
-                if img_data is None:
-                    continue
-
-                nparr = np.frombuffer(img_data, np.uint8)
-                color_img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
-
-                if color_img is not None:
-                    # AI-deck may send grayscale; convert to BGR so
-                    # downstream pipeline (exposure, sharpen, YOLO) gets 3 channels
-                    if len(color_img.shape) == 2:
-                        color_img = cv2.cvtColor(color_img, cv2.COLOR_GRAY2BGR)
-                    with self._lock:
-                        self._frame = color_img
-            except Exception as e:
-                logger.error(f"Frame capture error: {e}")
-                time.sleep(0.1)
+        self._thread = None
 
     @property
     def frame(self):
+        """Return the latest frame as RGB, or None if none received yet."""
         with self._lock:
-            if self._frame is None:
-                return None
-            frame = adjust_exposure(self._frame.copy(), alpha=1.3, beta=-30)
-            frame = sharpen_image(frame)
-            # Convert BGR (OpenCV) to RGB (PIL)
-            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = None if self._latest_frame is None else self._latest_frame.copy()
+        if img is None:
+            return None
+        if len(img.shape) == 2:
+            return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        if len(img.shape) == 3:
+            channels = img.shape[2]
+            if channels == 1:
+                return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+            if channels == 3:
+                return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            if channels == 4:
+                return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+        return img
 
 
 class TrackingStatus:
@@ -207,13 +285,12 @@ def _odometry_only_process_func(
     
     # State
     pose = np.zeros(4)
-    STALE_THRESHOLD_SEC = 0.5
-    POSITION_CHANGE_THRESHOLD = 0.001
+    has_pose = False
+    last_pose_time = time.time()
+    STALE_THRESHOLD_SEC = 1.5
     MAX_RECOVERY_ATTEMPTS = 3
     RECOVERY_COOLDOWN_SEC = 5.0
     
-    last_position = np.zeros(4)
-    last_change_time = time.time()
     last_recovery_attempt = 0.0
     recovery_count = 0
     
@@ -230,24 +307,65 @@ def _odometry_only_process_func(
         with position_lock:
             shared_status[0] = TrackingStatus.FAILED
         return
-    
-    def reset_kalman():
-        print("[OdometryProcess] Resetting Kalman...")
-        cf.param.set_value('kalman.resetEstimation', '1')
-        time.sleep(0.1)
-        cf.param.set_value('kalman.resetEstimation', '0')
-        time.sleep(1.0)
-        
-        log_config = LogConfig(name='Kalman Variance', period_in_ms=500)
-        log_config.add_variable('kalman.varPX', 'float')
-        log_config.add_variable('kalman.varPY', 'float')
-        log_config.add_variable('kalman.varPZ', 'float')
-        
-        var_history = {'x': [1000]*10, 'y': [1000]*10, 'z': [1000]*10}
-        threshold = 0.001
-        
+
+    kalman_reset_supported = None
+    log_config = None
+
+    def _reopen_link() -> bool:
+        nonlocal has_pose, last_pose_time
         try:
-            with SyncLogger(scf, log_config) as sync_logger:
+            scf.close_link()
+        except Exception:
+            pass
+
+        time.sleep(0.5)
+        try:
+            scf.open_link()
+            time.sleep(2.0)
+            has_pose = False
+            last_pose_time = time.time()
+            return True
+        except Exception as e:
+            print(f"[OdometryProcess] Link restart failed: {e}")
+            return False
+
+    def reset_kalman():
+        nonlocal kalman_reset_supported
+
+        if kalman_reset_supported is None:
+            _wait_for_param_toc(cf)
+            kalman_reset_supported = _cf_param_exists(cf, 'kalman.resetEstimation')
+            if not kalman_reset_supported:
+                print("[OdometryProcess] 'kalman.resetEstimation' not in TOC, disabling Kalman reset recovery")
+        if not kalman_reset_supported:
+            return False
+
+        print("[OdometryProcess] Resetting Kalman...")
+        ok, missing_in_toc = _cf_set_param(cf, 'kalman.resetEstimation', '1', "[OdometryProcess]")
+        if not ok:
+            if missing_in_toc:
+                kalman_reset_supported = False
+                print("[OdometryProcess] Disabling Kalman reset recovery (parameter missing in TOC)")
+            return False
+        time.sleep(0.1)
+        ok, missing_in_toc = _cf_set_param(cf, 'kalman.resetEstimation', '0', "[OdometryProcess]")
+        if not ok:
+            if missing_in_toc:
+                kalman_reset_supported = False
+                print("[OdometryProcess] Disabling Kalman reset recovery (parameter missing in TOC)")
+            return False
+        time.sleep(1.0)
+
+        kalman_log = LogConfig(name='Kalman Variance', period_in_ms=500)
+        kalman_log.add_variable('kalman.varPX', 'float')
+        kalman_log.add_variable('kalman.varPY', 'float')
+        kalman_log.add_variable('kalman.varPZ', 'float')
+
+        var_history = {'x': [1000] * 10, 'y': [1000] * 10, 'z': [1000] * 10}
+        threshold = 0.001
+
+        try:
+            with SyncLogger(scf, kalman_log) as sync_logger:
                 for log_entry in sync_logger:
                     if stop_event.is_set():
                         return False
@@ -264,38 +382,95 @@ def _odometry_only_process_func(
             return False
         return False
     
-    reset_kalman()
-    
     # Position logging callback
     def pose_callback(timestamp, data, logconf):
-        nonlocal pose
+        nonlocal pose, last_pose_time, has_pose
         pose[0] = data['stateEstimate.x'] * 100  # cm
         pose[1] = data['stateEstimate.y'] * 100
         pose[2] = (data['stateEstimate.z'] - 0.05) * 100
         pose[3] = data['stateEstimate.yaw'] % 360
-    
-    log_config = LogConfig(name='Position', period_in_ms=20)
-    log_config.add_variable('stateEstimate.x', 'float')
-    log_config.add_variable('stateEstimate.y', 'float')
-    log_config.add_variable('stateEstimate.z', 'float')
-    log_config.add_variable('stateEstimate.yaw', 'float')
-    cf.log.add_config(log_config)
-    log_config.data_received_cb.add_callback(pose_callback)
-    log_config.start()
+        last_pose_time = time.time()
+        has_pose = True
+
+    def _create_and_start_position_log() -> bool:
+        nonlocal log_config
+        cfg = LogConfig(name=f'Position_{int(time.time() * 1000) % 1000000}', period_in_ms=20)
+        cfg.add_variable('stateEstimate.x', 'float')
+        cfg.add_variable('stateEstimate.y', 'float')
+        cfg.add_variable('stateEstimate.z', 'float')
+        cfg.add_variable('stateEstimate.yaw', 'float')
+        cf.log.add_config(cfg)
+
+        # cflib may only print the connection error and keep cfg.cf unset.
+        if getattr(cfg, "cf", None) is None:
+            raise RuntimeError("Cannot add configs without being connected to a Crazyflie!")
+
+        cfg.data_received_cb.add_callback(pose_callback)
+        cfg.start()
+        log_config = cfg
+        return True
+
+    def start_position_logging() -> bool:
+        try:
+            return _create_and_start_position_log()
+        except Exception as e:
+            print(f"[OdometryProcess] Failed to start position logging: {e}")
+            if not _is_not_connected_error(e):
+                return False
+
+        if not _reopen_link():
+            return False
+
+        try:
+            return _create_and_start_position_log()
+        except Exception as e:
+            print(f"[OdometryProcess] Failed to start position logging after reconnect: {e}")
+            return False
+
+    def reconnect_tracking() -> bool:
+        nonlocal kalman_reset_supported, log_config
+        print("[OdometryProcess] Restarting link/logging...")
+        try:
+            if log_config is not None:
+                log_config.stop()
+        except Exception:
+            pass
+        log_config = None
+
+        if not _reopen_link():
+            return False
+
+        kalman_reset_supported = None
+        return start_position_logging()
+
+    reset_kalman()
+    if not start_position_logging():
+        with position_lock:
+            shared_status[0] = TrackingStatus.FAILED
+        return
     
     # Main loop
+    print("[CrazyflieProcess] Entering main loop", flush=True)
     while not stop_event.is_set():
         try:
             current_time = time.time()
+
+            if not has_pose:
+                with position_lock:
+                    shared_position[0] = pose[0]
+                    shared_position[1] = pose[1]
+                    shared_position[2] = pose[2]
+                    shared_position[3] = pose[3]
+                    shared_status[0] = TrackingStatus.NOT_STARTED
+                    shared_status[1] = last_pose_time
+                    shared_status[2] = float(recovery_count)
+                time.sleep(0.02)
+                continue
             
-            # Check for stale tracking
-            position_changed = np.any(np.abs(pose - last_position) > POSITION_CHANGE_THRESHOLD * 100)
-            if position_changed:
-                last_change_time = current_time
-                last_position = pose.copy()
-            
-            time_since_change = current_time - last_change_time
-            is_stale = time_since_change > STALE_THRESHOLD_SEC
+            # Staleness must be based on missing pose updates, not on movement.
+            # A hovering drone can keep the same position while tracking is valid.
+            time_since_pose = current_time - last_pose_time
+            is_stale = time_since_pose > STALE_THRESHOLD_SEC
             
             # Attempt recovery if stale
             if is_stale and recovery_count < MAX_RECOVERY_ATTEMPTS:
@@ -304,9 +479,13 @@ def _odometry_only_process_func(
                     with position_lock:
                         shared_status[0] = TrackingStatus.RECOVERING
                         shared_status[2] = float(recovery_count + 1)
-                    
-                    if reset_kalman():
-                        last_change_time = current_time
+
+                    recovered = reset_kalman()
+                    if not recovered:
+                        recovered = reconnect_tracking()
+
+                    if recovered:
+                        last_pose_time = current_time
                         recovery_count = 0
                     else:
                         recovery_count += 1
@@ -325,7 +504,7 @@ def _odometry_only_process_func(
                     shared_status[0] = TrackingStatus.STALE
                 else:
                     shared_status[0] = TrackingStatus.VALID
-                shared_status[1] = last_change_time
+                shared_status[1] = last_pose_time
                 shared_status[2] = float(recovery_count)
             
             time.sleep(0.02)  # 50Hz
@@ -337,7 +516,8 @@ def _odometry_only_process_func(
     # Cleanup
     print("[OdometryProcess] Stopping...")
     try:
-        log_config.stop()
+        if log_config is not None:
+            log_config.stop()
         scf.close_link()
     except:
         pass
@@ -390,17 +570,15 @@ def _crazyflie_process_func(
     
     # State
     pose = np.zeros(4)
+    has_pose = False
     last_pose_time = time.time()
     recovery_count = 0
     is_flying = False
     
-    STALE_THRESHOLD_SEC = 0.5
-    POSITION_CHANGE_THRESHOLD = 0.001
+    STALE_THRESHOLD_SEC = 1.5
     MAX_RECOVERY_ATTEMPTS = 3
     RECOVERY_COOLDOWN_SEC = 5.0
     
-    last_position = np.zeros(4)
-    last_change_time = time.time()
     last_recovery_attempt = 0.0
     
     # Connect
@@ -422,12 +600,34 @@ def _crazyflie_process_func(
             shared_status[0] = TrackingStatus.FAILED
         return
     
+    kalman_reset_supported = None
+
     def reset_kalman():
         """Reset Kalman filter and wait for convergence."""
+        nonlocal kalman_reset_supported
+
+        if kalman_reset_supported is None:
+            _wait_for_param_toc(cf)
+            kalman_reset_supported = _cf_param_exists(cf, 'kalman.resetEstimation')
+            if not kalman_reset_supported:
+                print("[CrazyflieProcess] 'kalman.resetEstimation' not in TOC, disabling Kalman reset recovery")
+        if not kalman_reset_supported:
+            return False
+
         print("[CrazyflieProcess] Resetting Kalman...")
-        cf.param.set_value('kalman.resetEstimation', '1')
+        ok, missing_in_toc = _cf_set_param(cf, 'kalman.resetEstimation', '1', "[CrazyflieProcess]")
+        if not ok:
+            if missing_in_toc:
+                kalman_reset_supported = False
+                print("[CrazyflieProcess] Disabling Kalman reset recovery (parameter missing in TOC)")
+            return False
         time.sleep(0.1)
-        cf.param.set_value('kalman.resetEstimation', '0')
+        ok, missing_in_toc = _cf_set_param(cf, 'kalman.resetEstimation', '0', "[CrazyflieProcess]")
+        if not ok:
+            if missing_in_toc:
+                kalman_reset_supported = False
+                print("[CrazyflieProcess] Disabling Kalman reset recovery (parameter missing in TOC)")
+            return False
         time.sleep(1.0)
         
         log_config = LogConfig(name='Kalman Variance', period_in_ms=500)
@@ -475,12 +675,13 @@ def _crazyflie_process_func(
         return
 
     def pose_callback(timestamp, data, logconf):
-        nonlocal pose, last_pose_time
+        nonlocal pose, last_pose_time, has_pose
         pose[0] = data['stateEstimate.x'] * 100
         pose[1] = data['stateEstimate.y'] * 100
         pose[2] = (data['stateEstimate.z'] - 0.05) * 100  # Ground offset
         pose[3] = data['stateEstimate.yaw'] % 360
         last_pose_time = time.time()
+        has_pose = True
 
     try:
         log_config = LogConfig(name='Position', period_in_ms=20)
@@ -534,6 +735,7 @@ def _crazyflie_process_func(
             print(f"[CrazyflieProcess] Command error: {e}")
     
     # Main loop
+    print("[CrazyflieProcess] Entering main loop", flush=True)
     while not stop_event.is_set():
         try:
             # Check if connection is still alive
@@ -549,21 +751,31 @@ def _crazyflie_process_func(
             try:
                 while True:
                     cmd = command_queue.get_nowait()
+                    print(f"[CrazyflieProcess] Got command: {cmd}", flush=True)
                     if cmd.type == CommandType.STOP:
                         stop_event.set()
                         break
                     handle_command(cmd)
-            except:
+            except QueueEmpty:
                 pass
+            except Exception as e:
+                print(f"[CrazyflieProcess] Command queue error: {e}", flush=True)
 
-            # Check for stale tracking
-            position_changed = np.any(np.abs(pose - last_position) > POSITION_CHANGE_THRESHOLD * 100)
-            if position_changed:
-                last_change_time = current_time
-                last_position = pose.copy()
-            
-            time_since_change = current_time - last_change_time
-            is_stale = time_since_change > STALE_THRESHOLD_SEC
+            if not has_pose:
+                with position_lock:
+                    shared_position[0] = pose[0]
+                    shared_position[1] = pose[1]
+                    shared_position[2] = pose[2]
+                    shared_position[3] = pose[3]
+                    shared_status[0] = TrackingStatus.NOT_STARTED
+                    shared_status[1] = last_pose_time
+                    shared_status[2] = float(recovery_count)
+                time.sleep(0.02)
+                continue
+
+            # Staleness must be based on missing pose updates, not movement.
+            time_since_pose = current_time - last_pose_time
+            is_stale = time_since_pose > STALE_THRESHOLD_SEC
             
             if is_stale and recovery_count < MAX_RECOVERY_ATTEMPTS:
                 if current_time - last_recovery_attempt > RECOVERY_COOLDOWN_SEC:
@@ -573,7 +785,7 @@ def _crazyflie_process_func(
                         shared_status[2] = float(recovery_count + 1)
                     
                     if reset_kalman():
-                        last_change_time = current_time
+                        last_pose_time = current_time
                         recovery_count = 0
                     else:
                         recovery_count += 1
@@ -581,6 +793,7 @@ def _crazyflie_process_func(
             
             # Write to shared memory (lock ensures atomic read from main process)
             with position_lock:
+
                 shared_position[0] = pose[0]
                 shared_position[1] = pose[1]
                 shared_position[2] = pose[2]
@@ -592,7 +805,7 @@ def _crazyflie_process_func(
                     shared_status[0] = TrackingStatus.STALE
                 else:
                     shared_status[0] = TrackingStatus.VALID
-                shared_status[1] = last_change_time
+                shared_status[1] = last_pose_time
                 shared_status[2] = float(recovery_count)
             
             time.sleep(0.01)
@@ -620,8 +833,8 @@ class CrazyflieWrapperMP(RobotWrapper):
         self, 
         graph_manager: GraphManager,
         move_enable: bool = False, 
-        link_uri: str = 'radio://0/80/2M/E7E7E7E7E7',
-        esp32_ip: str = "172.16.0.141",
+        link_uri: str = 'radio://0/40/2M/BADF00D000',
+        esp32_ip: str = "172.16.0.39",
         esp32_port: int = 5000,
         listen_port: int = 5001
     ):
@@ -644,12 +857,10 @@ class CrazyflieWrapperMP(RobotWrapper):
         self._crazyflie_process: Optional[Process] = None
         self._is_flying = False
         
-        # AI-deck streaming (runs in main process)
-        self.ai_deck_client = AIDeckClient(
-            esp32_ip=esp32_ip, 
-            esp32_port=esp32_port, 
-            listen_port=listen_port
-        )
+        # AI-deck streaming (runs in separate process)
+        self._esp32_ip = esp32_ip
+        self._esp32_port = esp32_port
+        self._listen_port = listen_port
         self.frame_reader: Optional[AIDeckFrameReader] = None
         self.stream_on = False
         
@@ -772,8 +983,9 @@ class CrazyflieWrapperMP(RobotWrapper):
         return (pose[0], pose[1], pose[2], pose[3])
     
     def takeoff(self, height: float = 0.5, duration: float = 3.0) -> CommandResult:
+        print(f"[First] Takeoff (simulated)")
+        print(self.move_enable)
         if not self.move_enable:
-            print(f"[CrazyflieWrapperMP] Takeoff (simulated)")
             self._is_flying = True
             return CommandResult(value=True, replan=False)
         
@@ -947,22 +1159,30 @@ class CrazyflieWrapperMP(RobotWrapper):
         if self.stream_on:
             return
         try:
-            self.ai_deck_client.connect()
-            self.frame_reader = AIDeckFrameReader(self.ai_deck_client)
+            print(
+                "[CrazyflieWrapperMP] Starting AI-deck stream "
+                f"{self._esp32_ip}:{self._esp32_port} "
+                f"-> 0.0.0.0:{self._listen_port}"
+            )
+            self.frame_reader = AIDeckFrameReader(
+                esp32_ip=self._esp32_ip,
+                esp32_port=self._esp32_port,
+                listen_port=self._listen_port,
+            )
             self.frame_reader.start()
             self.stream_on = True
             logger.info("AI-deck stream started")
         except Exception as e:
             logger.error(f"Failed to start stream: {e}")
+            print(f"[CrazyflieWrapperMP] Failed to start AI-deck stream: {e}")
             self.stream_on = False
-    
+
     def stop_stream(self):
         if not self.stream_on:
             return
         if self.frame_reader:
             self.frame_reader.stop()
             self.frame_reader = None
-        self.ai_deck_client.close()
         self.stream_on = False
     
     def get_frame_reader(self) -> Any:

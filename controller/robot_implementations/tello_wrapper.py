@@ -64,15 +64,17 @@ class TelloWrapper(RobotWrapper):
     - Shared memory: Position data [x, y, z, yaw] flows from subprocess to main
     """
     
-    KEEPALIVE_PERIOD = 4.0
+    KEEPALIVE_PERIOD = 8.0
     GRAPH_UPDATE_PERIOD = 0.1
+    ODOMETRY_WATCHDOG_PERIOD = 1.0
+    ODOMETRY_RESTART_COOLDOWN = 8.0
 
     def __init__(
         self, 
         graph_manager: GraphManager,
         move_enable: bool = True,
         use_crazyflie_lighthouse: bool = True,
-        cf_uri: str = 'radio://0/40/2M/BADF00D003'
+        cf_uri: str = 'radio://0/40/2M/BADF00D000'
     ):
         super().__init__(graph_manager=graph_manager, move_enable=move_enable)
 
@@ -103,6 +105,7 @@ class TelloWrapper(RobotWrapper):
         
         # Process/thread handles
         self._odometry_process: Optional[Process] = None
+        self._last_odometry_restart = 0.0
         self._threads = []
 
     # -------------------------------------------------------------------------
@@ -156,25 +159,14 @@ class TelloWrapper(RobotWrapper):
         
         # Start odometry subprocess if using Lighthouse
         if self.use_lighthouse:
-            self._odometry_process = _spawn_ctx.Process(
-                target=_odometry_only_process_func,
-                args=(
-                    self._shared_position,
-                    self._shared_status,
-                    self._stop_event,
-                    self._cf_uri,
-                    self._position_lock,
-                ),
-                name="odometry-crazyflie",
-                daemon=True
-            )
-            self._odometry_process.start()
-            print(f"[TelloWrapper] Odometry process started (PID: {self._odometry_process.pid})")
+            self._start_odometry_process()
             
             if self.wait_for_tracking(timeout=15.0):
                 print("[TelloWrapper] Lighthouse tracking active")
             else:
                 print("[TelloWrapper] Warning: tracking not yet valid")
+
+            self._start_thread(self._odometry_watchdog_loop, "odometry-watchdog")
         
         # Start graph update thread
         if self.graph_manager is not None:
@@ -203,6 +195,51 @@ class TelloWrapper(RobotWrapper):
         t = threading.Thread(target=target, name=name, daemon=True)
         t.start()
         self._threads.append(t)
+
+    def _start_odometry_process(self):
+        self._stop_event.clear()
+        self._odometry_process = _spawn_ctx.Process(
+            target=_odometry_only_process_func,
+            args=(
+                self._shared_position,
+                self._shared_status,
+                self._stop_event,
+                self._cf_uri,
+                self._position_lock,
+            ),
+            name="odometry-crazyflie",
+            daemon=True
+        )
+        self._odometry_process.start()
+        print(f"[TelloWrapper] Odometry process started (PID: {self._odometry_process.pid})")
+
+    def _restart_odometry_process(self, reason: str):
+        if self._thread_stop_event.is_set():
+            return
+
+        now = time.time()
+        if now - self._last_odometry_restart < self.ODOMETRY_RESTART_COOLDOWN:
+            return
+
+        self._last_odometry_restart = now
+        print(f"[TelloWrapper] Restarting odometry process ({reason})...")
+
+        if self._odometry_process is not None:
+            try:
+                if self._odometry_process.is_alive():
+                    self._odometry_process.terminate()
+                self._odometry_process.join(timeout=1.0)
+            except Exception as e:
+                logger.debug(f"Odometry restart cleanup error: {e}")
+            finally:
+                self._odometry_process = None
+
+        with self._position_lock:
+            self._shared_status[0] = TrackingStatus.NOT_STARTED
+            self._shared_status[1] = 0.0
+            self._shared_status[2] = 0.0
+
+        self._start_odometry_process()
 
     # -------------------------------------------------------------------------
     # Video Stream
@@ -335,6 +372,9 @@ class TelloWrapper(RobotWrapper):
 
     def go_to_position(self, target_x_cm: float, target_y_cm: float, 
                        target_z_cm: float) -> CommandResult:
+        if not self._is_flying:
+            return CommandResult(value=False, replan=True)
+
         curr = self.get_position()
         
         dx = _cap_distance_signed(int(target_x_cm - curr[0]))
@@ -347,20 +387,43 @@ class TelloWrapper(RobotWrapper):
         if not self.move_enable:
             print(f"[Tello] go_to_position Δ({dx}, {dy}, {dz}) (simulated)")
             return CommandResult(value=True, replan=False)
-        
-        with self._command_lock:
-            self.drone.go_xyz_speed(dx, dy, dz, speed=20)
-        
-        return CommandResult(value=True, replan=False)
+
+        try:
+            # Pure vertical repositioning is more reliable with dedicated primitives.
+            if dx == 0 and dy == 0 and dz != 0:
+                return self._move_relative(up=max(0, dz), down=max(0, -dz))
+
+            with self._command_lock:
+                self.drone.go_xyz_speed(dx, dy, dz, speed=20)
+            return CommandResult(value=True, replan=False)
+        except Exception as e:
+            logger.error(f"go_to_position error (Δx={dx}, Δy={dy}, Δz={dz}): {e}")
+            return CommandResult(value=False, replan=True)
 
     # -------------------------------------------------------------------------
     # Background Loops
     # -------------------------------------------------------------------------
+    def _send_keepalive(self):
+        """
+        Keep Tello in SDK mode.
+        Prefer non-blocking keepalive commands when available to avoid warning spam.
+        """
+        if hasattr(self.drone, "send_keepalive"):
+            self.drone.send_keepalive()
+        elif hasattr(self.drone, "send_command_without_return"):
+            self.drone.send_command_without_return("command")
+        else:
+            self.drone.send_control_command("command")
+
     def _keepalive_loop(self):
         while not self._thread_stop_event.is_set():
             try:
-                with self._command_lock:
-                    self.drone.send_control_command("command")
+                # Do not contend with movement commands; skip this tick if busy.
+                if self._command_lock.acquire(timeout=0.1):
+                    try:
+                        self._send_keepalive()
+                    finally:
+                        self._command_lock.release()
             except Exception as e:
                 logger.debug(f"Keepalive error: {e}")
             self._thread_stop_event.wait(self.KEEPALIVE_PERIOD)
@@ -377,6 +440,24 @@ class TelloWrapper(RobotWrapper):
             except Exception as e:
                 logger.debug(f"Graph update error: {e}")
             self._thread_stop_event.wait(self.GRAPH_UPDATE_PERIOD)
+
+    def _odometry_watchdog_loop(self):
+        while not self._thread_stop_event.is_set():
+            try:
+                if not self.use_lighthouse:
+                    return
+
+                with self._position_lock:
+                    status_code = self._shared_status[0]
+
+                if self._odometry_process is None or not self._odometry_process.is_alive():
+                    self._restart_odometry_process("process exited")
+                elif status_code == TrackingStatus.FAILED:
+                    self._restart_odometry_process("tracking failed")
+            except Exception as e:
+                logger.debug(f"Odometry watchdog error: {e}")
+
+            self._thread_stop_event.wait(self.ODOMETRY_WATCHDOG_PERIOD)
 
     # -------------------------------------------------------------------------
     # Utilities
