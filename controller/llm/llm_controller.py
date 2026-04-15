@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 import os
 from pathlib import Path
 import re
@@ -6,6 +8,7 @@ import math
 import time
 import queue
 import asyncio
+import threading
 from typing import Optional, Tuple
 
 from PIL import Image
@@ -41,7 +44,7 @@ from ..visual_sensing.vision_skill_wrapper import VisionSkillWrapper
 from .llm_planner import LLMPlanner
 from ..skillset import SkillSet, LowLevelSkillItem, HighLevelSkillItem, SkillArg
 from ..utils.general_utils import encode_image, normalize_angle_deg, print_t
-from ..minispec_interpreter import MiniSpecInterpreter, Statement
+from ..minispec_interpreter import MiniSpecInterpreter, MiniSpecReturnValue, Statement
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv()
@@ -102,6 +105,11 @@ class LLMController:
         self.controller_wait_takeoff = True
         self.images_counter = 0
         self.direction_step_deg = 45  # Rotate 45° between photos
+        self.stop_execution_event = threading.Event()
+        self._active_interpreter = None
+        self._active_interpreter_lock = threading.Lock()
+        self._task_running = False
+        self._task_running_lock = threading.Lock()
 
     def _initialize_robot(self, robot_type) -> RobotWrapper:
         """Factory method to initialize the correct robot wrapper."""
@@ -115,8 +123,14 @@ class LLMController:
                 return GearWrapper()
             case RobotType.CRAZYFLIE:
                 print_t("[C] Start Crazyflie drone...")
-                from ..robot_implementations.crazyflie_wrapper import CrazyflieWrapper
-                return CrazyflieWrapper(move_enable=True, graph_manager=self.graph_manager)
+                from ..robot_implementations.crazyflie_wrapper import CrazyflieWrapperMP
+                return CrazyflieWrapperMP(
+                    move_enable=True,
+                    graph_manager=self.graph_manager,
+                    esp32_ip="172.16.0.39",
+                    esp32_port=5000,
+                    listen_port=5001,
+                )
             case _:
                 print_t("[C] Start Virtual drone...")
                 return VirtualRobotWrapper(graph_manager=self.graph_manager, move_enable=True)
@@ -439,7 +453,13 @@ class LLMController:
 
 
     def skill_delay(self, s: float) -> CommandResult:
-        time.sleep(s)
+        remaining = max(0.0, float(s))
+        while remaining > 0:
+            if self.stop_execution_event.is_set():
+                return CommandResult(value="Execution stopped by user", replan=False)
+            sleep_for = min(0.05, remaining)
+            time.sleep(sleep_for)
+            remaining -= sleep_for
         return CommandResult(value=True, replan=False)
     
     def skill_add_skill(self, skill_name: str, description: str, minispec_def: str):
@@ -499,7 +519,55 @@ class LLMController:
             self.message_queue.put(message)
 
     def stop_controller(self):
+        self.request_plan_stop()
         self.controller_active = False
+
+    def _set_task_running(self, running: bool):
+        with self._task_running_lock:
+            self._task_running = running
+
+    def is_task_running(self) -> bool:
+        with self._task_running_lock:
+            return self._task_running
+
+    def _try_stop_robot_motion(self):
+        # Best-effort halt for wrappers exposing direct motion channels.
+        try:
+            tello_client = getattr(self.drone, "drone", None)
+            if tello_client is not None and hasattr(tello_client, "send_rc_control"):
+                command_lock = getattr(self.drone, "_command_lock", None)
+                if command_lock and command_lock.acquire(blocking=False):
+                    try:
+                        tello_client.send_rc_control(0, 0, 0, 0)
+                    finally:
+                        command_lock.release()
+                else:
+                    tello_client.send_rc_control(0, 0, 0, 0)
+                return
+        except Exception as e:
+            print_t(f"[C] Warning: failed to stop Tello RC stream: {e}")
+
+        try:
+            base_robot = getattr(self.drone, "robot", None)
+            if base_robot is not None and hasattr(base_robot, "send_command_hover"):
+                base_robot.send_command_hover(0, 0, 0, 0)
+        except Exception as e:
+            print_t(f"[C] Warning: failed to send hover stop command: {e}")
+
+    def request_plan_stop(self) -> bool:
+        was_running = self.is_task_running()
+        self.stop_execution_event.set()
+
+        with self._active_interpreter_lock:
+            active_interpreter = self._active_interpreter
+        if active_interpreter is not None:
+            active_interpreter.request_stop()
+
+        self._try_stop_robot_motion()
+
+        if was_running:
+            self.append_message("[LOG] Stop requested by user.")
+        return was_running
 
     def get_latest_frame(self, plot=False):
         image = self.shared_frame.get_image()
@@ -509,99 +577,150 @@ class LLMController:
         return image
     
     def execute_minispec(self, minispec: str):
-        interpreter = MiniSpecInterpreter(self.message_queue)
-        ret_val = interpreter.execute([minispec])
-        self.current_task.update_execution_history(interpreter.execution_history)
-        return ret_val
+        if self.stop_execution_event.is_set():
+            return MiniSpecReturnValue("Execution stopped by user", False)
+
+        interpreter = MiniSpecInterpreter(self.message_queue, stop_event=self.stop_execution_event)
+        with self._active_interpreter_lock:
+            self._active_interpreter = interpreter
+
+        try:
+            ret_val = interpreter.execute([minispec])
+            if self.current_task is not None:
+                self.current_task.update_execution_history(interpreter.execution_history)
+            return ret_val
+        finally:
+            with self._active_interpreter_lock:
+                if self._active_interpreter is interpreter:
+                    self._active_interpreter = None
 
     def execute_task_description(self, task_description: str = "", img_b64 = None, is_shortcut: bool = False, shortcut: str = ""):
         if self.controller_wait_takeoff:
             self.append_message("[Warning] Controller is waiting for takeoff...")
             return
+
+        self.stop_execution_event.clear()
+        self._set_task_running(True)
+        interrupted_by_user = False
             
-        if is_shortcut:
-            assert shortcut != "", "shortcut should be not empty"
-            current_task_dict = self.long_memory_module.get_shortcut_task(shortcut=shortcut)
-            self.current_task = Task(
-                task_description=current_task_dict['task_description'], 
-                execution_history=current_task_dict['execution_history'],
-                current_plan=current_task_dict['current_plan'],
-                user_feedback=current_task_dict['user_feedback'],
-                is_new=False
-            )
-            if not self.current_task:
-                self.append_message("Sorry. Given shortcut is not existing")
-                return
-        else:
-            assert task_description != "", "task_description should be not empty"
-            self.current_task = Task(task_description)
-
-        # self.append_message('[TASK]: ' + task_description)
-        ret_val = None
-        while True:
-            self.current_plan, requires_execution= self.planner.plan(
-                self.current_task,
-                img_b64=img_b64,
-                execution_history=self.current_task.get_execution_plan_summary_prompt(), 
-                context_graph=self.graph_manager.get_dense_graph(), 
-                old_interactions_feedback=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
-            )
-
-            if requires_execution:
-                self.last_task = self.current_task
-
-            if not self.current_plan:
-                continue
-
-            self.current_task.set_current_plan(self.current_plan)
-            # self.append_message(f'[Plan]: {self.current_plan}')
-            print_t("Message appended")
-            
-            try:
-                self.execution_time = time.time()
-                # Evaluation log - Start execution
-                with open(EVALUATION_LOG_PATH, "a") as f:
-                    f.write(f"[{time.time()}] Start execution\n")
-                ret_val = self.execute_minispec(self.current_task.get_current_plan())
-            except Exception as e:
-                print_t(f"[C] Error: {e}")
-            
-            if ret_val is not None and ret_val.wait_user_answer:
-                with open(EVALUATION_LOG_PATH, "a") as f:
-                    f.write(f"[{time.time()}] Waiting user answer\n")
-                user_question_answer = self.user_answer_queue.get(block=True)
-                with open(EVALUATION_LOG_PATH, "a") as f:
-                    f.write(f"[{time.time()}] User answered\n")
-                print(f"Inside if statement {user_question_answer}")
-                user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
-                self.current_task.update_execution_history(user_question_answer_str)
-                self.current_task.append_last_iteration_summary(user_question_answer_str)
-                print_t(f"[C] > Replanning after user answer<: {user_question_answer_str}")
-                # Evaluation log - Task ended
-                with open(EVALUATION_LOG_PATH, "a") as f:
-                    f.write(f"[{time.time()}] Start replanning after user answer\n")
-                continue
-            elif ret_val is not None and ret_val.replan:
-                print_t(f"[C] > Replanning <: {ret_val.value}")
-                # Evaluation log - Task ended
-                with open(EVALUATION_LOG_PATH, "a") as f:
-                    f.write(f"[{time.time()}] Start replanning\n")
-                self.short_term_memory.generate_interaction_summary(self.current_task, 
-                                                               context_graph=self.graph_manager.get_dense_graph(), 
-                                                               low_level_skills = self.low_level_skillset,
-                                                               high_level_skills = self.high_level_skillset
-                                                               )
-                continue
+        try:
+            if is_shortcut:
+                assert shortcut != "", "shortcut should be not empty"
+                current_task_dict = self.long_memory_module.get_shortcut_task(shortcut=shortcut)
+                self.current_task = Task(
+                    task_description=current_task_dict['task_description'], 
+                    execution_history=current_task_dict['execution_history'],
+                    current_plan=current_task_dict['current_plan'],
+                    user_feedback=current_task_dict['user_feedback'],
+                    is_new=False
+                )
+                if not self.current_task:
+                    self.append_message("Sorry. Given shortcut is not existing")
+                    return
             else:
-                break
+                assert task_description != "", "task_description should be not empty"
+                self.current_task = Task(task_description)
 
-        # Evaluation log - Task ended
-        with open(EVALUATION_LOG_PATH, "a") as f:
-            f.write(f"[{time.time()}] Task ended\n\n")
-        print("[Task ended]")
-        self.append_message(f'\n[Task ended]')
-        self.append_message('end')
-        self.current_plan = None
+            # self.append_message('[TASK]: ' + task_description)
+            ret_val = None
+            while True:
+                if self.stop_execution_event.is_set():
+                    interrupted_by_user = True
+                    break
+
+                self.current_plan, requires_execution= self.planner.plan(
+                    self.current_task,
+                    img_b64=img_b64,
+                    execution_history=self.current_task.get_execution_plan_summary_prompt(), 
+                    context_graph=self.graph_manager.get_dense_graph(), 
+                    old_interactions_feedback=self.long_memory_module.retrieve_old_interactions(self.current_task.get_task_description()),
+                )
+
+                if self.stop_execution_event.is_set():
+                    interrupted_by_user = True
+                    break
+
+                if requires_execution:
+                    self.last_task = self.current_task
+
+                if not self.current_plan:
+                    continue
+
+                self.current_task.set_current_plan(self.current_plan)
+                # self.append_message(f'[Plan]: {self.current_plan}')
+                print_t("Message appended")
+                
+                try:
+                    self.execution_time = time.time()
+                    # Evaluation log - Start execution
+                    with open(EVALUATION_LOG_PATH, "a") as f:
+                        f.write(f"[{time.time()}] Start execution\n")
+                    ret_val = self.execute_minispec(self.current_task.get_current_plan())
+                except Exception as e:
+                    print_t(f"[C] Error: {e}")
+
+                if self.stop_execution_event.is_set():
+                    interrupted_by_user = True
+                    break
+                
+                if ret_val is not None and ret_val.wait_user_answer:
+                    with open(EVALUATION_LOG_PATH, "a") as f:
+                        f.write(f"[{time.time()}] Waiting user answer\n")
+
+                    user_question_answer = None
+                    while not self.stop_execution_event.is_set():
+                        try:
+                            user_question_answer = self.user_answer_queue.get(timeout=0.1)
+                            break
+                        except queue.Empty:
+                            continue
+
+                    if self.stop_execution_event.is_set():
+                        interrupted_by_user = True
+                        break
+
+                    with open(EVALUATION_LOG_PATH, "a") as f:
+                        f.write(f"[{time.time()}] User answered\n")
+                    print(f"Inside if statement {user_question_answer}")
+                    user_question_answer_str = str(user_question_answer[0]) + " The user answer is: " + str(user_question_answer[1])
+                    self.current_task.update_execution_history(user_question_answer_str)
+                    self.current_task.append_last_iteration_summary(user_question_answer_str)
+                    print_t(f"[C] > Replanning after user answer<: {user_question_answer_str}")
+                    # Evaluation log - Task ended
+                    with open(EVALUATION_LOG_PATH, "a") as f:
+                        f.write(f"[{time.time()}] Start replanning after user answer\n")
+                    continue
+                elif ret_val is not None and ret_val.replan:
+                    print_t(f"[C] > Replanning <: {ret_val.value}")
+                    # Evaluation log - Task ended
+                    with open(EVALUATION_LOG_PATH, "a") as f:
+                        f.write(f"[{time.time()}] Start replanning\n")
+                    self.short_term_memory.generate_interaction_summary(self.current_task, 
+                                                                   context_graph=self.graph_manager.get_dense_graph(), 
+                                                                   low_level_skills = self.low_level_skillset,
+                                                                   high_level_skills = self.high_level_skillset
+                                                                   )
+                    continue
+                else:
+                    break
+        finally:
+            # Evaluation log - Task ended
+            with open(EVALUATION_LOG_PATH, "a") as f:
+                f.write(f"[{time.time()}] Task ended\n\n")
+
+            if interrupted_by_user:
+                print("[Task interrupted by user]")
+                self.append_message('\n[Task interrupted by user]')
+            else:
+                print("[Task ended]")
+                self.append_message('\n[Task ended]')
+
+            self.append_message('end')
+            self.current_plan = None
+            self._set_task_running(False)
+            self.stop_execution_event.clear()
+            with self._active_interpreter_lock:
+                self._active_interpreter = None
 
     def start_robot(self):
         print_t("[C] Connecting to robot...")
@@ -612,8 +731,23 @@ class LLMController:
         self.drone.start_stream()
         self.controller_wait_takeoff = False
         time.sleep(3)
-        drone_position = self.drone.get_position()
-        self.drone.go_to_position(drone_position[0], drone_position[1], -30)
+
+        # Skip initial alignment if external tracking is not valid yet.
+        if hasattr(self.drone, "is_position_valid"):
+            try:
+                if not self.drone.is_position_valid():
+                    print_t("[C] Tracking not valid yet, skipping initial go_to_position.")
+                    return
+            except Exception:
+                pass
+
+        # drone_position = self.drone.get_position()
+        # try:
+        #     result = self.drone.go_to_position(drone_position[0], drone_position[1], -30)
+        #     if isinstance(result, CommandResult) and not result.value:
+        #         print_t("[C] Warning: initial go_to_position failed, continuing without alignment.")
+        # except Exception as e:
+        #     print_t(f"[C] Warning: initial go_to_position raised error: {e}")
 
     def stop_robot(self):
         print_t("[C] Drone is landing...")
@@ -624,13 +758,20 @@ class LLMController:
     def capture_loop(self, asyncio_loop):
         print_t("[C] Start capture loop...")
         frame_reader = self.drone.get_frame_reader()
-        
+        if frame_reader is None:
+            print_t("[C] Warning: frame reader unavailable, stream may not be active")
+
         while self.controller_active:
-            self.latest_frame = frame_reader.frame
-            self.planner.update_latest_frame(self.latest_frame)
-            
+            if frame_reader is None:
+                time.sleep(0.10)
+                frame_reader = self.drone.get_frame_reader()
+                continue
+            raw = frame_reader.frame
+            self.latest_frame = raw
+            self.planner.update_latest_frame(raw)
+
             frame = Frame(
-                frame_reader.frame,
+                raw,
                 frame_reader.depth if hasattr(frame_reader, 'depth') else None
             )
             

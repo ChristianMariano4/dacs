@@ -128,6 +128,9 @@ class MiniSpecProgram:
         ret_val = MiniSpecReturnValue.default()
         idx = 0
         while not self.finished:
+            if Statement.interpreter and Statement.interpreter.is_stop_requested():
+                self.ret = True
+                return MiniSpecReturnValue("Execution stopped by user", False)
             if idx >= len(self.statements):
                 time.sleep(0.1)
                 continue
@@ -139,6 +142,9 @@ class MiniSpecProgram:
 
         # eventuali statement rimasti dopo finished
         for j in range(idx, len(self.statements)):
+            if Statement.interpreter and Statement.interpreter.is_stop_requested():
+                self.ret = True
+                return MiniSpecReturnValue("Execution stopped by user", False)
             ret_val = self.statements[j].eval()
             if ret_val.replan or self.statements[j].ret:
                 self.ret = True
@@ -303,13 +309,22 @@ class Statement:
     def eval(self) -> 'MiniSpecReturnValue':
         print_debug(f'Statement eval: {self.action}')
         while not self.executable:
+            if self.interpreter and self.interpreter.is_stop_requested():
+                self.ret = True
+                return MiniSpecReturnValue("Execution stopped by user", False)
             time.sleep(0.05)
+        if self.interpreter and self.interpreter.is_stop_requested():
+            self.ret = True
+            return MiniSpecReturnValue("Execution stopped by user", False)
 
         if self.action == 'if':
             ret_val = self.eval_condition(self.condition)
             if ret_val.replan:
                 return ret_val
             if ret_val.value:
+                if self.interpreter and self.interpreter.is_stop_requested():
+                    self.ret = True
+                    return MiniSpecReturnValue("Execution stopped by user", False)
                 ret_val = self.sub_statements.eval()
                 if ret_val.replan or self.sub_statements.ret:
                     self.ret = True
@@ -319,6 +334,9 @@ class Statement:
         if self.action == 'loop':
             ret_val = MiniSpecReturnValue.default()
             for _ in range(self.loop_count):
+                if self.interpreter and self.interpreter.is_stop_requested():
+                    self.ret = True
+                    return MiniSpecReturnValue("Execution stopped by user", False)
                 ret_val = self.sub_statements.eval()
                 if ret_val.replan or self.sub_statements.ret:
                     self.ret = True
@@ -339,6 +357,9 @@ class Statement:
 
     def eval_function(self, func: str) -> MiniSpecReturnValue:
         print_debug(f'Eval function: {func}')
+        if self.interpreter and self.interpreter.is_stop_requested():
+            self.ret = True
+            return MiniSpecReturnValue("Execution stopped by user", False)
         name, *rest = func.split('(', 1)
         name = name.strip()
 
@@ -570,7 +591,7 @@ class Statement:
 
 class MiniSpecInterpreter:
     """Thread che esegue gli Statement in una coda FIFO condivisa."""
-    def __init__(self, message_queue: queue.Queue):
+    def __init__(self, message_queue: queue.Queue, stop_event=None):
         self.env: dict = {}
         # execution history structure:
         # - first field is a string, that is the complete plan
@@ -581,16 +602,38 @@ class MiniSpecInterpreter:
 
         Statement.execution_queue = Queue()
         Statement.interpreter = self  # Set reference to this interpreter
-        self.execution_thread = Thread(target=self._executor, daemon=True)
-        self.execution_thread.start()
 
         self.message_queue = message_queue
+        self.stop_event = stop_event
         self.ret_queue: Queue[MiniSpecReturnValue] = Queue()
         self.timestamp_get_plan = None
         self.timestamp_start_execution = None
         self.program_count = 0
         self.program_lock = Lock()  # Lock for thread-safe program_count updates
         self.is_executing = False  # Track if we're currently executing a program
+        self._stop_signal_sent = False
+        self._stop_signal_lock = Lock()
+        self.execution_thread = Thread(target=self._executor, daemon=True)
+        self.execution_thread.start()
+
+    def is_stop_requested(self) -> bool:
+        return self.stop_event is not None and self.stop_event.is_set()
+
+    def _signal_stop_result(self):
+        with self._stop_signal_lock:
+            if self._stop_signal_sent:
+                return
+            self._stop_signal_sent = True
+        self.ret_queue.put(MiniSpecReturnValue("Execution stopped by user", False))
+
+    def request_stop(self):
+        with Statement.execution_queue.mutex:
+            Statement.execution_queue.queue.clear()
+        with self.program_lock:
+            self.program_count = 0
+            self.is_executing = False
+            self.timestamp_start_execution = None
+        self._signal_stop_result()
 
     # ------------------------------------------------------------- public API
     def execute(self, code: Stream[ChatCompletion.ChatCompletionChunk] | List[str]) -> MiniSpecReturnValue:
@@ -599,6 +642,8 @@ class MiniSpecInterpreter:
 
         # self.execution_history.clear()
         self.execution_history = ["", []]
+        with self._stop_signal_lock:
+            self._stop_signal_sent = False
         
         # Don't reset program_count here - let the parse function update it
         with self.program_lock:
@@ -610,12 +655,22 @@ class MiniSpecInterpreter:
         program.parse(code, exec=True)
         
         print_t('>>> Program:', program, 'Time:', time.time() - self.timestamp_get_plan)
-        # attende risultato thread
-        return self.ret_queue.get()
+        # attende risultato thread con polling per intercettare stop utente
+        while True:
+            if self.is_stop_requested():
+                self.request_stop()
+            try:
+                return self.ret_queue.get(timeout=0.05)
+            except queue.Empty:
+                continue
 
     # --------------------------------------------------------- executor thread
     def _executor(self):
         while True:
+            if self.is_stop_requested():
+                self.request_stop()
+                time.sleep(0.01)
+                continue
             if Statement.execution_queue.empty():
                 time.sleep(0.005)
                 continue
@@ -627,6 +682,9 @@ class MiniSpecInterpreter:
                     print_t('>>> Start execution')
 
             stmt = Statement.execution_queue.get()
+            if self.is_stop_requested():
+                self.request_stop()
+                continue
             print_debug('Queue get statement:', stmt)
             # Evaluation log - Start statement execution
             with open(EVALUATION_LOG_PATH, "a") as f:
