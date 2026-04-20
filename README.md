@@ -60,19 +60,19 @@ The following videos in `assets/` summarize the key behavioral differences.
 
 TypeFly cannot reliably reason over contextual scene characteristics to find hidden objects, and tends to fall back to reactive scanning behavior.
 
-assets/typefly_hidden_apple.mp4
+[Video](assets/typefly_hidden_apple.mp4)
 
 ### DACS context-aware search on hidden target
 
 DACS can reason over context to infer where hidden objects are likely to be, improving exploration decisions when the target is not directly visible.
 
-assets/dacs_hidden_apple.mp4
+[Video](assets/dacs_hidden_apple.mp4)
 
 ### DACS graph memory reuse
 
 DACS uses persistent graph memory of regions and previously seen objects. In this example, it exploits prior observations (a bottle seen during earlier exploration) to guide the next action.
 
-assets/dacs_graph.mp4
+[Video](assets/dacs_graph.mp4)
 
 ## Repository Map
 
