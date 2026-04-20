@@ -833,7 +833,7 @@ class CrazyflieWrapperMP(RobotWrapper):
         self, 
         graph_manager: GraphManager,
         move_enable: bool = False, 
-        link_uri: str = 'radio://0/40/2M/BADF00D000',
+        link_uri: str = 'radio://0/40/2M/BADF00D003',
         esp32_ip: str = "172.16.0.39",
         esp32_port: int = 5000,
         listen_port: int = 5001
@@ -983,7 +983,7 @@ class CrazyflieWrapperMP(RobotWrapper):
         return (pose[0], pose[1], pose[2], pose[3])
     
     def takeoff(self, height: float = 0.5, duration: float = 3.0) -> CommandResult:
-        print(f"[First] Takeoff (simulated)")
+        print(f"[First] Takeoff")
         print(self.move_enable)
         if not self.move_enable:
             self._is_flying = True
